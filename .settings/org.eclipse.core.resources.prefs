@@ -1,0 +1,14 @@
+eclipse.preferences.version=1
+encoding//source/config/configPraser.py=gbk
+encoding//source/config/projectConfig.py=gbk
+encoding//source/data/ApiHelper.py=gbk
+encoding//source/data/Comment.py=gbk
+encoding//source/data/CommentPraser.py=gbk
+encoding//source/data/DataFetcher.py=gbk
+encoding//source/data/DesensitizationHelper.py=gbk
+encoding//source/data/ExcelHelper.py=gbk
+encoding//source/data/User.py=gbk
+encoding//source/data/UserPraser.py=gbk
+encoding//source/nlp/SplitWordHelper.py=gbk
+encoding//source/nlp/__init__.py=gbk
+encoding//source/nlp/jiebademo.py=gbk
