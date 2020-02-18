@@ -12,7 +12,8 @@ class projectConfig:
     PATH_STOP_WORD_HGD = '\data\HGDStopWord.txt'
     PATH_SPLIT_WORD_EXCEL = '\data\output_splitword.xlsx'
     PATH_USER_DICT_PATH=  r'\data\user_dict.utf8'
-    
+    PATH_TEST_CRF_INPUT = '\data\people-daily.txt'
+    PATH_TEST_CRF_TEST_RESULT  = r'\data\test.rst'
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
     
 
@@ -50,6 +51,14 @@ class projectConfig:
     @staticmethod
     def getUserDictPath():
         return projectConfig.getRootPath() + projectConfig.PATH_USER_DICT_PATH
+    
+    @staticmethod
+    def getCRFInputData():
+        return projectConfig.getRootPath() + projectConfig.PATH_TEST_CRF_INPUT
+    
+    @staticmethod
+    def getCRFTestDataResult():
+        return projectConfig.getRootPath() + projectConfig.PATH_TEST_CRF_TEST_RESULT
     
     
 if __name__=="__main__":

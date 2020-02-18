@@ -1,6 +1,7 @@
 #coding=gbk
 from source.config.projectConfig import projectConfig
 import jieba
+import jieba.posseg
 
 class SplitWordHelper:
     '''分词助手
@@ -37,3 +38,13 @@ class SplitWordHelper:
         print("收集分词数：",tf_dict.__len__())
         sorted_list = sorted(tf_dict.items(), key = lambda x:x[1],reverse = True)
         return sorted_list
+    
+    def getPartOfSpeechTaggingFromListData(self,sent):
+        ''' 获取给定某个句子的词性标注
+        
+        '''
+        seg_list = jieba.posseg.cut(sent)
+        result = []
+        for w,t in seg_list:
+            result.append((w,t))
+        return result

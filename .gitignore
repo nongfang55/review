@@ -1,1 +1,8 @@
 .ini
+/data
+/source/data/__pycache__
+**/__pycache__
+/source/config/__pycache__
+/source/nlp/__pycache__
+.settings/
+*.pyc

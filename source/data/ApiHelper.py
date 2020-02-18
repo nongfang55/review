@@ -9,8 +9,11 @@ import os
 from source.config import projectConfig
 from source.config import configPraser
 from source.data.CommentPraser import CommentPraser
+from source.data.TableItemHelper import TableItemHelper
+from source.data.StringKeyUtils import StringKeyUtils
 from _datetime import datetime
 from math import ceil
+
 class ApiHelper:
     
     API_GITHUB = 'https://api.github.com'
@@ -34,15 +37,7 @@ class ApiHelper:
     STR_PULL_NUMBER = ':pull_number'
     STR_REVIEW_ID = ':review_id'
 
-    
-    
-    STR_KEY_ID = 'id'
-    STR_KET_NUMBER = 'number'
-    STR_KEY_LANG = 'language'
-    STR_KEY_LANG_OTHER = 'Other'
-
-    
-    
+        
     STR_PARM_STARE = 'state'
     STR_PARM_ALL = 'all'
     STR_PARM_OPEN = 'open'
@@ -127,9 +122,9 @@ class ApiHelper:
         self.printCommon(r)
         self.judgeLimit(r)
         if(r.status_code != 200):
-            return self.STR_KEY_LANG_OTHER
+            return StringKeyUtils.STR_KEY_LANG_OTHER
         
-        return r.json().get(self.STR_KEY_LANG, self.STR_KEY_LANG_OTHER)
+        return r.json().get(StringKeyUtils.STR_KEY_LANG, StringKeyUtils.STR_KEY_LANG_OTHER)
     
     def getTotalPullRequestNumberForProject(self):
         '''通过获取最新的pull request的编号来获取总数量  获取参数为all
@@ -283,7 +278,7 @@ class ApiHelper:
         res = list()
         for review in r.json():
             #print(review)
-            res.append(review.get(self.STR_KEY_ID))
+            res.append(review.get(StringKeyUtils.STR_KEY_ID))
             
         return res
         
@@ -308,7 +303,35 @@ class ApiHelper:
                 print("sleep end")
             
             
+        
+    def getInformationForPorject(self): 
+        '''获取一个项目的信息  返回一个字典
+        '''
+        if(self.owner == None or self.repo == None):
+            return list()
+        
+        api = self.API_GITHUB + self.API_PROJECT
+        api = api.replace(self.STR_OWNER,self.owner)
+        api = api.replace(self.STR_REPO,self.repo)
+#         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+        
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        r = requests.get(api, headers = headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if(r.status_code != 200):
+            return None
+        
+        rawData = r.json()
+        res = {}
+        for item in TableItemHelper.getProjectTableItem():
+            res[item] = rawData.get(item, None) 
             
+        #print(res)
+        return res
+        
+        
             
             
         
@@ -324,8 +347,8 @@ if __name__=="__main__":
 #     print(helper.getCommentsForPullRequest(38211))
 #     print(helper.getCommentsForPullRequest(38211))
 #     print(helper.getMaxSolvedPullRequestNumberForProject())
-    print(helper.getLanguageForPorject())
-     
+#     print(helper.getLanguageForPorject())
+    print(helper.getInformationForPorject())
     
         
     

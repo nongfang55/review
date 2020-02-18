@@ -44,3 +44,28 @@ if __name__=='__main__':
 #                                 , 1 , 1, sorted_list_value)
 #      
 
+    '''词性标注demo '''
+    
+    sent = '中文分词是文本处理不可或缺的一步！'
+    print(SplitWordHelper().getPartOfSpeechTaggingFromListData(sent))
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
