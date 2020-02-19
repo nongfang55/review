@@ -8,9 +8,9 @@ import time
 import os
 from source.config import projectConfig
 from source.config import configPraser
-from source.data.CommentPraser import CommentPraser
-from source.data.TableItemHelper import TableItemHelper
-from source.data.StringKeyUtils import StringKeyUtils
+from source.data.bean.CommentPraser import CommentPraser
+from source.utils.TableItemHelper import TableItemHelper
+from source.utils.StringKeyUtils import StringKeyUtils
 from _datetime import datetime
 from math import ceil
 

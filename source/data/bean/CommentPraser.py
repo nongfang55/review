@@ -1,7 +1,7 @@
 #coding=gbk
-from source.data.Comment import Comment 
-from source.data.User import User
-from source.data.UserPraser import UserPraser
+from source.data.bean.Comment import Comment 
+from source.data.bean.User import User
+from source.data.bean.UserPraser import UserPraser
 
 class CommentPraser:
     

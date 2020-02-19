@@ -4,9 +4,8 @@ import xlwt
 from datetime import date
 from source.config.projectConfig import projectConfig
 from _datetime import datetime
-import os
 from xlutils import copy
-from source.data.DesensitizationHelper import DesensitizationHelper
+from source.utils.DesensitizationHelper import DesensitizationHelper
 class ExcelHelper:
     
     STR_KEY_REPO_NAME = 'reponame'

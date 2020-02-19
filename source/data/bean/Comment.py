@@ -1,5 +1,5 @@
 #coding=gbk
-from source.data.User import User
+from source.data.bean.User import User
 class Comment:
     '''
        Comment 数据类，为从api中提取的具体实现

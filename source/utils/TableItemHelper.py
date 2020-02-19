@@ -1,5 +1,5 @@
 #coding=gbk
-from source.data.StringKeyUtils import StringKeyUtils
+from source.utils.StringKeyUtils import StringKeyUtils
 
 class TableItemHelper:
     '''用于展现在excel 表和数据库中不同的数据的存储数据项
