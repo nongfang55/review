@@ -1,8 +1,10 @@
 eclipse.preferences.version=1
 encoding//source/config/configPraser.py=gbk
 encoding//source/config/projectConfig.py=gbk
+encoding//source/data/bean/Beanbase.py=gbk
 encoding//source/data/bean/Comment.py=gbk
 encoding//source/data/bean/CommentPraser.py=gbk
+encoding//source/data/bean/Repository.py=gbk
 encoding//source/data/bean/User.py=gbk
 encoding//source/data/bean/UserPraser.py=gbk
 encoding//source/data/service/ApiHelper.py=gbk
