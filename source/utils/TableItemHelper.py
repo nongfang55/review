@@ -25,8 +25,6 @@ class TableItemHelper:
         
         return items
 
-
-
 if __name__ == '__main__':
     print(TableItemHelper.getProjectTableItem())
         

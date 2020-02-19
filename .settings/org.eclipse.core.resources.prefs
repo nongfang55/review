@@ -6,7 +6,6 @@ encoding//source/data/bean/Comment.py=gbk
 encoding//source/data/bean/CommentPraser.py=gbk
 encoding//source/data/bean/Repository.py=gbk
 encoding//source/data/bean/User.py=gbk
-encoding//source/data/bean/UserPraser.py=gbk
 encoding//source/data/service/ApiHelper.py=gbk
 encoding//source/data/service/DataFetcher.py=gbk
 encoding//source/database/DataBaseOpenHelper.py=gbk

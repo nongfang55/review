@@ -25,7 +25,8 @@ class BeanBase:
     DATA_TYPE_INT = 0
     DATA_TYPE_DATE_TIME = 1
     DATA_TYPE_STRING = 2
-    DATA_TYPE_TEXT = 3    
+    DATA_TYPE_TEXT = 3
+    DATA_TYPE_BOOLEAN = 4    
     
     class parser:
         '''用于解析json的数据类'''

@@ -1,4 +1,4 @@
-#coding=gbk
+ #coding=gbk
 import requests
 import sys
 import json
@@ -13,6 +13,7 @@ from source.utils.TableItemHelper import TableItemHelper
 from source.utils.StringKeyUtils import StringKeyUtils
 from _datetime import datetime
 from math import ceil
+from source.data.bean.Repository import Respository
 
 class ApiHelper:
     
@@ -305,7 +306,7 @@ class ApiHelper:
             
         
     def getInformationForPorject(self): 
-        '''获取一个项目的信息  返回一个字典
+        '''获取一个项目的信息  返回一个项目对象
         '''
         if(self.owner == None or self.repo == None):
             return list()
@@ -323,12 +324,9 @@ class ApiHelper:
         if(r.status_code != 200):
             return None
         
-        rawData = r.json()
-        res = {}
-        for item in TableItemHelper.getProjectTableItem():
-            res[item] = rawData.get(item, None) 
+        res =  Respository.parser.parser(r.json())
             
-        #print(res)
+        print(res)
         return res
         
         
@@ -348,7 +346,7 @@ if __name__=="__main__":
 #     print(helper.getCommentsForPullRequest(38211))
 #     print(helper.getMaxSolvedPullRequestNumberForProject())
 #     print(helper.getLanguageForPorject())
-    print(helper.getInformationForPorject())
+    print(helper.getInformationForPorject().owner.getValueDict())
     
         
     

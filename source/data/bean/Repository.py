@@ -2,6 +2,7 @@
 
 from source.data.bean.Beanbase import BeanBase
 from source.utils.StringKeyUtils import StringKeyUtils
+from source.data.bean.User import User
 
 class Respository(BeanBase):
     '''项目数据类'''
@@ -87,6 +88,8 @@ class Respository(BeanBase):
         items[StringKeyUtils.STR_KEY_FORKS_COUNT] = self.forks_count
         items[StringKeyUtils.STR_KEY_SUBSCRIBERS_COUNT] = self.subscribers_count
         
+        return items
+        
 
     class parser(BeanBase.parser):
         '''用于json的解析器'''
@@ -100,7 +103,6 @@ class Respository(BeanBase):
                 res.node_id = src.get(StringKeyUtils.STR_KEY_NODE_ID, None)
                 res.name = src.get(StringKeyUtils.STR_KEY_NAME, None)
                 res.full_name = src.get(StringKeyUtils.STR_KEY_FULL_NAME, None)
-                #res.owner = 
                 
                 res.description = src.get(StringKeyUtils.STR_KEY_DESCRIPTION, None)
                 res.created_at = src.get(StringKeyUtils.STR_KEY_CREATE_AT, None)
@@ -110,6 +112,12 @@ class Respository(BeanBase):
                 res.language = src.get(StringKeyUtils.STR_KEY_LANG, None)
                 res.forks_count = src.get(StringKeyUtils.STR_KEY_FORKS_COUNT, None)
                 res.subscribers_count = src.get(StringKeyUtils.STR_KEY_SUBSCRIBERS_COUNT, None)
+                
+                userData = src.get(StringKeyUtils.STR_KEY_OWNER, None)
+                if(userData != None and isinstance(userData,dict)):
+                    user = User.parser.parser(userData)
+                    res.owner = user
+                    res.owner_id = user.id
                 
             return res
         

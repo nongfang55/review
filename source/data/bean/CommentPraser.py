@@ -1,7 +1,6 @@
 #coding=gbk
 from source.data.bean.Comment import Comment 
 from source.data.bean.User import User
-from source.data.bean.UserPraser import UserPraser
 
 class CommentPraser:
     
@@ -29,7 +28,6 @@ class CommentPraser:
             self.updateTime = src.get(self.STR_KEY_UPDATE_TIME , None)
             self.association = src.get(self.STR_KEY_ASSOCATION , None)
             self.line = src.get(self.STR_KEY_LINE, None)
-            self.user = src.get(self.STR_KEY_USER, None)
             
             comment = Comment(commentId = self.commentId, path = self.path,
                               commitId = self.commitId, body = self.body,
@@ -37,8 +35,8 @@ class CommentPraser:
                               association = self.association, line = self.line)
             
             if(self.user != None and isinstance(self.user,dict)):
-                user = UserPraser().praser(self.user)
-                comment.setUserId(user.userId)
+                user = User.parser().praser(self.user)
+                comment.setUserId(user.id)
                 comment.setUser(user)
             
             self.printData()

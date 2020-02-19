@@ -24,3 +24,10 @@ class StringKeyUtils:
     STR_KEY_FORKS_COUNT = 'forks_count'
     STR_KEY_SUBSCRIBERS_COUNT = 'subscribers_count'
     STR_KEY_OWNER_ID = 'owner_id'
+
+    '''用户信息使用到的key '''
+    STR_KEY_LOGIN = 'login'
+    STR_KEY_SITE_ADMIN = 'site_admin'
+    STR_KEY_TYPE = 'type'
+    STR_KEY_EMAIL = 'email'
+    

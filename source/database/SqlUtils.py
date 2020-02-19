@@ -19,5 +19,5 @@ class SqlUtils:
     
     
     '''预计存储的表的key'''
-    TABLE_REPOS_ITEMS_LIST = [()]
+    TABLE_REPOS_ITEMS_LIST = [()] 
     
