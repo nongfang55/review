@@ -68,6 +68,11 @@ class Respository(BeanBase):
         return items
 
     
+    @staticmethod
+    def getIdentifyKeys():
+        return [StringKeyUtils.STR_KEY_ID]
+
+    
     
     def getValueDict(self):
         

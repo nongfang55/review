@@ -14,6 +14,7 @@ from source.utils.StringKeyUtils import StringKeyUtils
 from _datetime import datetime
 from math import ceil
 from source.data.bean.Repository import Respository
+from source.data.bean.User import User
 
 class ApiHelper:
     
@@ -23,6 +24,7 @@ class ApiHelper:
     API_COMMENTS_FOR_REVIEW = '/repos/:owner/:repo/pulls/:pull_number/reviews/:review_id/comments'
     API_COMMENTS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/comments'
     API_PROJECT = '/repos/:owner/:repo'
+    API_USER = '/users/:user'
     
     
     #用于替换的字符串
@@ -37,6 +39,7 @@ class ApiHelper:
     STR_REPO = ':repo'
     STR_PULL_NUMBER = ':pull_number'
     STR_REVIEW_ID = ':review_id'
+    STR_USER = ':user'
 
         
     STR_PARM_STARE = 'state'
@@ -328,9 +331,28 @@ class ApiHelper:
             
         print(res)
         return res
+    
+    def getInformationForUser(self, login):
+        '''获取一个用户的详细信息'''
         
+        api = self.API_GITHUB + self.API_USER
+        api = api.replace(self.STR_USER, login)
+        print(api)
+#         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
         
-            
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        r = requests.get(api, headers = headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if(r.status_code != 200):
+            return None
+         
+        res =  User.parser.parser(r.json())
+             
+        print(res)
+        return res
+        
             
         
         
@@ -346,7 +368,8 @@ if __name__=="__main__":
 #     print(helper.getCommentsForPullRequest(38211))
 #     print(helper.getMaxSolvedPullRequestNumberForProject())
 #     print(helper.getLanguageForPorject())
-    print(helper.getInformationForPorject().owner.getValueDict())
+    print(helper.getInformationForPorject().getItemKeyListWithType())
+#     print(helper.getInformationForUser('jonathanhefner').getItemKeyListWithType())
     
         
     

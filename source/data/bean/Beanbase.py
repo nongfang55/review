@@ -20,6 +20,11 @@ class BeanBase:
         pass
     '''提供该类所有数据字典'''
    
+    @staticmethod
+    def getIdentifyKeys():
+        pass
+    '''提供数据类的唯一标识'''
+   
    
     '''数据项中涉及的种类'''
     DATA_TYPE_INT = 0
