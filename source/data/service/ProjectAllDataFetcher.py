@@ -30,7 +30,7 @@ class ProjectAllDataFetcher:
         #存储项目的owner信息 
         if(project.owner != None and project.owner.login != None):
             user = helper.getInformationForUser(project.owner.login)
-#             user = SqlServerInterceptor.convertFromBeanbaseToOutput(user)
+#             user = SqlServerInterceptor.convertFromBeanbaseToOutput(user) 
             
             print(user.getValueDict())
             
@@ -44,6 +44,7 @@ class ProjectAllDataFetcher:
     
 
 if __name__ == '__main__':
-    fetcher = ProjectAllDataFetcher().getAllDataForProject('rails','rails')
+    ProjectAllDataFetcher().getAllDataForProject('rails','rails')
+    ProjectAllDataFetcher().getAllDataForProject('ctripcorp','apollo')
     
     

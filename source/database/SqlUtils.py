@@ -26,6 +26,12 @@ class SqlUtils:
     '''查询操作'''
     STR_SQL_QUERY_TABLE_UTILS = 'select * from {0} {1}'
     
+    '''删除操作'''
+    STR_SQL_DELETE_TABLE_UTILS = 'delete from {0} {1}'
+    
+    '''修改操作'''
+    STR_SQL_UPDATE_TABLE_UTILS = 'update {0} {1} {2}'
+    
     
     @staticmethod
     def getInsertTableFormatString(tableName,items):  
@@ -82,6 +88,24 @@ class SqlUtils:
                 pos +=1
         return res
                     
-                    
+    @staticmethod
+    def getUpdateTableSetString(items):
+        
+        '''获取更新表的语句的标准格式'''
+        res = ''
+        pos = 0
+        if(items != None and items.__len__()>0):
+            res += 'set'
+            for item in items:
+                if(pos == 0):
+                    res += ' '
+                    res += item
+                    res += '=%s'
+                else:
+                    res += ','
+                    res += item
+                    res += '=%s'
+                pos +=1
+        return res         
                 
         

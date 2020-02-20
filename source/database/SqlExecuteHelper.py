@@ -60,8 +60,64 @@ class SqlExecuteHelper:
         conn.close()
         return ret
         
+    @staticmethod
+    def deleteValuesFromTable(tableName,items, valueDict):
+        '''删除某张表'''
         
+        conn = DataBaseOpenHelper.connect()
+         
+        cursor = conn.cursor()
+        format_values = SqlUtils.getQueryTableConditionString(items)
+        sql =SqlUtils.STR_SQL_DELETE_TABLE_UTILS.format(tableName, format_values)
+        print(sql)
+          
+        values = ()
+        if(items != None):
+            for item in items:
+                values = values + (valueDict.get(item,None),) #元组相加
+        try:
+            cursor.execute(sql,values)
+            conn.commit()
+        except Exception as e:
+            print(e)
+            conn.rollback()
+        conn.close()
+        
+    @staticmethod
+    def updateValuesFromTable(tableName, targets, targetsDict, conditions, conditionsDict):
+        '''修改某张表'''
+        
+        conn = DataBaseOpenHelper.connect()
+          
+        cursor = conn.cursor()
+        format_target = SqlUtils.getUpdateTableSetString(targets)
+        format_condition = SqlUtils.getQueryTableConditionString(conditions)
+        sql = SqlUtils.STR_SQL_UPDATE_TABLE_UTILS.format(tableName, format_target, format_condition)
+        print(sql)
+          
+        values = ()
+        if(targets != None):
+            for item in targets:
+                values = values + (targetsDict.get(item,None),)
+        
+        if(conditions != None):
+            for item in conditions:
+                values = values + (conditionsDict.get(item,None),) #元组相加
+        
+        try:
+            cursor.execute(sql,values)
+            conn.commit()
+        except Exception as e:
+            print(e)
+            conn.rollback()
+        conn.close()
+   
 if __name__ == '__main__':
-    SqlExecuteHelper().queryValuesFromTable('repository',['id','node_id'], {'id':8514,'node_id':'MDEwOlJlcG9zaXRvcnk4NTE0'})
-        
+#     SqlExecuteHelper().queryValuesFromTable('repository',['id','node_id'], {'id':8514,'node_id':'MDEwOlJlcG9zaXRvcnk4NTE0'})
+#     SqlExecuteHelper().queryValuesFromTable('userList',['login'],{'login':'rails'})
+#     SqlExecuteHelper().deleteValuesFromTable('userList',['login'],{'login':'rails'})
+    SqlExecuteHelper().deleteValuesFromTable('repository',None,None)
+    SqlExecuteHelper().deleteValuesFromTable('userList',None,None)
+
+#    SqlExecuteHelper().updateValuesFromTable('userList', ['name','email'], {'name':'name1','email':None}, ['id'], {'id':4223})
         
