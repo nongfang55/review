@@ -20,7 +20,7 @@ class ProjectAllDataFetcher:
     
     def getDataForRepository(self, helper):
         
-        project = helper.getInformationForPorject()
+        project = helper.getInformationForProject()
         print(project)
         if(project != None):
             SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_REPOS

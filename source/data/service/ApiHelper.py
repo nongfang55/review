@@ -76,10 +76,10 @@ class ApiHelper:
 
         return header
 
-    def getPullRequestsForPorject(self, state=STR_PARM_OPEN):
-        '''获取一个项目的pull reuqest的列表，但是 只能获取前30个  没参数的时候默认是open
-        '''
-        if (self.owner == None or self.repo == None):
+    def getPullRequestsForProject(self, state=STR_PARM_OPEN):
+        """获取一个项目的pull request的列表，但是 只能获取前30个  没参数的时候默认是open
+        """
+        if self.owner is None or self.repo is None:
             return list()
 
         api = self.API_GITHUB + self.API_PULL_REQUEST_FOR_PROJECT
@@ -92,21 +92,21 @@ class ApiHelper:
         r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: state})
         self.printCommon(r)
         self.judgeLimit(r)
-        if (r.status_code != 200):
+        if r.status_code != 200:
             return list()
 
         res = list()
         for request in r.json():
-            res.append(request.get(self.STR_KET_NUMBER))
-            print(request.get(self.STR_KET_NUMBER))
+            res.append(request.get(StringKeyUtils.STR_KET_NUMBER))
+            print(request.get(StringKeyUtils.STR_KET_NUMBER))
 
         print(res.__len__())
         return res
 
-    def getLanguageForPorject(self):
-        '''获取一个项目的pull reuqest的列表，但是 只能获取前30个  没参数的时候默认是open
-        '''
-        if (self.owner == None or self.repo == None):
+    def getLanguageForProject(self):
+        """获取一个项目的pull request的列表，但是 只能获取前30个  没参数的时候默认是open
+        """
+        if self.owner is None or self.repo is None:
             return list()
 
         api = self.API_GITHUB + self.API_PROJECT
@@ -125,11 +125,11 @@ class ApiHelper:
         return r.json().get(StringKeyUtils.STR_KEY_LANG, StringKeyUtils.STR_KEY_LANG_OTHER)
 
     def getTotalPullRequestNumberForProject(self):
-        '''通过获取最新的pull request的编号来获取总数量  获取参数为all
-         
-        '''
+        """通过获取最新的pull request的编号来获取总数量  获取参数为all
 
-        if self.owner == None or self.repo == None:
+        """
+
+        if self.owner is None or self.repo is None:
             return -1
 
         api = self.API_GITHUB + self.API_PULL_REQUEST_FOR_PROJECT
@@ -148,16 +148,16 @@ class ApiHelper:
         list = r.json()
         if list.__len__() > 0:
             request = list[0]
-            return request.get(self.STR_KET_NUMBER, -1)
+            return request.get(StringKeyUtils.STR_KET_NUMBER, -1)
         else:
             return -1
 
     def getMaxSolvedPullRequestNumberForProject(self):
-        '''通过获取最新的pull request的编号来获取总数量  获取参数为all
-         
-        '''
+        """通过获取最新的pull request的编号来获取总数量  获取参数为all
 
-        if (self.owner == None or self.repo == None):
+        """
+
+        if self.owner is None or self.repo is None:
             return -1
 
         api = self.API_GITHUB + self.API_PULL_REQUEST_FOR_PROJECT
@@ -170,21 +170,21 @@ class ApiHelper:
         r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: self.STR_PARM_CLOSED})
         self.printCommon(r)
         self.judgeLimit(r)
-        if (r.status_code != 200):
+        if r.status_code != 200:
             return -1
 
         list = r.json()
         if (list.__len__() > 0):
             request = list[0]
-            return request.get(self.STR_KET_NUMBER, -1)
+            return request.get(StringKeyUtils.STR_KET_NUMBER, -1)
         else:
             return -1
 
     def getCommentsForPullRequest(self, pull_number):
-        '''获取一个pullrequest的comemnts  可以获取行号
-        
-        '''
-        if (self.owner == None or self.repo == None):
+        """获取一个pull request的 comments  可以获取行号
+
+        """
+        if self.owner is None or self.repo is None:
             return list()
 
         api = self.API_GITHUB + self.API_COMMENTS_FOR_PULL_REQUEST
@@ -201,7 +201,7 @@ class ApiHelper:
         r = requests.get(api, headers=headers)
         self.printCommon(r)
         self.judgeLimit(r)
-        if (r.status_code != 200):
+        if r.status_code != 200:
             return list()
 
         res = list()
@@ -214,10 +214,10 @@ class ApiHelper:
         return res
 
     def getCommentsForReview(self, pull_number, review_id):
-        '''获取一个review的相关comments  这个接口无法获取行号
-        
-        '''
-        if (self.owner == None or self.repo == None):
+        """获取一个review的相关comments  这个接口无法获取行号
+
+        """
+        if self.owner is None or self.repo is None:
             return list()
 
         api = self.API_GITHUB + self.API_COMMENTS_FOR_REVIEW
@@ -232,7 +232,7 @@ class ApiHelper:
         r = requests.get(api, headers=headers)
         self.printCommon(r)
         self.judgeLimit(r)
-        if (r.status_code != 200):
+        if r.status_code != 200:
             return list()
 
         res = list()
@@ -244,10 +244,10 @@ class ApiHelper:
         return res
 
     def getReviewForPullRequest(self, pull_number):
-        '''获取一个pull_reuqest的review的id列表
-        
-        '''
-        if (self.owner == None or self.repo == None):
+        """获取一个pull request的review的id列表
+
+        """
+        if self.owner is None or self.repo is None:
             return list()
 
         api = self.API_GITHUB + self.API_REVIEWS_FOR_PULL_REQUEST
@@ -261,7 +261,7 @@ class ApiHelper:
         r = requests.get(api, headers=headers)
         self.printCommon(r)
         self.judgeLimit(r)
-        if (r.status_code != 200):
+        if r.status_code != 200:
             return list()
 
         res = list()
@@ -290,10 +290,10 @@ class ApiHelper:
                 time.sleep(ceil(rateLimit - datetime.now().timestamp() + 1))
                 print("sleep end")
 
-    def getInformationForPorject(self):
-        '''获取一个项目的信息  返回一个项目对象
-        '''
-        if (self.owner == None or self.repo == None):
+    def getInformationForProject(self):
+        """获取一个项目的信息  返回一个项目对象
+        """
+        if self.owner is None or self.repo is None:
             return list()
 
         api = self.API_GITHUB + self.API_PROJECT
@@ -306,7 +306,7 @@ class ApiHelper:
         r = requests.get(api, headers=headers)
         self.printCommon(r)
         self.judgeLimit(r)
-        if (r.status_code != 200):
+        if r.status_code != 200:
             return None
 
         res = Repository.parser.parser(r.json())
@@ -315,7 +315,7 @@ class ApiHelper:
         return res
 
     def getInformationForUser(self, login):
-        '''获取一个用户的详细信息'''
+        """获取一个用户的详细信息"""
 
         api = self.API_GITHUB + self.API_USER
         api = api.replace(self.STR_USER, login)
@@ -348,5 +348,5 @@ if __name__ == "__main__":
     #     print(helper.getCommentsForPullRequest(38211))
     #     print(helper.getMaxSolvedPullRequestNumberForProject())
     #     print(helper.getLanguageForPorject())
-    print(helper.getInformationForPorject().getItemKeyListWithType())
+    print(helper.getInformationForProject().getItemKeyListWithType())
 #     print(helper.getInformationForUser('jonathanhefner').getItemKeyListWithType())

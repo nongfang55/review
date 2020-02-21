@@ -21,7 +21,7 @@ class DataFetcher:
         
         print("total pull request number:",requestNumber)
         
-        language = helper.getLanguageForPorject()
+        language = helper.getLanguageForProject()
         print("project language:",language)
         
         resNumber = requestNumber
