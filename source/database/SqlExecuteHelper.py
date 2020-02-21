@@ -116,8 +116,8 @@ if __name__ == '__main__':
 #     SqlExecuteHelper().queryValuesFromTable('repository',['id','node_id'], {'id':8514,'node_id':'MDEwOlJlcG9zaXRvcnk4NTE0'})
 #     SqlExecuteHelper().queryValuesFromTable('userList',['login'],{'login':'rails'})
 #     SqlExecuteHelper().deleteValuesFromTable('userList',['login'],{'login':'rails'})
-    SqlExecuteHelper().deleteValuesFromTable('repository',None,None)
-    SqlExecuteHelper().deleteValuesFromTable('userList',None,None)
+    SqlExecuteHelper().deleteValuesFromTable('repository', None, None)
+    SqlExecuteHelper().deleteValuesFromTable('userList', None, None)
 
 #    SqlExecuteHelper().updateValuesFromTable('userList', ['name','email'], {'name':'name1','email':None}, ['id'], {'id':4223})
         

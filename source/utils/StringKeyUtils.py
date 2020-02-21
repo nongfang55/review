@@ -2,7 +2,7 @@
 
 
 class StringKeyUtils:
-    '''该类用于存放所有使用的数据项key'''
+    """该类用于存放所有使用的数据项key"""
     
     '''项目信息使用的key
     '''
@@ -14,7 +14,6 @@ class StringKeyUtils:
     STR_KEY_NODE_ID = 'node_id'
     STR_KEY_NAME = 'name'
     STR_KEY_FULL_NAME = 'full_name'
-    STR_KEY_OWNER = 'owner'
     STR_KEY_DESCRIPTION = 'description'
     STR_KEY_CREATE_AT = 'created_at'
     STR_KEY_UPDATE_AT = 'updated_at'
@@ -23,7 +22,9 @@ class StringKeyUtils:
     STR_KEY_LANGUAGE = 'language'
     STR_KEY_FORKS_COUNT = 'forks_count'
     STR_KEY_SUBSCRIBERS_COUNT = 'subscribers_count'
-    STR_KEY_OWNER_ID = 'owner_id'
+    STR_KEY_OWNER_LOGIN = 'owner_login'
+    STR_KEY_PARENT_FULL_NAME = 'parent_full_name'
+    STR_KEY_PARENT = 'parent'
 
     '''用户信息使用到的key '''
     STR_KEY_LOGIN = 'login'
@@ -47,5 +48,35 @@ class StringKeyUtils:
     STR_KEY_PUBLIC_GISTS = 'public_gists'
     STR_KEY_FOLLOWERS = 'followers'
     STR_KEY_FOLLOWING = 'following'
-    
-    
+
+    '''pull request可能会使用到的信息'''
+    STR_KEY_STATE = 'state'
+    STR_KEY_TITLE = 'title'
+    STR_KEY_USER = 'user'
+    STR_KEY_BODY = 'body'
+    STR_KEY_CLOSED_AT = 'closed_at'
+    STR_KEY_MERGED_AT = 'merged_at'
+    STR_KEY_MERGE_COMMIT_SHA = 'merge_commit_sha'
+    STR_KEY_AUTHOR_ASSOCIATION = 'author_association'
+    STR_KEY_MERGED = 'merged'
+    STR_KEY_COMMENTS = 'comments'
+    STR_KEY_REVIEW_COMMENTS = 'reviews_comments'
+    STR_KEY_COMMITS = 'commits'
+    STR_KEY_ADDITIONS = 'additions'
+    STR_KEY_DELETIONS = 'deletions'
+    STR_KEY_CHANGED_FILES = 'changed_files'
+    STR_KEY_HEAD = 'head'
+    STR_KEY_BASE = 'base'
+    STR_KEY_USER_ID = 'user_id'
+    STR_KEY_BASE_LABEL = 'base_label'
+    STR_KEY_HEAD_LABEL = 'head_label'
+    STR_KEY_REPO_FULL_NAME = 'repo_full_name'
+
+
+    '''Branch 可能会使用的数据'''
+    STR_KEY_LABEL = 'label'
+    STR_KEY_REF = 'ref'
+    STR_KEY_REPO = 'repo'
+    STR_KEY_SHA = 'sha'
+    STR_KEY_REPO_FULL_NAME = 'repo_full_name'
+    STR_KEY_USER_LOGIN = 'user_login'

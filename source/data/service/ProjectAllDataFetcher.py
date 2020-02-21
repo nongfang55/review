@@ -14,11 +14,11 @@ class ProjectAllDataFetcher:
         helper = ApiHelper(owner=owner,repo=repo)
         helper.setAuthorization(True)
         
-        self.getDataForResportory(helper)
+        self.getDataForRepository(helper)
         '''提取项目的信息'''
         
     
-    def getDataForResportory(self, helper):
+    def getDataForRepository(self, helper):
         
         project = helper.getInformationForPorject()
         print(project)
@@ -38,7 +38,9 @@ class ProjectAllDataFetcher:
                                                    , user.getItemKeyList()
                                                    , user.getValueDict()
                                                    , user.getIdentifyKeys())
-            
+
+    def getPullRequestForRepository(self, helper):
+        pass
         
 
     
