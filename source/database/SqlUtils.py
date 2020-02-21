@@ -8,6 +8,8 @@ class SqlUtils:
     '''预计存储的表名字'''
     STR_TABLE_NAME_REPOS = 'repository'
     STR_TABLE_NAME_USER = 'userList'
+    STR_TABLE_NAME_PULL_REQUEST = 'pullRequest'
+    STR_TABLE_NAME_BRANCH = 'branch'
 
     '''存储的表中的类型'''
     STR_KEY_INT = 'int'

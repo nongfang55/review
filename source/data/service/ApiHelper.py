@@ -15,7 +15,8 @@ from _datetime import datetime
 from math import ceil
 from source.data.bean.Repository import Repository
 from source.data.bean.User import User
-
+from source.data.bean.PullRequest import PullRequest
+from source.data.bean.Branch import  Branch
 
 class ApiHelper:
     API_GITHUB = 'https://api.github.com'
@@ -23,6 +24,7 @@ class ApiHelper:
     API_PULL_REQUEST_FOR_PROJECT = '/repos/:owner/:repo/pulls'
     API_COMMENTS_FOR_REVIEW = '/repos/:owner/:repo/pulls/:pull_number/reviews/:review_id/comments'
     API_COMMENTS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/comments'
+    API_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number'
     API_PROJECT = '/repos/:owner/:repo'
     API_USER = '/users/:user'
 
@@ -174,7 +176,7 @@ class ApiHelper:
             return -1
 
         list = r.json()
-        if (list.__len__() > 0):
+        if list.__len__() > 0:
             request = list[0]
             return request.get(StringKeyUtils.STR_KET_NUMBER, -1)
         else:
@@ -335,6 +337,31 @@ class ApiHelper:
         print(res)
         return res
 
+    def getInformationForPullRequest(self, pull_number):
+        """获取一个pull request的详细信息"""
+
+        api = self.API_GITHUB + self.API_PULL_REQUEST
+        api = api.replace(self.STR_OWNER, self.owner)
+        api = api.replace(self.STR_REPO, self.repo)
+        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        print(api)
+        #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        r = requests.get(api, headers=headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if r.status_code != 200:
+            return None
+
+        res = PullRequest.parser.parser(r.json())
+        if res is not None and res.base is not None:
+            res.repo_full_name = res.base.repo_full_name  # 对pull_request的repo_full_name 做一个补全
+
+        print(res)
+        return res
+
 
 if __name__ == "__main__":
     helper = ApiHelper('rails', 'rails')
@@ -346,7 +373,10 @@ if __name__ == "__main__":
     #     print(helper.getCommentsForReview(38211,341374357))
     #     print(helper.getCommentsForPullRequest(38211))
     #     print(helper.getCommentsForPullRequest(38211))
-    #     print(helper.getMaxSolvedPullRequestNumberForProject())
-    #     print(helper.getLanguageForPorject())
-    print(helper.getInformationForProject().getItemKeyListWithType())
-#     print(helper.getInformationForUser('jonathanhefner').getItemKeyListWithType())
+    # print(helper.getMaxSolvedPullRequestNumberForProject())
+    #     print(helper.getLanguageForProject())
+    # print(helper.getInformationForProject().getItemKeyListWithType())
+    # print(helper.getInformationForUser('jonathanhefner').getItemKeyListWithType())
+    # print(helper.getTotalPullRequestNumberForProject())
+    # print(Branch.getItemKeyListWithType())
+    print(helper.getInformationForPullRequest(38383).getValueDict())

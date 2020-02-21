@@ -60,7 +60,7 @@ class StringKeyUtils:
     STR_KEY_AUTHOR_ASSOCIATION = 'author_association'
     STR_KEY_MERGED = 'merged'
     STR_KEY_COMMENTS = 'comments'
-    STR_KEY_REVIEW_COMMENTS = 'reviews_comments'
+    STR_KEY_REVIEW_COMMENTS = 'review_comments'
     STR_KEY_COMMITS = 'commits'
     STR_KEY_ADDITIONS = 'additions'
     STR_KEY_DELETIONS = 'deletions'
