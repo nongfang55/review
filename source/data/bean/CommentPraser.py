@@ -28,6 +28,7 @@ class CommentPraser:
             self.updateTime = src.get(self.STR_KEY_UPDATE_TIME , None)
             self.association = src.get(self.STR_KEY_ASSOCATION , None)
             self.line = src.get(self.STR_KEY_LINE, None)
+            self.user = src.get(self.STR_KEY_USER, None)
             
             comment = Comment(commentId = self.commentId, path = self.path,
                               commitId = self.commitId, body = self.body,

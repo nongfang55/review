@@ -84,3 +84,18 @@ class StringKeyUtils:
     STR_KEY_SUBMITTED_AT = 'submitted_at'
     STR_KEY_COMMIT_ID = 'commit_id'
 
+    '''review comment 可能会用到的数据'''
+    STR_KEY_PULL_REQUEST_REVIEW_ID = 'pull_request_review_id'
+    STR_KEY_DIFF_HUNK = 'diff_hunk'
+    STR_KEY_PATH = 'path'
+    STR_KEY_POSITION = 'position'
+    STR_KEY_ORIGINAL_POSITION = 'original_position'
+    STR_KEY_ORIGINAL_COMMIT_ID = 'original_commit_id'
+    STR_KEY_START_LINE = 'start_line'
+    STR_KEY_ORIGINAL_START_LINE = 'original_start_line'
+    STR_KEY_START_SIDE = 'start_side'
+    STR_KEY_LINE = 'line'
+    STR_KEY_ORIGINAL_LINE = 'original_line'
+    STR_KEY_SIDE = 'side'
+    STR_KEY_IN_REPLY_TO_ID = 'in_reply_to_id'
+

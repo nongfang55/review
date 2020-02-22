@@ -56,6 +56,7 @@ class ProjectAllDataFetcher:
         usefulRequestNumber = 0
         commentNumber = 0
         usefulReviewNumber = 0  # review的提取数量
+        usefulReviewCommentNumber = 0  # review comment的提取数量
 
         while resNumber > 0:
             print("pull request:", resNumber, " now:", rr)
@@ -85,15 +86,23 @@ class ProjectAllDataFetcher:
                 for review in reviews:
                     if review is not None:
                         ProjectAllDataFetcher.saveReviewInformationToDB(helper, review)
-                    usefulReviewNumber += 1
+                        usefulReviewNumber += 1
+
+                '''获取 pull request对应的review comment信息'''
+                reviewComments = helper.getInformationForReviewCommentWithPullRequest(pullRequest.number)
+                for comment in reviewComments:
+                    if comment is not None:
+                        ProjectAllDataFetcher.saveReviewCommentInformationToDB(helper, comment)
+                        usefulReviewCommentNumber += 1
 
             resNumber = resNumber - 1
             rr = rr + 1
             if 0 < limit < rr:
                 break
 
-        print("useful pull request:", usefulRequestNumber, "  total comment:", commentNumber,
-              " useful review:", usefulReviewNumber)
+        print("useful pull request:", usefulRequestNumber,
+              " useful review:", usefulReviewNumber,
+              " useful review comment:", usefulReviewCommentNumber)
 
     @staticmethod
     def saveReviewInformationToDB(helper, review):  # review信息录入数据库
@@ -105,6 +114,21 @@ class ProjectAllDataFetcher:
 
             if review.user is not None:
                 user = helper.getInformationForUser(review.user.login)  # 获取完善的用户信息
+                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+                                                       , user.getItemKeyList()
+                                                       , user.getValueDict()
+                                                       , user.getIdentifyKeys())
+
+    @staticmethod
+    def saveReviewCommentInformationToDB(helper, reviewComment):  # review comment信息录入数据库
+        if reviewComment is not None:
+            SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_REVIEW_COMMENT
+                                                   , reviewComment.getItemKeyList()
+                                                   , reviewComment.getValueDict()
+                                                   , reviewComment.getIdentifyKeys())
+
+            if reviewComment.user is not None:
+                user = helper.getInformationForUser(reviewComment.user.login)  # 获取完善的用户信息
                 SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
                                                        , user.getItemKeyList()
                                                        , user.getValueDict()

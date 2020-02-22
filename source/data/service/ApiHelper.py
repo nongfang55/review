@@ -10,6 +10,7 @@ from source.config import projectConfig
 from source.config import configPraser
 from source.data.bean.Review import Review
 from source.data.bean.CommentPraser import CommentPraser
+from source.data.bean.ReviewComment import ReviewComment
 from source.utils.TableItemHelper import TableItemHelper
 from source.utils.StringKeyUtils import StringKeyUtils
 from _datetime import datetime
@@ -422,6 +423,35 @@ class ApiHelper:
 
         return items
 
+    def getInformationForReviewCommentWithPullRequest(self, pull_number):
+        """获取一个pull request对应的 review comment的详细信息 可以节省请求数量"""
+
+        api = self.API_GITHUB + self.API_COMMENTS_FOR_PULL_REQUEST
+        api = api.replace(self.STR_OWNER, self.owner)
+        api = api.replace(self.STR_REPO, self.repo)
+        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        print(api)
+        #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        headers = self.getMediaTypeHeaders(headers)
+        r = requests.get(api, headers=headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if r.status_code != 200:
+            return None
+
+        items = []
+        for item in r.json():
+            res = ReviewComment.parser.parser(item)
+            print(res.getValueDict())
+            items.append(res)
+
+        return items
+
+
+
 if __name__ == "__main__":
     helper = ApiHelper('rails', 'rails')
     helper.setAuthorization(True)
@@ -441,4 +471,5 @@ if __name__ == "__main__":
     # print(helper.getInformationForPullRequest(38383).getValueDict())
     # print(Review.getItemKeyListWithType())
     # print(helper.getInformationForReview(38211, 341373994).getValueDict())
-    print(helper.getInformationForReviewWithPullRequest(38211))
+    # print(helper.getInformationForReviewWithPullRequest(38211))
+    print(helper.getInformationForReviewCommentWithPullRequest(38539))

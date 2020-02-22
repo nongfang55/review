@@ -11,6 +11,7 @@ class SqlUtils:
     STR_TABLE_NAME_PULL_REQUEST = 'pullRequest'
     STR_TABLE_NAME_BRANCH = 'branch'
     STR_TABLE_NAME_REVIEW = 'review'
+    STR_TABLE_NAME_REVIEW_COMMENT = 'reviewComment'
 
     '''存储的表中的类型'''
     STR_KEY_INT = 'int'
