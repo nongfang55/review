@@ -99,3 +99,6 @@ class StringKeyUtils:
     STR_KEY_SIDE = 'side'
     STR_KEY_IN_REPLY_TO_ID = 'in_reply_to_id'
 
+    '''issue comment 可能会使用的数据'''
+
+

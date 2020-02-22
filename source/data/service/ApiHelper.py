@@ -8,6 +8,7 @@ import time
 import os
 from source.config import projectConfig
 from source.config import configPraser
+from source.data.bean.IssueComment import IssueComment
 from source.data.bean.Review import Review
 from source.data.bean.CommentPraser import CommentPraser
 from source.data.bean.ReviewComment import ReviewComment
@@ -31,6 +32,7 @@ class ApiHelper:
     API_PROJECT = '/repos/:owner/:repo'
     API_USER = '/users/:user'
     API_REVIEW = '/repos/:owner/:repo/pulls/:pull_number/reviews/:review_id'
+    API_ISSUE_COMMENT_FOR_ISSUE = '/repos/:owner/:repo/issues/:issue_number/comments'
 
     # 用于替换的字符串
     STR_HEADER_AUTHORIZAITON = 'Authorization'
@@ -45,6 +47,7 @@ class ApiHelper:
     STR_PULL_NUMBER = ':pull_number'
     STR_REVIEW_ID = ':review_id'
     STR_USER = ':user'
+    STR_ISSUE_NUMBER = ':issue_number'
 
     STR_PARM_STARE = 'state'
     STR_PARM_ALL = 'all'
@@ -450,6 +453,38 @@ class ApiHelper:
 
         return items
 
+    def getInformationForIssueCommentWithIssue(self, issue_number):
+        """获取一个issue 对应的 issue comment的详细信息 可以节省请求数量"""
+        """但是issue 和 pull request公用一个编号 实际是请求的pull request的评论"""
+
+        api = self.API_GITHUB + self.API_ISSUE_COMMENT_FOR_ISSUE
+        api = api.replace(self.STR_OWNER, self.owner)
+        api = api.replace(self.STR_REPO, self.repo)
+        api = api.replace(self.STR_ISSUE_NUMBER, str(issue_number))
+        print(api)
+        #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        headers = self.getMediaTypeHeaders(headers)
+        r = requests.get(api, headers=headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if r.status_code != 200:
+            return None
+
+        items = []
+        for item in r.json():
+            res = IssueComment.parser.parser(item)
+            print(res.getValueDict())
+
+            """信息补全"""
+            res.repo_full_name = self.owner + '/' + self.repo  # 对repo_full_name 做一个补全
+            res.pull_number = issue_number
+
+            items.append(res)
+
+        return items
 
 
 if __name__ == "__main__":
@@ -472,4 +507,5 @@ if __name__ == "__main__":
     # print(Review.getItemKeyListWithType())
     # print(helper.getInformationForReview(38211, 341373994).getValueDict())
     # print(helper.getInformationForReviewWithPullRequest(38211))
-    print(helper.getInformationForReviewCommentWithPullRequest(38539))
+    # print(helper.getInformationForReviewCommentWithPullRequest(38539))
+    print(helper.getInformationForIssueCommentWithIssue(38529))

@@ -12,6 +12,7 @@ class SqlUtils:
     STR_TABLE_NAME_BRANCH = 'branch'
     STR_TABLE_NAME_REVIEW = 'review'
     STR_TABLE_NAME_REVIEW_COMMENT = 'reviewComment'
+    STR_TABLE_NAME_ISSUE_COMMENT = 'issueComment'
 
     '''存储的表中的类型'''
     STR_KEY_INT = 'int'

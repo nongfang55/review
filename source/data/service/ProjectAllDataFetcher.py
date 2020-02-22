@@ -57,6 +57,7 @@ class ProjectAllDataFetcher:
         commentNumber = 0
         usefulReviewNumber = 0  # review的提取数量
         usefulReviewCommentNumber = 0  # review comment的提取数量
+        usefulIssueCommentNumber = 0  # issue comment 的提取数量
 
         while resNumber > 0:
             print("pull request:", resNumber, " now:", rr)
@@ -81,19 +82,26 @@ class ProjectAllDataFetcher:
                                                            , base.getIdentifyKeys())
                 usefulRequestNumber += 1
 
-                ''' 获取 pull request对应的review信息'''
-                reviews = helper.getInformationForReviewWithPullRequest(pullRequest.number)
-                for review in reviews:
-                    if review is not None:
-                        ProjectAllDataFetcher.saveReviewInformationToDB(helper, review)
-                        usefulReviewNumber += 1
+                # ''' 获取 pull request对应的review信息'''
+                # reviews = helper.getInformationForReviewWithPullRequest(pullRequest.number)
+                # for review in reviews:
+                #     if review is not None:
+                #         ProjectAllDataFetcher.saveReviewInformationToDB(helper, review)
+                #         usefulReviewNumber += 1
+                #
+                # '''获取 pull request对应的review comment信息'''
+                # reviewComments = helper.getInformationForReviewCommentWithPullRequest(pullRequest.number)
+                # for comment in reviewComments:
+                #     if comment is not None:
+                #         ProjectAllDataFetcher.saveReviewCommentInformationToDB(helper, comment)
+                #         usefulReviewCommentNumber += 1
 
-                '''获取 pull request对应的review comment信息'''
-                reviewComments = helper.getInformationForReviewCommentWithPullRequest(pullRequest.number)
-                for comment in reviewComments:
+                '''获取 pull request对应的issue comment信息'''
+                issueComments = helper.getInformationForIssueCommentWithIssue(pullRequest.number)
+                for comment in issueComments:
                     if comment is not None:
-                        ProjectAllDataFetcher.saveReviewCommentInformationToDB(helper, comment)
-                        usefulReviewCommentNumber += 1
+                        ProjectAllDataFetcher.saveIssueCommentInformationToDB(helper, comment)
+                        usefulIssueCommentNumber += 1
 
             resNumber = resNumber - 1
             rr = rr + 1
@@ -102,7 +110,8 @@ class ProjectAllDataFetcher:
 
         print("useful pull request:", usefulRequestNumber,
               " useful review:", usefulReviewNumber,
-              " useful review comment:", usefulReviewCommentNumber)
+              " useful review comment:", usefulReviewCommentNumber,
+              " useful issue comment:", usefulIssueCommentNumber)
 
     @staticmethod
     def saveReviewInformationToDB(helper, review):  # review信息录入数据库
@@ -129,6 +138,21 @@ class ProjectAllDataFetcher:
 
             if reviewComment.user is not None:
                 user = helper.getInformationForUser(reviewComment.user.login)  # 获取完善的用户信息
+                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+                                                       , user.getItemKeyList()
+                                                       , user.getValueDict()
+                                                       , user.getIdentifyKeys())
+
+    @staticmethod
+    def saveIssueCommentInformationToDB(helper, issueComment):  # issue comment信息录入数据库
+        if issueComment is not None:
+            SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_ISSUE_COMMENT
+                                                   , issueComment.getItemKeyList()
+                                                   , issueComment.getValueDict()
+                                                   , issueComment.getIdentifyKeys())
+
+            if issueComment.user is not None:
+                user = helper.getInformationForUser(issueComment.user.login)  # 获取完善的用户信息
                 SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
                                                        , user.getItemKeyList()
                                                        , user.getValueDict()
