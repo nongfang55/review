@@ -8,6 +8,7 @@ import time
 import os
 from source.config import projectConfig
 from source.config import configPraser
+from source.data.bean.Review import Review
 from source.data.bean.CommentPraser import CommentPraser
 from source.utils.TableItemHelper import TableItemHelper
 from source.utils.StringKeyUtils import StringKeyUtils
@@ -16,7 +17,8 @@ from math import ceil
 from source.data.bean.Repository import Repository
 from source.data.bean.User import User
 from source.data.bean.PullRequest import PullRequest
-from source.data.bean.Branch import  Branch
+from source.data.bean.Branch import Branch
+
 
 class ApiHelper:
     API_GITHUB = 'https://api.github.com'
@@ -27,6 +29,7 @@ class ApiHelper:
     API_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number'
     API_PROJECT = '/repos/:owner/:repo'
     API_USER = '/users/:user'
+    API_REVIEW = '/repos/:owner/:repo/pulls/:pull_number/reviews/:review_id'
 
     # 用于替换的字符串
     STR_HEADER_AUTHORIZAITON = 'Authorization'
@@ -99,8 +102,8 @@ class ApiHelper:
 
         res = list()
         for request in r.json():
-            res.append(request.get(StringKeyUtils.STR_KET_NUMBER))
-            print(request.get(StringKeyUtils.STR_KET_NUMBER))
+            res.append(request.get(StringKeyUtils.STR_KEY_NUMBER))
+            print(request.get(StringKeyUtils.STR_KEY_NUMBER))
 
         print(res.__len__())
         return res
@@ -150,7 +153,7 @@ class ApiHelper:
         list = r.json()
         if list.__len__() > 0:
             request = list[0]
-            return request.get(StringKeyUtils.STR_KET_NUMBER, -1)
+            return request.get(StringKeyUtils.STR_KEY_NUMBER, -1)
         else:
             return -1
 
@@ -178,7 +181,7 @@ class ApiHelper:
         list = r.json()
         if list.__len__() > 0:
             request = list[0]
-            return request.get(StringKeyUtils.STR_KET_NUMBER, -1)
+            return request.get(StringKeyUtils.STR_KEY_NUMBER, -1)
         else:
             return -1
 
@@ -274,7 +277,7 @@ class ApiHelper:
         return res
 
     def printCommon(self, r):
-        if (isinstance(r, requests.models.Response)):
+        if isinstance(r, requests.models.Response):
             print(type(r))
             print(r.json())
             print(r.text.encode(encoding='utf_8', errors='strict'))
@@ -284,10 +287,10 @@ class ApiHelper:
             print("rateLimit:", r.headers.get(self.STR_HEADER_RATE_LIMIT_RESET))
 
     def judgeLimit(self, r):
-        if (isinstance(r, requests.models.Response)):
+        if isinstance(r, requests.models.Response):
             remaining = int(r.headers.get(self.STR_HEADER_RATE_LIMIT_REMIAN))
             rateLimit = int(r.headers.get(self.STR_HEADER_RATE_LIMIT_RESET))
-            if (remaining < self.RATE_LIMIT):
+            if remaining < self.RATE_LIMIT:
                 print("start sleep:", ceil(rateLimit - datetime.now().timestamp() + 1))
                 time.sleep(ceil(rateLimit - datetime.now().timestamp() + 1))
                 print("sleep end")
@@ -362,6 +365,62 @@ class ApiHelper:
         print(res)
         return res
 
+    def getInformationForReview(self, pull_number, review_id):
+        """获取一个review 的详细信息"""
+
+        api = self.API_GITHUB + self.API_REVIEW
+        api = api.replace(self.STR_OWNER, self.owner)
+        api = api.replace(self.STR_REPO, self.repo)
+        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        api = api.replace(self.STR_REVIEW_ID, str(review_id))
+        print(api)
+        #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        r = requests.get(api, headers=headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if r.status_code != 200:
+            return None
+
+        res = Review.parser.parser(r.json())
+
+        res.repo_full_name = self.owner + '/' + self.repo  # 对repo_full_name 做一个补全
+        res.pull_number = pull_number
+
+        print(res)
+        return res
+
+    def getInformationForReviewWithPullRequest(self, pull_number):
+        """获取一个pull request对应的 review的详细信息 可以节省请求数量"""
+
+        api = self.API_GITHUB + self.API_REVIEWS_FOR_PULL_REQUEST
+        api = api.replace(self.STR_OWNER, self.owner)
+        api = api.replace(self.STR_REPO, self.repo)
+        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        print(api)
+        #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        r = requests.get(api, headers=headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if r.status_code != 200:
+            return None
+
+        items = []
+        for item in r.json():
+            res = Review.parser.parser(item)
+
+            res.repo_full_name = self.owner + '/' + self.repo  # 对repo_full_name 做一个补全
+            res.pull_number = pull_number
+
+            print(res.getValueDict())
+            items.append(res)
+
+        return items
 
 if __name__ == "__main__":
     helper = ApiHelper('rails', 'rails')
@@ -379,4 +438,7 @@ if __name__ == "__main__":
     # print(helper.getInformationForUser('jonathanhefner').getItemKeyListWithType())
     # print(helper.getTotalPullRequestNumberForProject())
     # print(Branch.getItemKeyListWithType())
-    print(helper.getInformationForPullRequest(38383).getValueDict())
+    # print(helper.getInformationForPullRequest(38383).getValueDict())
+    # print(Review.getItemKeyListWithType())
+    # print(helper.getInformationForReview(38211, 341373994).getValueDict())
+    print(helper.getInformationForReviewWithPullRequest(38211))

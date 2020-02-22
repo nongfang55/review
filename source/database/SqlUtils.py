@@ -10,6 +10,7 @@ class SqlUtils:
     STR_TABLE_NAME_USER = 'userList'
     STR_TABLE_NAME_PULL_REQUEST = 'pullRequest'
     STR_TABLE_NAME_BRANCH = 'branch'
+    STR_TABLE_NAME_REVIEW = 'review'
 
     '''存储的表中的类型'''
     STR_KEY_INT = 'int'

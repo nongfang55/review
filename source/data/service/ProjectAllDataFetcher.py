@@ -55,11 +55,12 @@ class ProjectAllDataFetcher:
 
         usefulRequestNumber = 0
         commentNumber = 0
+        usefulReviewNumber = 0  # review的提取数量
 
         while resNumber > 0:
             print("pull request:", resNumber, " now:", rr)
             pullRequest = helper.getInformationForPullRequest(resNumber)
-            if pullRequest is not None: # pull request存在就储存
+            if pullRequest is not None:  # pull request存在就储存
                 SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_PULL_REQUEST
                                                        , pullRequest.getItemKeyList()
                                                        , pullRequest.getValueDict()
@@ -79,17 +80,38 @@ class ProjectAllDataFetcher:
                                                            , base.getIdentifyKeys())
                 usefulRequestNumber += 1
 
+                ''' 获取 pull request对应的review信息'''
+                reviews = helper.getInformationForReviewWithPullRequest(pullRequest.number)
+                for review in reviews:
+                    if review is not None:
+                        ProjectAllDataFetcher.saveReviewInformationToDB(helper, review)
+                    usefulReviewNumber += 1
+
             resNumber = resNumber - 1
             rr = rr + 1
             if 0 < limit < rr:
                 break
 
-        print("useful pull request:", usefulRequestNumber, "  total comment:", commentNumber)
+        print("useful pull request:", usefulRequestNumber, "  total comment:", commentNumber,
+              " useful review:", usefulReviewNumber)
+
+    @staticmethod
+    def saveReviewInformationToDB(helper, review):  # review信息录入数据库
+        if review is not None:
+            SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_REVIEW
+                                                   , review.getItemKeyList()
+                                                   , review.getValueDict()
+                                                   , review.getIdentifyKeys())
+
+            if review.user is not None:
+                user = helper.getInformationForUser(review.user.login)  # 获取完善的用户信息
+                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+                                                       , user.getItemKeyList()
+                                                       , user.getValueDict()
+                                                       , user.getIdentifyKeys())
 
 
 if __name__ == '__main__':
     ProjectAllDataFetcher.getAllDataForProject('rails', 'rails')
     # ProjectAllDataFetcher.getAllDataForProject('ctripcorp', 'apollo')
     # ProjectAllDataFetcher.getAllDataForProject('kytrinyx', 'rails')
-
-

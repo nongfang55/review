@@ -3,11 +3,11 @@
 
 class StringKeyUtils:
     """该类用于存放所有使用的数据项key"""
-    
+
     '''项目信息使用的key
     '''
     STR_KEY_ID = 'id'
-    STR_KET_NUMBER = 'number'
+    STR_KEY_NUMBER = 'number'
     STR_KEY_LANG = 'language'
     STR_KEY_OWNER = 'owner'
     STR_KEY_LANG_OTHER = 'Other'
@@ -72,11 +72,15 @@ class StringKeyUtils:
     STR_KEY_HEAD_LABEL = 'head_label'
     STR_KEY_REPO_FULL_NAME = 'repo_full_name'
 
-
     '''Branch 可能会使用的数据'''
     STR_KEY_LABEL = 'label'
     STR_KEY_REF = 'ref'
     STR_KEY_REPO = 'repo'
     STR_KEY_SHA = 'sha'
-    STR_KEY_REPO_FULL_NAME = 'repo_full_name'
     STR_KEY_USER_LOGIN = 'user_login'
+
+    '''review可能会使用放日数据'''
+    STR_KEY_PULL_NUMBER = 'pull_number'
+    STR_KEY_SUBMITTED_AT = 'submitted_at'
+    STR_KEY_COMMIT_ID = 'commit_id'
+

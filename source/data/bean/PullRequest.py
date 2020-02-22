@@ -6,11 +6,12 @@ from source.data.bean.Branch import  Branch
 
 
 class PullRequest(BeanBase):
-    """用于pull request 的数据类  共计22个属性
+    """用于pull request 的数据类  共计23个属性
     """
 
     def __init__(self):
         self.repo_full_name = None
+        self.number = None
         self.id = None
         self.node_id = None
         self.state = None
@@ -39,11 +40,11 @@ class PullRequest(BeanBase):
 
     @staticmethod
     def getIdentifyKeys():
-        return [StringKeyUtils.STR_KEY_REPO_FULL_NAME, StringKeyUtils.STR_KEY_ID]
+        return [StringKeyUtils.STR_KEY_REPO_FULL_NAME, StringKeyUtils.STR_KEY_NUMBER]
 
     @staticmethod
     def getItemKeyList():
-        items = [StringKeyUtils.STR_KEY_REPO_FULL_NAME, StringKeyUtils.STR_KEY_ID,
+        items = [StringKeyUtils.STR_KEY_REPO_FULL_NAME, StringKeyUtils.STR_KEY_NUMBER, StringKeyUtils.STR_KEY_ID,
                  StringKeyUtils.STR_KEY_NODE_ID, StringKeyUtils.STR_KEY_STATE,
                  StringKeyUtils.STR_KEY_TITLE, StringKeyUtils.STR_KEY_USER_LOGIN, StringKeyUtils.STR_KEY_BODY,
                  StringKeyUtils.STR_KEY_CREATE_AT, StringKeyUtils.STR_KEY_UPDATE_AT, StringKeyUtils.STR_KEY_CLOSED_AT,
@@ -59,6 +60,7 @@ class PullRequest(BeanBase):
     @staticmethod
     def getItemKeyListWithType():
         items = [(StringKeyUtils.STR_KEY_REPO_FULL_NAME, BeanBase.DATA_TYPE_STRING),
+                 (StringKeyUtils.STR_KEY_NUMBER, BeanBase.DATA_TYPE_INT),
                  (StringKeyUtils.STR_KEY_ID, BeanBase.DATA_TYPE_INT),
                  (StringKeyUtils.STR_KEY_NODE_ID, BeanBase.DATA_TYPE_STRING),
                  (StringKeyUtils.STR_KEY_STATE, BeanBase.DATA_TYPE_STRING),
@@ -83,7 +85,7 @@ class PullRequest(BeanBase):
         return items
 
     def getValueDict(self):
-        items = {StringKeyUtils.STR_KEY_REPO_FULL_NAME: self.repo_full_name,
+        items = {StringKeyUtils.STR_KEY_REPO_FULL_NAME: self.repo_full_name,StringKeyUtils.STR_KEY_NUMBER: self.number,
                  StringKeyUtils.STR_KEY_ID: self.id, StringKeyUtils.STR_KEY_NODE_ID: self.node_id,
                  StringKeyUtils.STR_KEY_STATE: self.state, StringKeyUtils.STR_KEY_TITLE: self.title,
                  StringKeyUtils.STR_KEY_USER_LOGIN: self.user_login, StringKeyUtils.STR_KEY_BODY: self.body,
@@ -107,6 +109,7 @@ class PullRequest(BeanBase):
             res = None
             if isinstance(src, dict):
                 res = PullRequest()
+                res.number = src.get(StringKeyUtils.STR_KEY_NUMBER, None)
                 res.id = src.get(StringKeyUtils.STR_KEY_ID, None)
                 res.node_id = src.get(StringKeyUtils.STR_KEY_NODE_ID, None)
                 res.state = src.get(StringKeyUtils.STR_KEY_STATE, None)
