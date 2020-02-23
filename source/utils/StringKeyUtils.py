@@ -101,4 +101,33 @@ class StringKeyUtils:
 
     '''issue comment 可能会使用的数据'''
 
+    '''commit 可能会使用的数据'''
+    STR_KEY_COMMIT = 'commit'
+    STR_KEY_AUTHOR = 'author'
+    STR_KEY_DATE = 'date'
+    STR_KEY_AUTHOR_LOGIN = 'author_login'
+    STR_KEY_COMMITTER = 'committer'
+    STR_KEY_COMMITTER_LOGIN = 'committer_login'
+    STR_KEY_COMMIT_AUTHOR_DATE = 'commit_author_date'
+    STR_KEY_COMMIT_COMMITTER_DATE = 'commit_committer_date'
+    STR_KEY_MESSAGE = 'message'
+    STR_KEY_COMMIT_MESSAGE = 'commit_message'
+    STR_KEY_COMMENT_COUNT = 'comment_count'
+    STR_KEY_COMMIT_COMMENT_COUNT = 'commit_comment_count'
+    STR_KEY_STATS = 'stats'
+    STR_KEY_STATUS = 'status'  # 一个使用在commit一个使用在file
+    STR_KEY_TOTAL = 'total'
+    STR_KEY_STATUS_TOTAL = 'status_total'
+    STR_KEY_STATUS_ADDITIONS = 'status_additions'
+    STR_KEY_STATUS_DELETIONS = 'status_deletions'
+    STR_KEY_PARENTS = 'parents'
+    STR_KEY_FILES = 'files'
 
+    '''file 可能会使用的数据'''
+    STR_KEY_COMMIT_SHA = 'commit_sha'
+    STR_KEY_CHANGES = 'changes'
+    STR_KEY_FILENAME = 'filename'
+    STR_KEY_PATCH = 'patch'
+
+    '''commit relation 可能使用的数据'''
+    STR_KEY_CHILD = 'child'

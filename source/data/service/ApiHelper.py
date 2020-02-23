@@ -8,6 +8,10 @@ import time
 import os
 from source.config import projectConfig
 from source.config import configPraser
+from source.data.bean.CommentRelation import CommitRelation
+from source.data.bean.CommitPRRelation import CommitPRRelation
+from source.data.bean.File import File
+from source.data.bean.Commit import Commit
 from source.data.bean.IssueComment import IssueComment
 from source.data.bean.Review import Review
 from source.data.bean.CommentPraser import CommentPraser
@@ -33,6 +37,8 @@ class ApiHelper:
     API_USER = '/users/:user'
     API_REVIEW = '/repos/:owner/:repo/pulls/:pull_number/reviews/:review_id'
     API_ISSUE_COMMENT_FOR_ISSUE = '/repos/:owner/:repo/issues/:issue_number/comments'
+    API_COMMIT = '/repos/:owner/:repo/commits/:commit_sha'
+    API_COMMITS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/commits'
 
     # 用于替换的字符串
     STR_HEADER_AUTHORIZAITON = 'Authorization'
@@ -48,6 +54,7 @@ class ApiHelper:
     STR_REVIEW_ID = ':review_id'
     STR_USER = ':user'
     STR_ISSUE_NUMBER = ':issue_number'
+    STR_COMMIT_SHA = ':commit_sha'
 
     STR_PARM_STARE = 'state'
     STR_PARM_ALL = 'all'
@@ -486,6 +493,61 @@ class ApiHelper:
 
         return items
 
+    def getInformationCommit(self, commit_sha):
+        """获取一个commit 对应的详细信息"""
+        api = self.API_GITHUB + self.API_COMMIT
+        api = api.replace(self.STR_OWNER, self.owner)
+        api = api.replace(self.STR_REPO, self.repo)
+        api = api.replace(self.STR_COMMIT_SHA, str(commit_sha))
+        print(api)
+        #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        r = requests.get(api, headers=headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if r.status_code != 200:
+            return None
+
+        res = Commit.parser.parser(r.json())
+        return res
+
+    def getInformationForCommitWithPullRequest(self, pull_number):
+        """获取一个pull request对应的 commit的详细信息 可以节省请求数量
+        但是 status 没有统计,file 也没有统计"""
+
+        api = self.API_GITHUB + self.API_COMMITS_FOR_PULL_REQUEST
+        api = api.replace(self.STR_OWNER, self.owner)
+        api = api.replace(self.STR_REPO, self.repo)
+        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        print(api)
+        #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        headers = self.getMediaTypeHeaders(headers)
+        r = requests.get(api, headers=headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if r.status_code != 200:
+            return None
+
+        items = []
+        relations = []
+        for item in r.json():
+            res = Commit.parser.parser(item)
+            print(res.getValueDict())
+            items.append(res)
+
+            relation = CommitPRRelation()
+            relation.sha = res.sha
+            relation.pull_number = pull_number
+            relation.repo_full_name = self.owner + '/' + self.repo
+            relations.append(relation)
+
+        return items, relations
+
 
 if __name__ == "__main__":
     helper = ApiHelper('rails', 'rails')
@@ -508,4 +570,8 @@ if __name__ == "__main__":
     # print(helper.getInformationForReview(38211, 341373994).getValueDict())
     # print(helper.getInformationForReviewWithPullRequest(38211))
     # print(helper.getInformationForReviewCommentWithPullRequest(38539))
-    print(helper.getInformationForIssueCommentWithIssue(38529))
+    # print(helper.getInformationForIssueCommentWithIssue(38529))
+    # print(CommitRelation.getItemKeyList())
+    #print(CommitRelation().getValueDict())
+    #print(helper.getInformationForCommit('b4256cea5d812660f28ca148835afcf273376c8e').parents[0].getValueDict())
+    print(helper.getInformationForCommitWithPullRequest(38449))

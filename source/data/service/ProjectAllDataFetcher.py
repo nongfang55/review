@@ -58,6 +58,7 @@ class ProjectAllDataFetcher:
         usefulReviewNumber = 0  # review的提取数量
         usefulReviewCommentNumber = 0  # review comment的提取数量
         usefulIssueCommentNumber = 0  # issue comment 的提取数量
+        usefulCommitNumber = 0  # commit的提取数量
 
         while resNumber > 0:
             print("pull request:", resNumber, " now:", rr)
@@ -96,12 +97,25 @@ class ProjectAllDataFetcher:
                 #         ProjectAllDataFetcher.saveReviewCommentInformationToDB(helper, comment)
                 #         usefulReviewCommentNumber += 1
 
-                '''获取 pull request对应的issue comment信息'''
-                issueComments = helper.getInformationForIssueCommentWithIssue(pullRequest.number)
-                for comment in issueComments:
-                    if comment is not None:
-                        ProjectAllDataFetcher.saveIssueCommentInformationToDB(helper, comment)
-                        usefulIssueCommentNumber += 1
+                # '''获取 pull request对应的issue comment信息'''
+                # issueComments = helper.getInformationForIssueCommentWithIssue(pullRequest.number)
+                # for comment in issueComments:
+                #     if comment is not None:
+                #         ProjectAllDataFetcher.saveIssueCommentInformationToDB(helper, comment)
+                #         usefulIssueCommentNumber += 1
+
+                '''获取 pull request对应的commit信息'''
+                commits, relations = helper.getInformationForCommitWithPullRequest(pullRequest.number)
+                for commit in commits:
+                    if commit is not None:
+                        commit = helper.getInformationCommit(commit.sha)  # 对status和file信息的补偿
+                        ProjectAllDataFetcher.saveCommitInformationToDB(helper, commit)
+                        usefulCommitNumber += 1
+
+                '''存储 pull request和commit的关系'''
+                for relation in relations:
+                    if relation is not None:
+                        ProjectAllDataFetcher.saveCommitPRRelationInformationToDB(helper, relation)
 
             resNumber = resNumber - 1
             rr = rr + 1
@@ -111,7 +125,8 @@ class ProjectAllDataFetcher:
         print("useful pull request:", usefulRequestNumber,
               " useful review:", usefulReviewNumber,
               " useful review comment:", usefulReviewCommentNumber,
-              " useful issue comment:", usefulIssueCommentNumber)
+              " useful issue comment:", usefulIssueCommentNumber,
+              " useful commit:", usefulCommitNumber)
 
     @staticmethod
     def saveReviewInformationToDB(helper, review):  # review信息录入数据库
@@ -157,6 +172,48 @@ class ProjectAllDataFetcher:
                                                        , user.getItemKeyList()
                                                        , user.getValueDict()
                                                        , user.getIdentifyKeys())
+
+    @staticmethod
+    def saveCommitInformationToDB(helper, commit):  # commit信息录入数据库
+        if commit is not None:
+            SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_COMMIT
+                                                   , commit.getItemKeyList()
+                                                   , commit.getValueDict()
+                                                   , commit.getIdentifyKeys())
+
+            if commit.author is not None:
+                user = helper.getInformationForUser(commit.author.login)  # 完善作者信息
+                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+                                                       , user.getItemKeyList()
+                                                       , user.getValueDict()
+                                                       , user.getIdentifyKeys())
+
+            if commit.committer is not None:
+                user = helper.getInformationForUser(commit.committer.login)  # 完善提交者信息
+                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+                                                       , user.getItemKeyList()
+                                                       , user.getValueDict()
+                                                       , user.getIdentifyKeys())
+            if commit.files is not None:
+                for file in commit.files:
+                    SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_FILE
+                                                           , file.getItemKeyList()
+                                                           , file.getValueDict()
+                                                           , file.getIdentifyKeys())
+            if commit.parents is not None:
+                for parent in commit.parents:
+                    SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_COMMIT_RELATION
+                                                           , parent.getItemKeyList()
+                                                           , parent.getValueDict()
+                                                           , parent.getIdentifyKeys())
+
+    @staticmethod
+    def saveCommitPRRelationInformationToDB(helper, relation):  # commit信息录入数据库
+        if relation is not None:
+            SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_COMMIT_PR_RELATION
+                                                    , relation.getItemKeyList()
+                                                    , relation.getValueDict()
+                                                    , relation.getIdentifyKeys())
 
 
 if __name__ == '__main__':

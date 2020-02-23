@@ -13,6 +13,10 @@ class SqlUtils:
     STR_TABLE_NAME_REVIEW = 'review'
     STR_TABLE_NAME_REVIEW_COMMENT = 'reviewComment'
     STR_TABLE_NAME_ISSUE_COMMENT = 'issueComment'
+    STR_TABLE_NAME_COMMIT = 'gitCommit'
+    STR_TABLE_NAME_FILE = 'gitFile'
+    STR_TABLE_NAME_COMMIT_RELATION = 'commitRelation'
+    STR_TABLE_NAME_COMMIT_PR_RELATION = 'commitPRRelation'
 
     '''存储的表中的类型'''
     STR_KEY_INT = 'int'
