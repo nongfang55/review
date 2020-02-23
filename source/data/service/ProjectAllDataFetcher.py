@@ -2,6 +2,7 @@
 from source.data.service.ApiHelper import ApiHelper
 from source.database.SqlExecuteHelper import SqlExecuteHelper
 from source.database.SqlUtils import SqlUtils
+from source.utils.statisticsHelper import statisticsHelper
 from source.database.SqlServerInterceptor import SqlServerInterceptor
 
 
@@ -14,10 +15,12 @@ class ProjectAllDataFetcher:
         helper = ApiHelper(owner=owner, repo=repo)
         helper.setAuthorization(True)
 
+        statistic = statisticsHelper()
+
         '''提取项目的信息以及项目的owner信息'''
         # ProjectAllDataFetcher.getDataForRepository(helper)
         '''提取项目的pull request信息'''
-        ProjectAllDataFetcher.getPullRequestForRepository(helper, 5)
+        ProjectAllDataFetcher.getPullRequestForRepository(helper, limit=5, statistic=statistic)
 
     @staticmethod
     def getDataForRepository(helper):
@@ -42,7 +45,7 @@ class ProjectAllDataFetcher:
                                                    , user.getIdentifyKeys())
 
     @staticmethod
-    def getPullRequestForRepository(helper, limit=-1):
+    def getPullRequestForRepository(helper, statistic, limit=-1):
 
         # 获取项目pull request的数量
         # requestNumber = helper.getTotalPullRequestNumberForProject()
@@ -53,80 +56,98 @@ class ProjectAllDataFetcher:
         resNumber = requestNumber
         rr = 0
 
-        usefulRequestNumber = 0
-        commentNumber = 0
-        usefulReviewNumber = 0  # review的提取数量
-        usefulReviewCommentNumber = 0  # review comment的提取数量
-        usefulIssueCommentNumber = 0  # issue comment 的提取数量
-        usefulCommitNumber = 0  # commit的提取数量
+        # usefulRequestNumber = 0
+        # commentNumber = 0
+        # usefulReviewNumber = 0  # review的提取数量
+        # usefulReviewCommentNumber = 0  # review comment的提取数量
+        # usefulIssueCommentNumber = 0  # issue comment 的提取数量
+        # usefulCommitNumber = 0  # commit的提取数量
+        # usefulCommitCommentNumber = 0  # commit comment的提取数量
 
-        while resNumber > 0:
-            print("pull request:", resNumber, " now:", rr)
-            pullRequest = helper.getInformationForPullRequest(resNumber)
-            if pullRequest is not None:  # pull request存在就储存
-                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_PULL_REQUEST
-                                                       , pullRequest.getItemKeyList()
-                                                       , pullRequest.getValueDict()
-                                                       , pullRequest.getIdentifyKeys())
-                head = pullRequest.head
-                if head is not None:
-                    SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_BRANCH
-                                                           , head.getItemKeyList()
-                                                           , head.getValueDict()
-                                                           , head.getIdentifyKeys())
+        # while resNumber > 0:
+        #     print("pull request:", resNumber, " now:", rr)
+        #     ProjectAllDataFetcher.getSinglePullRequest(helper, statistic, resNumber)
+        #     resNumber = resNumber - 1
+        #     rr = rr + 1
+        #     if 0 < limit < rr:
+        #         break
+        ProjectAllDataFetcher.getSinglePullRequest()
 
-                base = pullRequest.base
-                if base is not None:
-                    SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_BRANCH
-                                                           , base.getItemKeyList()
-                                                           , base.getValueDict()
-                                                           , base.getIdentifyKeys())
-                usefulRequestNumber += 1
+        print("useful pull request:", statistic.usefulRequestNumber,
+              " useful review:", statistic.usefulReviewNumber,
+              " useful review comment:", statistic.usefulReviewCommentNumber,
+              " useful issue comment:", statistic.usefulIssueCommentNumber,
+              " useful commit:", statistic.usefulCommitNumber)
 
-                # ''' 获取 pull request对应的review信息'''
-                # reviews = helper.getInformationForReviewWithPullRequest(pullRequest.number)
-                # for review in reviews:
-                #     if review is not None:
-                #         ProjectAllDataFetcher.saveReviewInformationToDB(helper, review)
-                #         usefulReviewNumber += 1
-                #
-                # '''获取 pull request对应的review comment信息'''
-                # reviewComments = helper.getInformationForReviewCommentWithPullRequest(pullRequest.number)
-                # for comment in reviewComments:
-                #     if comment is not None:
-                #         ProjectAllDataFetcher.saveReviewCommentInformationToDB(helper, comment)
-                #         usefulReviewCommentNumber += 1
+    @staticmethod
+    def getSinglePullRequest(helper, statistic, pull_number):  # 获取某个编号pull request的信息
+        pullRequest = helper.getInformationForPullRequest(pull_number)
+        if pullRequest is not None:  # pull request存在就储存
+            SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_PULL_REQUEST
+                                                   , pullRequest.getItemKeyList()
+                                                   , pullRequest.getValueDict()
+                                                   , pullRequest.getIdentifyKeys())
+            head = pullRequest.head
+            if head is not None:
+                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_BRANCH
+                                                       , head.getItemKeyList()
+                                                       , head.getValueDict()
+                                                       , head.getIdentifyKeys())
 
-                # '''获取 pull request对应的issue comment信息'''
-                # issueComments = helper.getInformationForIssueCommentWithIssue(pullRequest.number)
-                # for comment in issueComments:
-                #     if comment is not None:
-                #         ProjectAllDataFetcher.saveIssueCommentInformationToDB(helper, comment)
-                #         usefulIssueCommentNumber += 1
+            base = pullRequest.base
+            if base is not None:
+                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_BRANCH
+                                                       , base.getItemKeyList()
+                                                       , base.getValueDict()
+                                                       , base.getIdentifyKeys())
+            statistic.usefulRequestNumber += 1
 
-                '''获取 pull request对应的commit信息'''
-                commits, relations = helper.getInformationForCommitWithPullRequest(pullRequest.number)
-                for commit in commits:
-                    if commit is not None:
-                        commit = helper.getInformationCommit(commit.sha)  # 对status和file信息的补偿
-                        ProjectAllDataFetcher.saveCommitInformationToDB(helper, commit)
-                        usefulCommitNumber += 1
+            ''' 获取 pull request对应的review信息'''
+            reviews = helper.getInformationForReviewWithPullRequest(pullRequest.number)
+            for review in reviews:
+                if review is not None:
+                    ProjectAllDataFetcher.saveReviewInformationToDB(helper, review)
+                    statistic.usefulReviewNumber += 1
 
-                '''存储 pull request和commit的关系'''
-                for relation in relations:
-                    if relation is not None:
-                        ProjectAllDataFetcher.saveCommitPRRelationInformationToDB(helper, relation)
+            '''获取 pull request对应的review comment信息'''
+            reviewComments = helper.getInformationForReviewCommentWithPullRequest(pullRequest.number)
+            for comment in reviewComments:
+                if comment is not None:
+                    ProjectAllDataFetcher.saveReviewCommentInformationToDB(helper, comment)
+                    statistic.usefulReviewCommentNumber += 1
 
-            resNumber = resNumber - 1
-            rr = rr + 1
-            if 0 < limit < rr:
-                break
+            '''获取 pull request对应的issue comment信息'''
+            issueComments = helper.getInformationForIssueCommentWithIssue(pullRequest.number)
+            for comment in issueComments:
+                if comment is not None:
+                    ProjectAllDataFetcher.saveIssueCommentInformationToDB(helper, comment)
+                    statistic.usefulIssueCommentNumber += 1
 
-        print("useful pull request:", usefulRequestNumber,
-              " useful review:", usefulReviewNumber,
-              " useful review comment:", usefulReviewCommentNumber,
-              " useful issue comment:", usefulIssueCommentNumber,
-              " useful commit:", usefulCommitNumber)
+            '''获取 pull request对应的commit信息'''
+            commits, relations = helper.getInformationForCommitWithPullRequest(pullRequest.number)
+            for commit in commits:
+                if commit is not None:
+                    commit = helper.getInformationCommit(commit.sha)  # 对status和file信息的补偿
+                    ProjectAllDataFetcher.saveCommitInformationToDB(helper, commit)
+                    statistic.usefulCommitNumber += 1
+
+                    '''获取 commit对应的commit comment'''
+                    """讲道理commit comment是应该通过遍历项目所有的commit
+                       来寻找的  但是现在主要通过pull request为主题提取信息  可以通过这
+                       条线的数量来判断是否重要  如果重要后面再做进一步的处理
+
+                       举个例子  rails项目commit 2万+ 遍历实在是浪费资源"""
+
+                    commit_comments = helper.getInformationForCommitCommentsWithCommit(commit.sha)
+                    if commit_comments is not None:
+                        for commit_comment in commit_comments:
+                            ProjectAllDataFetcher.saveCommitCommentInformationToDB(helper, commit_comment)
+                            statistic.usefulCommitCommentNumber += 1
+
+            '''存储 pull request和commit的关系'''
+            for relation in relations:
+                if relation is not None:
+                    ProjectAllDataFetcher.saveCommitPRRelationInformationToDB(helper, relation)
 
     @staticmethod
     def saveReviewInformationToDB(helper, review):  # review信息录入数据库
@@ -211,9 +232,24 @@ class ProjectAllDataFetcher:
     def saveCommitPRRelationInformationToDB(helper, relation):  # commit信息录入数据库
         if relation is not None:
             SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_COMMIT_PR_RELATION
-                                                    , relation.getItemKeyList()
-                                                    , relation.getValueDict()
-                                                    , relation.getIdentifyKeys())
+                                                   , relation.getItemKeyList()
+                                                   , relation.getValueDict()
+                                                   , relation.getIdentifyKeys())
+
+    @staticmethod
+    def saveCommitCommentInformationToDB(helper, comment):  # commit信息录入数据库
+        if comment is not None:
+            SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_COMMIT_COMMENT
+                                                   , comment.getItemKeyList()
+                                                   , comment.getValueDict()
+                                                   , comment.getIdentifyKeys())
+
+            if comment.user is not None:
+                user = helper.getInformationForUser(comment.user.login)
+                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+                                                       , user.getItemKeyList()
+                                                       , user.getValueDict()
+                                                       , user.getIdentifyKeys())
 
 
 if __name__ == '__main__':

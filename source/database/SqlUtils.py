@@ -17,6 +17,7 @@ class SqlUtils:
     STR_TABLE_NAME_FILE = 'gitFile'
     STR_TABLE_NAME_COMMIT_RELATION = 'commitRelation'
     STR_TABLE_NAME_COMMIT_PR_RELATION = 'commitPRRelation'
+    STR_TABLE_NAME_COMMIT_COMMENT = 'commitComment'
 
     '''存储的表中的类型'''
     STR_KEY_INT = 'int'

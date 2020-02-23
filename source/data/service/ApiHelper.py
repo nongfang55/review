@@ -9,6 +9,7 @@ import os
 from source.config import projectConfig
 from source.config import configPraser
 from source.data.bean.CommentRelation import CommitRelation
+from source.data.bean.CommitComment import CommitComment
 from source.data.bean.CommitPRRelation import CommitPRRelation
 from source.data.bean.File import File
 from source.data.bean.Commit import Commit
@@ -39,6 +40,7 @@ class ApiHelper:
     API_ISSUE_COMMENT_FOR_ISSUE = '/repos/:owner/:repo/issues/:issue_number/comments'
     API_COMMIT = '/repos/:owner/:repo/commits/:commit_sha'
     API_COMMITS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/commits'
+    API_COMMIT_COMMENTS_FOR_COMMIT = '/repos/:owner/:repo/commits/:commit_sha/comments'
 
     # 用于替换的字符串
     STR_HEADER_AUTHORIZAITON = 'Authorization'
@@ -548,6 +550,33 @@ class ApiHelper:
 
         return items, relations
 
+    def getInformationForCommitCommentsWithCommit(self, commit_sha):
+        """获取一个commit对应的 commit comment的详细信息 可以节省请求"""
+
+        api = self.API_GITHUB + self.API_COMMIT_COMMENTS_FOR_COMMIT
+        api = api.replace(self.STR_OWNER, self.owner)
+        api = api.replace(self.STR_REPO, self.repo)
+        api = api.replace(self.STR_COMMIT_SHA, commit_sha)
+        print(api)
+        #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+
+        headers = {}
+        headers = self.getAuthorizationHeaders(headers)
+        headers = self.getMediaTypeHeaders(headers)
+        r = requests.get(api, headers=headers)
+        self.printCommon(r)
+        self.judgeLimit(r)
+        if r.status_code != 200:
+            return None
+
+        items = []
+        for item in r.json():
+            res = CommitComment.parser.parser(item)
+            print(res.getValueDict())
+            items.append(res)
+
+        return items
+
 
 if __name__ == "__main__":
     helper = ApiHelper('rails', 'rails')
@@ -572,6 +601,7 @@ if __name__ == "__main__":
     # print(helper.getInformationForReviewCommentWithPullRequest(38539))
     # print(helper.getInformationForIssueCommentWithIssue(38529))
     # print(CommitRelation.getItemKeyList())
-    #print(CommitRelation().getValueDict())
-    #print(helper.getInformationForCommit('b4256cea5d812660f28ca148835afcf273376c8e').parents[0].getValueDict())
-    print(helper.getInformationForCommitWithPullRequest(38449))
+    # print(CommitRelation().getValueDict())
+    # print(helper.getInformationForCommit('b4256cea5d812660f28ca148835afcf273376c8e').parents[0].getValueDict())
+    # print(helper.getInformationForCommitWithPullRequest(38449))
+    print(helper.getInformationForCommitCommentsWithCommit('2e74177d0b61f872b773285471ff9025f0eaa96c'))
