@@ -1,5 +1,6 @@
 # coding=gbk
 from datetime import datetime
+import time
 
 from source.config.configPraser import configPraser
 from source.config.projectConfig import projectConfig
@@ -25,7 +26,7 @@ class ProjectAllDataFetcher:
         '''提取项目的信息以及项目的owner信息'''
         ProjectAllDataFetcher.getDataForRepository(helper)
         '''提取项目的pull request信息'''
-        ProjectAllDataFetcher.getPullRequestForRepository(helper, limit=5, statistic=statistic)
+        ProjectAllDataFetcher.getPullRequestForRepository(helper, limit= configPraser.getLimit() , statistic=statistic)
 
         statistic.endTime = datetime.now()
 
@@ -39,8 +40,24 @@ class ProjectAllDataFetcher:
     @staticmethod
     def getDataForRepository(helper):
 
-        project = helper.getInformationForProject()
-        print(project)
+        exceptionTime = 0
+        project = None
+
+        while exceptionTime < configPraser.getRetryTime():
+            try:
+                project = helper.getInformationForProject()
+                break
+            except Exception as e:
+                if exceptionTime < 5:
+                    time.sleep(5)
+                else:
+                    time.sleep(20)
+                exceptionTime += 1
+                print(e)
+
+        if exceptionTime == configPraser.getRetryTime():
+            raise Exception("error out the limit!")
+
         if project is not None:
             SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_REPOS
                                                    , project.getItemKeyList()
@@ -84,7 +101,20 @@ class ProjectAllDataFetcher:
 
         while resNumber > 0:
             print("pull request:", resNumber, " now:", rr)
-            ProjectAllDataFetcher.getSinglePullRequest(helper, statistic, resNumber)
+            exceptionTime = 0
+
+            while exceptionTime < configPraser.getRetryTime():
+                try:
+                    ProjectAllDataFetcher.getSinglePullRequest(helper, statistic, resNumber)
+                    break
+                except Exception as e:
+                    time.sleep(5)
+                    exceptionTime += 1
+                    print(e)
+
+            if exceptionTime == configPraser.getRetryTime():
+                raise Exception("error out the limit!")
+
             resNumber = resNumber - 1
             rr = rr + 1
             if 0 < limit < rr:
@@ -288,8 +318,8 @@ class ProjectAllDataFetcher:
                     print('老用户  不必获取')
 
 
-
 if __name__ == '__main__':
-    ProjectAllDataFetcher.getAllDataForProject('rails', 'rails')
+    ProjectAllDataFetcher.getAllDataForProject(configPraser.getOwner(), configPraser.getRepo())
     # ProjectAllDataFetcher.getAllDataForProject('ctripcorp', 'apollo')
     # ProjectAllDataFetcher.getAllDataForProject('kytrinyx', 'rails')
+    # print(configPraser.getLimit())
