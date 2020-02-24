@@ -80,16 +80,16 @@ class ApiHelper:
         self.isUseAuthorization = isUseAuthorization
 
     def getAuthorizationHeaders(self, header):
-        if (header != None and isinstance(header, dict)):
-            if (self.isUseAuthorization):
-                if (configPraser.configPraser.getAuthorizationToken()):
+        if header is not None and isinstance(header, dict):
+            if self.isUseAuthorization:
+                if configPraser.configPraser.getAuthorizationToken():
                     header[self.STR_HEADER_AUTHORIZAITON] = (self.STR_HEADER_TOKEN
                                                              + configPraser.configPraser.getAuthorizationToken())
 
         return header
 
     def getMediaTypeHeaders(self, header):
-        if (header != None and isinstance(header, dict)):
+        if header is not None and isinstance(header, dict):
             header[self.STR_HEADER_ACCEPT] = self.STR_HEADER_MEDIA_TYPE
 
         return header
@@ -116,9 +116,11 @@ class ApiHelper:
         res = list()
         for request in r.json():
             res.append(request.get(StringKeyUtils.STR_KEY_NUMBER))
-            print(request.get(StringKeyUtils.STR_KEY_NUMBER))
+            if configPraser.configPraser.getPrintMode():
+                print(request.get(StringKeyUtils.STR_KEY_NUMBER))
 
-        print(res.__len__())
+        if configPraser.configPraser.getPrintMode():
+            print(res.__len__())
         return res
 
     def getLanguageForProject(self):
@@ -290,14 +292,15 @@ class ApiHelper:
         return res
 
     def printCommon(self, r):
-        if isinstance(r, requests.models.Response):
-            print(type(r))
-            print(r.json())
-            print(r.text.encode(encoding='utf_8', errors='strict'))
-            print(r.headers)
-            print("status:", r.status_code.__str__())
-            print("remaining:", r.headers.get(self.STR_HEADER_RATE_LIMIT_REMIAN))
-            print("rateLimit:", r.headers.get(self.STR_HEADER_RATE_LIMIT_RESET))
+        if configPraser.configPraser.getPrintMode():
+            if isinstance(r, requests.models.Response):
+                print(type(r))
+                print(r.json())
+                print(r.text.encode(encoding='utf_8', errors='strict'))
+                print(r.headers)
+                print("status:", r.status_code.__str__())
+                print("remaining:", r.headers.get(self.STR_HEADER_RATE_LIMIT_REMIAN))
+                print("rateLimit:", r.headers.get(self.STR_HEADER_RATE_LIMIT_RESET))
 
     def judgeLimit(self, r):
         if isinstance(r, requests.models.Response):
@@ -329,7 +332,8 @@ class ApiHelper:
 
         res = Repository.parser.parser(r.json())
 
-        print(res)
+        if configPraser.configPraser.getPrintMode():
+            print(res)
         return res
 
     def getInformationForUser(self, login):
@@ -337,7 +341,7 @@ class ApiHelper:
 
         api = self.API_GITHUB + self.API_USER
         api = api.replace(self.STR_USER, login)
-        print(api)
+        # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -350,7 +354,8 @@ class ApiHelper:
 
         res = User.parser.parser(r.json())
 
-        print(res)
+        if configPraser.configPraser.getPrintMode():
+            print(res)
         return res
 
     def getInformationForPullRequest(self, pull_number):
@@ -360,7 +365,7 @@ class ApiHelper:
         api = api.replace(self.STR_OWNER, self.owner)
         api = api.replace(self.STR_REPO, self.repo)
         api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
-        print(api)
+        # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -375,7 +380,8 @@ class ApiHelper:
         if res is not None and res.base is not None:
             res.repo_full_name = res.base.repo_full_name  # 对pull_request的repo_full_name 做一个补全
 
-        print(res)
+        if configPraser.configPraser.getPrintMode():
+            print(res)
         return res
 
     def getInformationForReview(self, pull_number, review_id):
@@ -386,7 +392,7 @@ class ApiHelper:
         api = api.replace(self.STR_REPO, self.repo)
         api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
         api = api.replace(self.STR_REVIEW_ID, str(review_id))
-        print(api)
+        # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -412,7 +418,7 @@ class ApiHelper:
         api = api.replace(self.STR_OWNER, self.owner)
         api = api.replace(self.STR_REPO, self.repo)
         api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
-        print(api)
+        # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -430,7 +436,8 @@ class ApiHelper:
             res.repo_full_name = self.owner + '/' + self.repo  # 对repo_full_name 做一个补全
             res.pull_number = pull_number
 
-            print(res.getValueDict())
+            if configPraser.configPraser.getPrintMode():
+                print(res.getValueDict())
             items.append(res)
 
         return items
@@ -442,7 +449,7 @@ class ApiHelper:
         api = api.replace(self.STR_OWNER, self.owner)
         api = api.replace(self.STR_REPO, self.repo)
         api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
-        print(api)
+        # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -457,7 +464,8 @@ class ApiHelper:
         items = []
         for item in r.json():
             res = ReviewComment.parser.parser(item)
-            print(res.getValueDict())
+            if configPraser.configPraser.getPrintMode():
+                print(res.getValueDict())
             items.append(res)
 
         return items
@@ -470,7 +478,7 @@ class ApiHelper:
         api = api.replace(self.STR_OWNER, self.owner)
         api = api.replace(self.STR_REPO, self.repo)
         api = api.replace(self.STR_ISSUE_NUMBER, str(issue_number))
-        print(api)
+        # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -485,7 +493,8 @@ class ApiHelper:
         items = []
         for item in r.json():
             res = IssueComment.parser.parser(item)
-            print(res.getValueDict())
+            if configPraser.configPraser.getPrintMode():
+                print(res.getValueDict())
 
             """信息补全"""
             res.repo_full_name = self.owner + '/' + self.repo  # 对repo_full_name 做一个补全
@@ -501,7 +510,7 @@ class ApiHelper:
         api = api.replace(self.STR_OWNER, self.owner)
         api = api.replace(self.STR_REPO, self.repo)
         api = api.replace(self.STR_COMMIT_SHA, str(commit_sha))
-        print(api)
+        # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -523,7 +532,7 @@ class ApiHelper:
         api = api.replace(self.STR_OWNER, self.owner)
         api = api.replace(self.STR_REPO, self.repo)
         api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
-        print(api)
+        # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -539,7 +548,8 @@ class ApiHelper:
         relations = []
         for item in r.json():
             res = Commit.parser.parser(item)
-            print(res.getValueDict())
+            if configPraser.configPraser.getPrintMode():
+                print(res.getValueDict())
             items.append(res)
 
             relation = CommitPRRelation()
@@ -557,7 +567,7 @@ class ApiHelper:
         api = api.replace(self.STR_OWNER, self.owner)
         api = api.replace(self.STR_REPO, self.repo)
         api = api.replace(self.STR_COMMIT_SHA, commit_sha)
-        print(api)
+        # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -572,7 +582,8 @@ class ApiHelper:
         items = []
         for item in r.json():
             res = CommitComment.parser.parser(item)
-            print(res.getValueDict())
+            if configPraser.configPraser.getPrintMode():
+                print(res.getValueDict())
             items.append(res)
 
         return items

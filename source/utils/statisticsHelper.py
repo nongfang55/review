@@ -12,3 +12,5 @@ class statisticsHelper:
         self.usefulIssueCommentNumber = 0  # issue comment 的提取数量
         self.usefulCommitNumber = 0  # commit的提取数量
         self.usefulCommitCommentNumber = 0  # commit comment的提取数量
+        self.startTime = None  # 开始时间
+        self.endTime = None  # 结束时间

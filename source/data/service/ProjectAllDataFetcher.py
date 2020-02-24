@@ -1,4 +1,8 @@
 # coding=gbk
+from datetime import datetime
+
+from source.config.configPraser import configPraser
+from source.config.projectConfig import projectConfig
 from source.data.service.ApiHelper import ApiHelper
 from source.database.SqlExecuteHelper import SqlExecuteHelper
 from source.database.SqlUtils import SqlUtils
@@ -16,11 +20,21 @@ class ProjectAllDataFetcher:
         helper.setAuthorization(True)
 
         statistic = statisticsHelper()
+        statistic.startTime = datetime.now()
 
         '''提取项目的信息以及项目的owner信息'''
-        # ProjectAllDataFetcher.getDataForRepository(helper)
+        ProjectAllDataFetcher.getDataForRepository(helper)
         '''提取项目的pull request信息'''
         ProjectAllDataFetcher.getPullRequestForRepository(helper, limit=5, statistic=statistic)
+
+        statistic.endTime = datetime.now()
+
+        print("useful pull request:", statistic.usefulRequestNumber,
+              " useful review:", statistic.usefulReviewNumber,
+              " useful review comment:", statistic.usefulReviewCommentNumber,
+              " useful issue comment:", statistic.usefulIssueCommentNumber,
+              " useful commit:", statistic.usefulCommitNumber,
+              " cost time:", (statistic.endTime - statistic.startTime).seconds)
 
     @staticmethod
     def getDataForRepository(helper):
@@ -34,26 +48,30 @@ class ProjectAllDataFetcher:
                                                    , project.getIdentifyKeys())
         # 存储项目的owner信息
         if project.owner is not None and project.owner.login is not None:
-            user = helper.getInformationForUser(project.owner.login)
-            #             user = SqlServerInterceptor.convertFromBeanbaseToOutput(user)
-
-            print(user.getValueDict())
-
-            SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
-                                                   , user.getItemKeyList()
-                                                   , user.getValueDict()
-                                                   , user.getIdentifyKeys())
+            ProjectAllDataFetcher.saveUserInformationToDB(helper, project.owner)
+            # user = helper.getInformationForUser(project.owner.login)
+            # #             user = SqlServerInterceptor.convertFromBeanbaseToOutput(user)
+            #
+            # print(user.getValueDict())
+            #
+            # SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+            #                                        , user.getItemKeyList()
+            #                                        , user.getValueDict()
+            #                                        , user.getIdentifyKeys())
 
     @staticmethod
-    def getPullRequestForRepository(helper, statistic, limit=-1):
+    def getPullRequestForRepository(helper, statistic, limit=-1, start=-1):
 
-        # 获取项目pull request的数量
-        # requestNumber = helper.getTotalPullRequestNumberForProject()
-        requestNumber = helper.getMaxSolvedPullRequestNumberForProject()
+        if start == -1:
+            # 获取项目pull request的数量
+            # requestNumber = helper.getTotalPullRequestNumberForProject()
+            requestNumber = helper.getMaxSolvedPullRequestNumberForProject()
 
-        print("total pull request number:", requestNumber)
+            print("total pull request number:", requestNumber)
 
-        resNumber = requestNumber
+            resNumber = requestNumber
+        else:
+            resNumber = start
         rr = 0
 
         # usefulRequestNumber = 0
@@ -64,20 +82,13 @@ class ProjectAllDataFetcher:
         # usefulCommitNumber = 0  # commit的提取数量
         # usefulCommitCommentNumber = 0  # commit comment的提取数量
 
-        # while resNumber > 0:
-        #     print("pull request:", resNumber, " now:", rr)
-        #     ProjectAllDataFetcher.getSinglePullRequest(helper, statistic, resNumber)
-        #     resNumber = resNumber - 1
-        #     rr = rr + 1
-        #     if 0 < limit < rr:
-        #         break
-        ProjectAllDataFetcher.getSinglePullRequest()
-
-        print("useful pull request:", statistic.usefulRequestNumber,
-              " useful review:", statistic.usefulReviewNumber,
-              " useful review comment:", statistic.usefulReviewCommentNumber,
-              " useful issue comment:", statistic.usefulIssueCommentNumber,
-              " useful commit:", statistic.usefulCommitNumber)
+        while resNumber > 0:
+            print("pull request:", resNumber, " now:", rr)
+            ProjectAllDataFetcher.getSinglePullRequest(helper, statistic, resNumber)
+            resNumber = resNumber - 1
+            rr = rr + 1
+            if 0 < limit < rr:
+                break
 
     @staticmethod
     def getSinglePullRequest(helper, statistic, pull_number):  # 获取某个编号pull request的信息
@@ -157,12 +168,13 @@ class ProjectAllDataFetcher:
                                                    , review.getValueDict()
                                                    , review.getIdentifyKeys())
 
-            if review.user is not None:
-                user = helper.getInformationForUser(review.user.login)  # 获取完善的用户信息
-                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
-                                                       , user.getItemKeyList()
-                                                       , user.getValueDict()
-                                                       , user.getIdentifyKeys())
+            # if review.user is not None:
+            #     user = helper.getInformationForUser(review.user.login)  # 获取完善的用户信息
+            #     SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+            #                                            , user.getItemKeyList()
+            #                                            , user.getValueDict()
+            #                                            , user.getIdentifyKeys())
+            ProjectAllDataFetcher.saveUserInformationToDB(helper, review.user)
 
     @staticmethod
     def saveReviewCommentInformationToDB(helper, reviewComment):  # review comment信息录入数据库
@@ -172,12 +184,13 @@ class ProjectAllDataFetcher:
                                                    , reviewComment.getValueDict()
                                                    , reviewComment.getIdentifyKeys())
 
-            if reviewComment.user is not None:
-                user = helper.getInformationForUser(reviewComment.user.login)  # 获取完善的用户信息
-                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
-                                                       , user.getItemKeyList()
-                                                       , user.getValueDict()
-                                                       , user.getIdentifyKeys())
+            # if reviewComment.user is not None:
+            #     user = helper.getInformationForUser(reviewComment.user.login)  # 获取完善的用户信息
+            #     SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+            #                                            , user.getItemKeyList()
+            #                                            , user.getValueDict()
+            #                                            , user.getIdentifyKeys())
+            ProjectAllDataFetcher.saveUserInformationToDB(helper, reviewComment.user)
 
     @staticmethod
     def saveIssueCommentInformationToDB(helper, issueComment):  # issue comment信息录入数据库
@@ -187,12 +200,13 @@ class ProjectAllDataFetcher:
                                                    , issueComment.getValueDict()
                                                    , issueComment.getIdentifyKeys())
 
-            if issueComment.user is not None:
-                user = helper.getInformationForUser(issueComment.user.login)  # 获取完善的用户信息
-                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
-                                                       , user.getItemKeyList()
-                                                       , user.getValueDict()
-                                                       , user.getIdentifyKeys())
+            # if issueComment.user is not None:
+            #     user = helper.getInformationForUser(issueComment.user.login)  # 获取完善的用户信息
+            #     SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+            #                                            , user.getItemKeyList()
+            #                                            , user.getValueDict()
+            #                                            , user.getIdentifyKeys())
+            ProjectAllDataFetcher.saveUserInformationToDB(helper, issueComment.user)
 
     @staticmethod
     def saveCommitInformationToDB(helper, commit):  # commit信息录入数据库
@@ -202,19 +216,22 @@ class ProjectAllDataFetcher:
                                                    , commit.getValueDict()
                                                    , commit.getIdentifyKeys())
 
-            if commit.author is not None:
-                user = helper.getInformationForUser(commit.author.login)  # 完善作者信息
-                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
-                                                       , user.getItemKeyList()
-                                                       , user.getValueDict()
-                                                       , user.getIdentifyKeys())
+            # if commit.author is not None:
+            #     user = helper.getInformationForUser(commit.author.login)  # 完善作者信息
+            #     SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+            #                                            , user.getItemKeyList()
+            #                                            , user.getValueDict()
+            #                                            , user.getIdentifyKeys())
+            ProjectAllDataFetcher.saveUserInformationToDB(helper, commit.author)
 
-            if commit.committer is not None:
-                user = helper.getInformationForUser(commit.committer.login)  # 完善提交者信息
-                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
-                                                       , user.getItemKeyList()
-                                                       , user.getValueDict()
-                                                       , user.getIdentifyKeys())
+            # if commit.committer is not None:
+            #     user = helper.getInformationForUser(commit.committer.login)  # 完善提交者信息
+            #     SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+            #                                            , user.getItemKeyList()
+            #                                            , user.getValueDict()
+            #                                            , user.getIdentifyKeys())
+            ProjectAllDataFetcher.saveUserInformationToDB(helper, commit.committer)
+
             if commit.files is not None:
                 for file in commit.files:
                     SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_FILE
@@ -244,12 +261,32 @@ class ProjectAllDataFetcher:
                                                    , comment.getValueDict()
                                                    , comment.getIdentifyKeys())
 
-            if comment.user is not None:
-                user = helper.getInformationForUser(comment.user.login)
-                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
-                                                       , user.getItemKeyList()
-                                                       , user.getValueDict()
-                                                       , user.getIdentifyKeys())
+            # if comment.user is not None:
+            #     user = helper.getInformationForUser(comment.user.login)
+            #     SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+            #                                            , user.getItemKeyList()
+            #                                            , user.getValueDict()
+            #                                            , user.getIdentifyKeys())
+            ProjectAllDataFetcher.saveUserInformationToDB(helper, comment.user)
+
+    @staticmethod
+    def saveUserInformationToDB(helper, user):  # user信息录入数据库  先查询数据库再，如果信息不完整再请求
+        if user is not None and user.login is not None:
+            res = SqlExecuteHelper.queryValuesFromTable(SqlUtils.STR_TABLE_NAME_USER,
+                                                        user.getIdentifyKeys(), user.getValueDict())
+            if res is None or res.__len__() == 0:
+                if configPraser.getPrintMode():
+                    print('新用户  从git中获取信息')
+                    user = helper.getInformationForUser(user.login)
+                    SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+                                                           , user.getItemKeyList()
+                                                           , user.getValueDict()
+                                                           , user.getIdentifyKeys())
+            else:
+                if configPraser.getPrintMode():
+                    print(type(configPraser.getPrintMode()))
+                    print('老用户  不必获取')
+
 
 
 if __name__ == '__main__':
