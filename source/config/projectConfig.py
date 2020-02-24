@@ -4,7 +4,7 @@ import os
 
 class projectConfig:
     projectName = 'review'
-    PATH_CONFIG = 'source' + os.sep + 'config' + os.sep + 'config.ini'
+    PATH_CONFIG = 'source' + os.sep + 'config' + os.sep + 'config.txt'
     PATH_TEST_INPUT_EXCEL = 'data' + os.sep + 'Test200.xlsx'
     PATH_TEST_OUTPUT_EXCEL = 'data' + os.sep + 'output.xlsx'
     PATH_TEST_OUTPUT_PATH = 'data'

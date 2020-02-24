@@ -26,7 +26,7 @@ class ProjectAllDataFetcher:
         '''提取项目的信息以及项目的owner信息'''
         ProjectAllDataFetcher.getDataForRepository(helper)
         '''提取项目的pull request信息'''
-        ProjectAllDataFetcher.getPullRequestForRepository(helper, limit= configPraser.getLimit() , statistic=statistic)
+        ProjectAllDataFetcher.getPullRequestForRepository(helper, limit=configPraser.getLimit(), statistic=statistic)
 
         statistic.endTime = datetime.now()
 
