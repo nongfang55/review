@@ -6,6 +6,10 @@ import io
 import time
 
 import os
+
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
+
 from source.config import projectConfig
 from source.config import configPraser
 from source.data.bean.CommentRelation import CommitRelation
@@ -17,6 +21,7 @@ from source.data.bean.IssueComment import IssueComment
 from source.data.bean.Review import Review
 from source.data.bean.CommentPraser import CommentPraser
 from source.data.bean.ReviewComment import ReviewComment
+from source.data.service.ProxyHelper import ProxyHelper
 from source.utils.TableItemHelper import TableItemHelper
 from source.utils.StringKeyUtils import StringKeyUtils
 from _datetime import datetime
@@ -49,6 +54,9 @@ class ApiHelper:
     STR_HEADER_MEDIA_TYPE = 'application/vnd.github.comfort-fade-preview+json'
     STR_HEADER_RATE_LIMIT_REMIAN = 'X-RateLimit-Remaining'
     STR_HEADER_RATE_LIMIT_RESET = 'X-RateLimit-Reset'
+    STR_HEADER_USER_AGENT = 'User-Agent'
+    STR_HEADER_USER_AGENT_SET = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' \
+                                '(KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
 
     STR_OWNER = ':owner'
     STR_REPO = ':repo'
@@ -65,10 +73,14 @@ class ApiHelper:
 
     RATE_LIMIT = 5
 
+    STR_PROXY_HTTP = 'http'
+    STR_PROXY_HTTP_FORMAT = 'http://{}'
+
     def __init__(self, owner, repo):  # 设置对应的仓库和所属
         self.owner = owner
         self.repo = repo
         self.isUseAuthorization = False
+        self.isUseProxyPool = False
 
     def setOwner(self, owner):
         self.owner = owner
@@ -79,6 +91,18 @@ class ApiHelper:
     def setAuthorization(self, isUseAuthorization):
         self.isUseAuthorization = isUseAuthorization
 
+    def setUseProxyPool(self, isUseProxyPool):
+        self.isUseProxyPool = isUseProxyPool
+
+    def getProxy(self):
+        if self.isUseProxyPool:
+            proxy = ProxyHelper.getSingleProxy()
+            if configPraser.configPraser.getPrintMode():
+                print(proxy)
+            if proxy is not None:
+                return {ApiHelper.STR_PROXY_HTTP: ApiHelper.STR_PROXY_HTTP_FORMAT.format(proxy)}
+        return None
+
     def getAuthorizationHeaders(self, header):
         if header is not None and isinstance(header, dict):
             if self.isUseAuthorization:
@@ -86,6 +110,11 @@ class ApiHelper:
                     header[self.STR_HEADER_AUTHORIZAITON] = (self.STR_HEADER_TOKEN
                                                              + configPraser.configPraser.getAuthorizationToken())
 
+        return header
+
+    def getUserAgentHeaders(self, header):
+        if header is not None and isinstance(header, dict):
+            header[self.STR_HEADER_USER_AGENT] = self.STR_HEADER_USER_AGENT_SET
         return header
 
     def getMediaTypeHeaders(self, header):
@@ -106,8 +135,11 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: state})
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: state}, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -135,8 +167,11 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -158,8 +193,12 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: self.STR_PARM_ALL})
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: self.STR_PARM_ALL}
+                         , verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -186,8 +225,12 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: self.STR_PARM_CLOSED})
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: self.STR_PARM_CLOSED}
+                         , verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -216,9 +259,12 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
         headers = self.getMediaTypeHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -248,8 +294,11 @@ class ApiHelper:
 
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -277,8 +326,11 @@ class ApiHelper:
 
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -323,8 +375,11 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -345,8 +400,11 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -369,8 +427,12 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -396,8 +458,11 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -422,8 +487,11 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -453,9 +521,12 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
         headers = self.getMediaTypeHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -484,7 +555,9 @@ class ApiHelper:
         headers = {}
         headers = self.getAuthorizationHeaders(headers)
         headers = self.getMediaTypeHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -514,8 +587,11 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -536,9 +612,12 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
         headers = self.getMediaTypeHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -571,9 +650,12 @@ class ApiHelper:
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
+        headers = self.getUserAgentHeaders(headers)
         headers = self.getAuthorizationHeaders(headers)
         headers = self.getMediaTypeHeaders(headers)
-        r = requests.get(api, headers=headers)
+        proxy = self.getProxy()
+        urllib3.disable_warnings(InsecureRequestWarning)
+        r = requests.get(api, headers=headers, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -592,6 +674,7 @@ class ApiHelper:
 if __name__ == "__main__":
     helper = ApiHelper('rails', 'rails')
     helper.setAuthorization(True)
+    helper.setUseProxyPool(True)
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     # print(helper.getReviewForPullRequest(38211))
     # helper.getPullRequestsForPorject(state = ApiHelper.STR_PARM_ALL)
@@ -600,7 +683,7 @@ if __name__ == "__main__":
     #     print(helper.getCommentsForPullRequest(38211))
     #     print(helper.getCommentsForPullRequest(38211))
     # print(helper.getMaxSolvedPullRequestNumberForProject())
-    #     print(helper.getLanguageForProject())
+    # print(helper.getLanguageForProject())
     # print(helper.getInformationForProject().getItemKeyListWithType())
     # print(helper.getInformationForUser('jonathanhefner').getItemKeyListWithType())
     # print(helper.getTotalPullRequestNumberForProject())
@@ -615,4 +698,4 @@ if __name__ == "__main__":
     # print(CommitRelation().getValueDict())
     # print(helper.getInformationForCommit('b4256cea5d812660f28ca148835afcf273376c8e').parents[0].getValueDict())
     # print(helper.getInformationForCommitWithPullRequest(38449))
-    print(helper.getInformationForCommitCommentsWithCommit('2e74177d0b61f872b773285471ff9025f0eaa96c'))
+    # print(helper.getInformationForCommitCommentsWithCommit('2e74177d0b61f872b773285471ff9025f0eaa96c'))

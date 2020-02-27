@@ -1,4 +1,5 @@
 # coding=gbk
+import threading
 
 
 class statisticsHelper:
@@ -14,3 +15,4 @@ class statisticsHelper:
         self.usefulCommitCommentNumber = 0  # commit comment的提取数量
         self.startTime = None  # 开始时间
         self.endTime = None  # 结束时间
+        self.lock = threading.RLock()

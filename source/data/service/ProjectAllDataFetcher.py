@@ -1,6 +1,10 @@
 # coding=gbk
+from concurrent.futures._base import ALL_COMPLETED, wait
+from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 import time
+
+from retrying import retry
 
 from source.config.configPraser import configPraser
 from source.config.projectConfig import projectConfig
@@ -26,7 +30,8 @@ class ProjectAllDataFetcher:
         '''提取项目的信息以及项目的owner信息'''
         ProjectAllDataFetcher.getDataForRepository(helper)
         '''提取项目的pull request信息'''
-        ProjectAllDataFetcher.getPullRequestForRepository(helper, limit=configPraser.getLimit(), statistic=statistic)
+        ProjectAllDataFetcher.getPullRequestForRepositoryUseConcurrent(helper, limit=configPraser.getLimit(),
+                                                          statistic=statistic, start=37600)
 
         statistic.endTime = datetime.now()
 
@@ -101,24 +106,47 @@ class ProjectAllDataFetcher:
 
         while resNumber > 0:
             print("pull request:", resNumber, " now:", rr)
-            exceptionTime = 0
-
-            while exceptionTime < configPraser.getRetryTime():
-                try:
-                    ProjectAllDataFetcher.getSinglePullRequest(helper, statistic, resNumber)
-                    break
-                except Exception as e:
-                    time.sleep(5)
-                    exceptionTime += 1
-                    print(e)
-
-            if exceptionTime == configPraser.getRetryTime():
-                raise Exception("error out the limit!")
-
+            ProjectAllDataFetcher.getSinglePullRequestWithExceptionCatch(helper, statistic, resNumber)
             resNumber = resNumber - 1
             rr = rr + 1
             if 0 < limit < rr:
                 break
+
+    @staticmethod
+    def getPullRequestForRepositoryUseConcurrent(helper, statistic, limit=-1, start=-1):
+        if start == -1:
+            # 获取项目pull request的数量
+            # requestNumber = helper.getTotalPullRequestNumberForProject()
+            requestNumber = helper.getMaxSolvedPullRequestNumberForProject()
+
+            print("total pull request number:", requestNumber)
+
+            resNumber = requestNumber
+        else:
+            resNumber = start
+
+        executor = ThreadPoolExecutor(max_workers=20)
+        future_tasks = [executor.submit(ProjectAllDataFetcher.getSinglePullRequestWithExceptionCatch,
+                                        helper, statistic,
+                                        pull_number) for pull_number in range(resNumber, max(0, resNumber - limit), -1)]
+        wait(future_tasks, return_when=ALL_COMPLETED)
+
+    @staticmethod
+    def getSinglePullRequestWithExceptionCatch(helper, statistic, pull_number):
+        # ProjectAllDataFetcher.getSinglePullRequest(helper, statistic, pull_number)
+        print('pull_number:', pull_number)
+        exceptionTime = 0
+        while exceptionTime < configPraser.getRetryTime():
+            try:
+                ProjectAllDataFetcher.getSinglePullRequest(helper, statistic, pull_number)
+                break
+            except Exception as e:
+                time.sleep(20)
+                exceptionTime += 1
+                print(e)
+
+        if exceptionTime == configPraser.getRetryTime():
+            raise Exception("error out the limit!")
 
     @staticmethod
     def getSinglePullRequest(helper, statistic, pull_number):  # 获取某个编号pull request的信息
@@ -141,36 +169,45 @@ class ProjectAllDataFetcher:
                                                        , base.getItemKeyList()
                                                        , base.getValueDict()
                                                        , base.getIdentifyKeys())
-            statistic.usefulRequestNumber += 1
+            # statistic.usefulRequestNumber += 1
 
+            usefulReviewNumber = 0
             ''' 获取 pull request对应的review信息'''
             reviews = helper.getInformationForReviewWithPullRequest(pullRequest.number)
             for review in reviews:
                 if review is not None:
                     ProjectAllDataFetcher.saveReviewInformationToDB(helper, review)
-                    statistic.usefulReviewNumber += 1
+                    # statistic.usefulReviewNumber += 1
+                    usefulReviewNumber += 1
 
+            usefulReviewCommentNumber = 0
             '''获取 pull request对应的review comment信息'''
             reviewComments = helper.getInformationForReviewCommentWithPullRequest(pullRequest.number)
             for comment in reviewComments:
                 if comment is not None:
                     ProjectAllDataFetcher.saveReviewCommentInformationToDB(helper, comment)
-                    statistic.usefulReviewCommentNumber += 1
+                    # statistic.usefulReviewCommentNumber += 1
+                    usefulReviewCommentNumber += 1
 
+            usefulIssueCommentNumber = 0
             '''获取 pull request对应的issue comment信息'''
             issueComments = helper.getInformationForIssueCommentWithIssue(pullRequest.number)
             for comment in issueComments:
                 if comment is not None:
                     ProjectAllDataFetcher.saveIssueCommentInformationToDB(helper, comment)
-                    statistic.usefulIssueCommentNumber += 1
+                    # statistic.usefulIssueCommentNumber += 1
+                    usefulIssueCommentNumber += 1
 
+            usefulCommitNumber = 0
+            usefulCommitCommentNumber = 0
             '''获取 pull request对应的commit信息'''
             commits, relations = helper.getInformationForCommitWithPullRequest(pullRequest.number)
             for commit in commits:
                 if commit is not None:
                     commit = helper.getInformationCommit(commit.sha)  # 对status和file信息的补偿
                     ProjectAllDataFetcher.saveCommitInformationToDB(helper, commit)
-                    statistic.usefulCommitNumber += 1
+                    # statistic.usefulCommitNumber += 1
+                    usefulCommitNumber += 1
 
                     '''获取 commit对应的commit comment'''
                     """讲道理commit comment是应该通过遍历项目所有的commit
@@ -183,12 +220,28 @@ class ProjectAllDataFetcher:
                     if commit_comments is not None:
                         for commit_comment in commit_comments:
                             ProjectAllDataFetcher.saveCommitCommentInformationToDB(helper, commit_comment)
-                            statistic.usefulCommitCommentNumber += 1
+                            # statistic.usefulCommitCommentNumber += 1
+                            usefulCommitCommentNumber += 1
 
             '''存储 pull request和commit的关系'''
             for relation in relations:
                 if relation is not None:
                     ProjectAllDataFetcher.saveCommitPRRelationInformationToDB(helper, relation)
+
+            # 做了同步处理
+            statistic.lock.acquire()
+            statistic.usefulRequestNumber += 1
+            statistic.usefulReviewNumber += usefulReviewNumber
+            statistic.usefulReviewCommentNumber += usefulReviewCommentNumber
+            statistic.usefulIssueCommentNumber += usefulIssueCommentNumber
+            statistic.usefulCommitNumber += usefulCommitNumber
+            statistic.usefulCommitCommentNumber = usefulCommitCommentNumber
+            print("useful pull request:", statistic.usefulRequestNumber,
+                  " useful review:", statistic.usefulReviewNumber,
+                  " useful review comment:", statistic.usefulReviewCommentNumber,
+                  " useful issue comment:", statistic.usefulIssueCommentNumber,
+                  " useful commit:", statistic.usefulCommitNumber)
+            statistic.lock.release()
 
     @staticmethod
     def saveReviewInformationToDB(helper, review):  # review信息录入数据库
@@ -307,11 +360,11 @@ class ProjectAllDataFetcher:
             if res is None or res.__len__() == 0:
                 if configPraser.getPrintMode():
                     print('新用户  从git中获取信息')
-                    user = helper.getInformationForUser(user.login)
-                    SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
-                                                           , user.getItemKeyList()
-                                                           , user.getValueDict()
-                                                           , user.getIdentifyKeys())
+                user = helper.getInformationForUser(user.login)
+                SqlExecuteHelper.insertValuesIntoTable(SqlUtils.STR_TABLE_NAME_USER
+                                                       , user.getItemKeyList()
+                                                       , user.getValueDict()
+                                                       , user.getIdentifyKeys())
             else:
                 if configPraser.getPrintMode():
                     print(type(configPraser.getPrintMode()))

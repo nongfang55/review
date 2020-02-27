@@ -1,5 +1,7 @@
 # coding=gbk
 import os
+import random
+
 from source.config.projectConfig import projectConfig
 import configparser
 
@@ -26,7 +28,9 @@ class configPraser:  # 用于解析config。ini文件
     def getAuthorizationToken():
         cp = configparser.ConfigParser()
         cp.read(projectConfig.getConfigPath())
-        return cp.get(configPraser.STR_AUTHORIZATION, configPraser.STR_TOKEN)
+        tokenList = cp.get(configPraser.STR_AUTHORIZATION, configPraser.STR_TOKEN).split(',')
+        return tokenList[random.randint(0, tokenList.__len__() - 1)]
+
 
     @staticmethod
     def getDataBaseUserName():
@@ -77,4 +81,5 @@ class configPraser:  # 用于解析config。ini文件
         return int(cp.get(configPraser.STR_PROJECT, configPraser.STR_LIMIT))
 
 
-
+if __name__ == '__main__':
+    print(configPraser.getAuthorizationToken())
