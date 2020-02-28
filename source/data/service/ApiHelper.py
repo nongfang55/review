@@ -84,7 +84,7 @@ class ApiHelper:
 
         return header
 
-    def getPullRequestsForProject(self, state=STR_PARM_OPEN):
+    def getPullRequestsForProject(self, state=StringKeyUtils.STR_PARM_OPEN):
         """获取一个项目的pull request的列表，但是 只能获取前30个  没参数的时候默认是open
         """
         if self.owner is None or self.repo is None:

@@ -128,6 +128,9 @@ class ProjectAllDataFetcher:
         else:
             resNumber = start
 
+        if limit == -1:
+            limit = resNumber
+
         executor = ThreadPoolExecutor(max_workers=20)
         future_tasks = [executor.submit(ProjectAllDataFetcher.getSinglePullRequestWithExceptionCatch,
                                         helper, statistic,

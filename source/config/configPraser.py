@@ -13,6 +13,7 @@ class configPraser:  # 用于解析config。ini文件
     STR_DATABASE = 'database'
     STR_DEBUG = 'debug'
     STR_PROJECT = 'project'
+    STR_NETWORK = 'network'
 
     STR_USERNAME = 'username'
     STR_PASSWORD = 'password'
@@ -25,6 +26,8 @@ class configPraser:  # 用于解析config。ini文件
     STR_LIMIT = 'limit'
     STR_PROXY = 'proxy'
     STR_START = 'start'
+    STR_TIMEOUT = 'timeout'
+    STR_SEMAPHORE = 'semaphore'
 
     @staticmethod
     def getAuthorizationToken():
@@ -61,13 +64,13 @@ class configPraser:  # 用于解析config。ini文件
     def getProxy():
         cp = configparser.ConfigParser()
         cp.read(projectConfig.getConfigPath())
-        return cp.get(configPraser.STR_DEBUG, configPraser.STR_PROXY) == configPraser.STR_TRUE
+        return cp.get(configPraser.STR_NETWORK, configPraser.STR_PROXY) == configPraser.STR_TRUE
 
     @staticmethod
     def getRetryTime():
         cp = configparser.ConfigParser()
         cp.read(projectConfig.getConfigPath())
-        return int(cp.get(configPraser.STR_DEBUG, configPraser.STR_RETRY))
+        return int(cp.get(configPraser.STR_NETWORK, configPraser.STR_RETRY))
 
     @staticmethod
     def getOwner():
@@ -93,7 +96,19 @@ class configPraser:  # 用于解析config。ini文件
         cp.read(projectConfig.getConfigPath())
         return int(cp.get(configPraser.STR_PROJECT, configPraser.STR_START))
 
+    @staticmethod
+    def getTimeout():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return int(cp.get(configPraser.STR_NETWORK, configPraser.STR_TIMEOUT))
+
+    @staticmethod
+    def getSemaphore():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return int(cp.get(configPraser.STR_NETWORK, configPraser.STR_SEMAPHORE))
+
 
 if __name__ == '__main__':
-    print(configPraser.getProxy())
+    print(configPraser.getSemaphore())
 
