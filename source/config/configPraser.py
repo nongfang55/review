@@ -23,6 +23,8 @@ class configPraser:  # 用于解析config。ini文件
     STR_OWNER = 'owner'
     STR_REPO = 'repo'
     STR_LIMIT = 'limit'
+    STR_PROXY = 'proxy'
+    STR_START = 'start'
 
     @staticmethod
     def getAuthorizationToken():
@@ -30,7 +32,6 @@ class configPraser:  # 用于解析config。ini文件
         cp.read(projectConfig.getConfigPath())
         tokenList = cp.get(configPraser.STR_AUTHORIZATION, configPraser.STR_TOKEN).split(',')
         return tokenList[random.randint(0, tokenList.__len__() - 1)]
-
 
     @staticmethod
     def getDataBaseUserName():
@@ -57,6 +58,12 @@ class configPraser:  # 用于解析config。ini文件
         return cp.get(configPraser.STR_DEBUG, configPraser.STR_PRINT) == configPraser.STR_TRUE
 
     @staticmethod
+    def getProxy():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return cp.get(configPraser.STR_DEBUG, configPraser.STR_PROXY) == configPraser.STR_TRUE
+
+    @staticmethod
     def getRetryTime():
         cp = configparser.ConfigParser()
         cp.read(projectConfig.getConfigPath())
@@ -80,6 +87,13 @@ class configPraser:  # 用于解析config。ini文件
         cp.read(projectConfig.getConfigPath())
         return int(cp.get(configPraser.STR_PROJECT, configPraser.STR_LIMIT))
 
+    @staticmethod
+    def getStart():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return int(cp.get(configPraser.STR_PROJECT, configPraser.STR_START))
+
 
 if __name__ == '__main__':
-    print(configPraser.getAuthorizationToken())
+    print(configPraser.getProxy())
+

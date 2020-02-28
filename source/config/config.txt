@@ -7,7 +7,9 @@ password=123456
 [debug]
 print=False
 retry=100
+proxy=True
 [project]
 owner=rails
 repo=rails
-limit=200
+limit=500
+start=37000

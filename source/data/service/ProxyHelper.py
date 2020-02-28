@@ -7,6 +7,7 @@ class ProxyHelper:
 
     STR_PROXY_GET_API = "http://127.0.0.1:5010/get/"
     STR_PROXY_GET_ALL_API = 'http://127.0.0.1:5010/get_all/'
+    STR_PROXY_DELETE_API = 'http://127.0.0.1:5010/delete/?proxy={}'
 
     STR_KEY_PROXY = 'proxy'
 
@@ -19,6 +20,11 @@ class ProxyHelper:
     @staticmethod
     def getAllProxy():
         return requests.get(ProxyHelper.STR_PROXY_GET_ALL_API).json()
+
+    @staticmethod
+    def delete_proxy(proxy):
+        requests.get(ProxyHelper.STR_PROXY_DELETE_API.format(proxy))
+
 
 
 if __name__ == '__main__':

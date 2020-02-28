@@ -1,4 +1,6 @@
 # coding=gbk
+import random
+
 import requests
 import sys
 import json
@@ -33,48 +35,6 @@ from source.data.bean.Branch import Branch
 
 
 class ApiHelper:
-    API_GITHUB = 'https://api.github.com'
-    API_REVIEWS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/reviews'
-    API_PULL_REQUEST_FOR_PROJECT = '/repos/:owner/:repo/pulls'
-    API_COMMENTS_FOR_REVIEW = '/repos/:owner/:repo/pulls/:pull_number/reviews/:review_id/comments'
-    API_COMMENTS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/comments'
-    API_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number'
-    API_PROJECT = '/repos/:owner/:repo'
-    API_USER = '/users/:user'
-    API_REVIEW = '/repos/:owner/:repo/pulls/:pull_number/reviews/:review_id'
-    API_ISSUE_COMMENT_FOR_ISSUE = '/repos/:owner/:repo/issues/:issue_number/comments'
-    API_COMMIT = '/repos/:owner/:repo/commits/:commit_sha'
-    API_COMMITS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/commits'
-    API_COMMIT_COMMENTS_FOR_COMMIT = '/repos/:owner/:repo/commits/:commit_sha/comments'
-
-    # 用于替换的字符串
-    STR_HEADER_AUTHORIZAITON = 'Authorization'
-    STR_HEADER_TOKEN = 'token '  # 有空格
-    STR_HEADER_ACCEPT = 'Accept'
-    STR_HEADER_MEDIA_TYPE = 'application/vnd.github.comfort-fade-preview+json'
-    STR_HEADER_RATE_LIMIT_REMIAN = 'X-RateLimit-Remaining'
-    STR_HEADER_RATE_LIMIT_RESET = 'X-RateLimit-Reset'
-    STR_HEADER_USER_AGENT = 'User-Agent'
-    STR_HEADER_USER_AGENT_SET = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' \
-                                '(KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
-
-    STR_OWNER = ':owner'
-    STR_REPO = ':repo'
-    STR_PULL_NUMBER = ':pull_number'
-    STR_REVIEW_ID = ':review_id'
-    STR_USER = ':user'
-    STR_ISSUE_NUMBER = ':issue_number'
-    STR_COMMIT_SHA = ':commit_sha'
-
-    STR_PARM_STARE = 'state'
-    STR_PARM_ALL = 'all'
-    STR_PARM_OPEN = 'open'
-    STR_PARM_CLOSED = 'closed'
-
-    RATE_LIMIT = 5
-
-    STR_PROXY_HTTP = 'http'
-    STR_PROXY_HTTP_FORMAT = 'http://{}'
 
     def __init__(self, owner, repo):  # 设置对应的仓库和所属
         self.owner = owner
@@ -100,26 +60,27 @@ class ApiHelper:
             if configPraser.configPraser.getPrintMode():
                 print(proxy)
             if proxy is not None:
-                return {ApiHelper.STR_PROXY_HTTP: ApiHelper.STR_PROXY_HTTP_FORMAT.format(proxy)}
+                return {StringKeyUtils.STR_PROXY_HTTP: StringKeyUtils.STR_PROXY_HTTP_FORMAT.format(proxy)}
         return None
 
     def getAuthorizationHeaders(self, header):
         if header is not None and isinstance(header, dict):
             if self.isUseAuthorization:
                 if configPraser.configPraser.getAuthorizationToken():
-                    header[self.STR_HEADER_AUTHORIZAITON] = (self.STR_HEADER_TOKEN
+                    header[StringKeyUtils.STR_HEADER_AUTHORIZAITON] = (StringKeyUtils.STR_HEADER_TOKEN
                                                              + configPraser.configPraser.getAuthorizationToken())
 
         return header
 
     def getUserAgentHeaders(self, header):
         if header is not None and isinstance(header, dict):
-            header[self.STR_HEADER_USER_AGENT] = self.STR_HEADER_USER_AGENT_SET
+            # header[self.STR_HEADER_USER_AGENT] = self.STR_HEADER_USER_AGENT_SET
+            header[StringKeyUtils.STR_HEADER_USER_AGENT] = random.choice(StringKeyUtils.USER_AGENTS)
         return header
 
     def getMediaTypeHeaders(self, header):
         if header is not None and isinstance(header, dict):
-            header[self.STR_HEADER_ACCEPT] = self.STR_HEADER_MEDIA_TYPE
+            header[StringKeyUtils.STR_HEADER_ACCEPT] = StringKeyUtils.STR_HEADER_MEDIA_TYPE
 
         return header
 
@@ -129,9 +90,9 @@ class ApiHelper:
         if self.owner is None or self.repo is None:
             return list()
 
-        api = self.API_GITHUB + self.API_PULL_REQUEST_FOR_PROJECT
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_PULL_REQUEST_FOR_PROJECT
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -139,7 +100,7 @@ class ApiHelper:
         headers = self.getAuthorizationHeaders(headers)
         proxy = self.getProxy()
         urllib3.disable_warnings(InsecureRequestWarning)
-        r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: state}, verify=False, proxies=proxy)
+        r = requests.get(api, headers=headers, params={StringKeyUtils.STR_PARM_STARE: state}, verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
         if r.status_code != 200:
@@ -161,9 +122,9 @@ class ApiHelper:
         if self.owner is None or self.repo is None:
             return list()
 
-        api = self.API_GITHUB + self.API_PROJECT
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_PROJECT
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -187,9 +148,9 @@ class ApiHelper:
         if self.owner is None or self.repo is None:
             return -1
 
-        api = self.API_GITHUB + self.API_PULL_REQUEST_FOR_PROJECT
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_PULL_REQUEST_FOR_PROJECT
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -197,7 +158,7 @@ class ApiHelper:
         headers = self.getAuthorizationHeaders(headers)
         proxy = self.getProxy()
         urllib3.disable_warnings(InsecureRequestWarning)
-        r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: self.STR_PARM_ALL}
+        r = requests.get(api, headers=headers, params={StringKeyUtils.STR_PARM_STARE: StringKeyUtils.STR_PARM_ALL}
                          , verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
@@ -219,9 +180,9 @@ class ApiHelper:
         if self.owner is None or self.repo is None:
             return -1
 
-        api = self.API_GITHUB + self.API_PULL_REQUEST_FOR_PROJECT
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_PULL_REQUEST_FOR_PROJECT
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -229,7 +190,7 @@ class ApiHelper:
         headers = self.getAuthorizationHeaders(headers)
         proxy = self.getProxy()
         urllib3.disable_warnings(InsecureRequestWarning)
-        r = requests.get(api, headers=headers, params={self.STR_PARM_STARE: self.STR_PARM_CLOSED}
+        r = requests.get(api, headers=headers, params={StringKeyUtils.STR_PARM_STARE: StringKeyUtils.STR_PARM_CLOSED}
                          , verify=False, proxies=proxy)
         self.printCommon(r)
         self.judgeLimit(r)
@@ -250,10 +211,10 @@ class ApiHelper:
         if self.owner is None or self.repo is None:
             return list()
 
-        api = self.API_GITHUB + self.API_COMMENTS_FOR_PULL_REQUEST
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMENTS_FOR_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
 
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
@@ -286,11 +247,11 @@ class ApiHelper:
         if self.owner is None or self.repo is None:
             return list()
 
-        api = self.API_GITHUB + self.API_COMMENTS_FOR_REVIEW
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
-        api = api.replace(self.STR_REVIEW_ID, str(review_id))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMENTS_FOR_REVIEW
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
+        api = api.replace(StringKeyUtils.STR_REVIEW_ID, str(review_id))
 
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
         headers = {}
@@ -319,10 +280,10 @@ class ApiHelper:
         if self.owner is None or self.repo is None:
             return list()
 
-        api = self.API_GITHUB + self.API_REVIEWS_FOR_PULL_REQUEST
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_REVIEWS_FOR_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
 
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
         headers = {}
@@ -351,14 +312,14 @@ class ApiHelper:
                 print(r.text.encode(encoding='utf_8', errors='strict'))
                 print(r.headers)
                 print("status:", r.status_code.__str__())
-                print("remaining:", r.headers.get(self.STR_HEADER_RATE_LIMIT_REMIAN))
-                print("rateLimit:", r.headers.get(self.STR_HEADER_RATE_LIMIT_RESET))
+                print("remaining:", r.headers.get(StringKeyUtils.STR_HEADER_RATE_LIMIT_REMIAN))
+                print("rateLimit:", r.headers.get(StringKeyUtils.STR_HEADER_RATE_LIMIT_RESET))
 
     def judgeLimit(self, r):
         if isinstance(r, requests.models.Response):
-            remaining = int(r.headers.get(self.STR_HEADER_RATE_LIMIT_REMIAN))
-            rateLimit = int(r.headers.get(self.STR_HEADER_RATE_LIMIT_RESET))
-            if remaining < self.RATE_LIMIT:
+            remaining = int(r.headers.get(StringKeyUtils.STR_HEADER_RATE_LIMIT_REMIAN))
+            rateLimit = int(r.headers.get(StringKeyUtils.STR_HEADER_RATE_LIMIT_RESET))
+            if remaining < StringKeyUtils.RATE_LIMIT:
                 print("start sleep:", ceil(rateLimit - datetime.now().timestamp() + 1))
                 time.sleep(ceil(rateLimit - datetime.now().timestamp() + 1))
                 print("sleep end")
@@ -369,9 +330,9 @@ class ApiHelper:
         if self.owner is None or self.repo is None:
             return list()
 
-        api = self.API_GITHUB + self.API_PROJECT
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_PROJECT
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
         headers = {}
@@ -394,8 +355,8 @@ class ApiHelper:
     def getInformationForUser(self, login):
         """获取一个用户的详细信息"""
 
-        api = self.API_GITHUB + self.API_USER
-        api = api.replace(self.STR_USER, login)
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_USER
+        api = api.replace(StringKeyUtils.STR_USER, login)
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
@@ -419,10 +380,10 @@ class ApiHelper:
     def getInformationForPullRequest(self, pull_number):
         """获取一个pull request的详细信息"""
 
-        api = self.API_GITHUB + self.API_PULL_REQUEST
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
@@ -449,11 +410,11 @@ class ApiHelper:
     def getInformationForReview(self, pull_number, review_id):
         """获取一个review 的详细信息"""
 
-        api = self.API_GITHUB + self.API_REVIEW
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
-        api = api.replace(self.STR_REVIEW_ID, str(review_id))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_REVIEW
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
+        api = api.replace(StringKeyUtils.STR_REVIEW_ID, str(review_id))
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
@@ -479,10 +440,10 @@ class ApiHelper:
     def getInformationForReviewWithPullRequest(self, pull_number):
         """获取一个pull request对应的 review的详细信息 可以节省请求数量"""
 
-        api = self.API_GITHUB + self.API_REVIEWS_FOR_PULL_REQUEST
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_REVIEWS_FOR_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
@@ -513,10 +474,10 @@ class ApiHelper:
     def getInformationForReviewCommentWithPullRequest(self, pull_number):
         """获取一个pull request对应的 review comment的详细信息 可以节省请求数量"""
 
-        api = self.API_GITHUB + self.API_COMMENTS_FOR_PULL_REQUEST
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMENTS_FOR_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
@@ -545,10 +506,10 @@ class ApiHelper:
         """获取一个issue 对应的 issue comment的详细信息 可以节省请求数量"""
         """但是issue 和 pull request公用一个编号 实际是请求的pull request的评论"""
 
-        api = self.API_GITHUB + self.API_ISSUE_COMMENT_FOR_ISSUE
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_ISSUE_NUMBER, str(issue_number))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_ISSUE_COMMENT_FOR_ISSUE
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_ISSUE_NUMBER, str(issue_number))
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
@@ -579,10 +540,10 @@ class ApiHelper:
 
     def getInformationCommit(self, commit_sha):
         """获取一个commit 对应的详细信息"""
-        api = self.API_GITHUB + self.API_COMMIT
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_COMMIT_SHA, str(commit_sha))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMIT
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_COMMIT_SHA, str(commit_sha))
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
@@ -604,10 +565,10 @@ class ApiHelper:
         """获取一个pull request对应的 commit的详细信息 可以节省请求数量
         但是 status 没有统计,file 也没有统计"""
 
-        api = self.API_GITHUB + self.API_COMMITS_FOR_PULL_REQUEST
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_PULL_NUMBER, str(pull_number))
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMITS_FOR_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 
@@ -642,10 +603,10 @@ class ApiHelper:
     def getInformationForCommitCommentsWithCommit(self, commit_sha):
         """获取一个commit对应的 commit comment的详细信息 可以节省请求"""
 
-        api = self.API_GITHUB + self.API_COMMIT_COMMENTS_FOR_COMMIT
-        api = api.replace(self.STR_OWNER, self.owner)
-        api = api.replace(self.STR_REPO, self.repo)
-        api = api.replace(self.STR_COMMIT_SHA, commit_sha)
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMIT_COMMENTS_FOR_COMMIT
+        api = api.replace(StringKeyUtils.STR_OWNER, self.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, self.repo)
+        api = api.replace(StringKeyUtils.STR_COMMIT_SHA, commit_sha)
         # print(api)
         #         sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 

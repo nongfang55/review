@@ -23,15 +23,17 @@ class ProjectAllDataFetcher:
 
         helper = ApiHelper(owner=owner, repo=repo)
         helper.setAuthorization(True)
+        helper.setUseProxyPool(configPraser.getProxy())
 
         statistic = statisticsHelper()
         statistic.startTime = datetime.now()
 
         '''提取项目的信息以及项目的owner信息'''
-        ProjectAllDataFetcher.getDataForRepository(helper)
+        # ProjectAllDataFetcher.getDataForRepository(helper)
         '''提取项目的pull request信息'''
         ProjectAllDataFetcher.getPullRequestForRepositoryUseConcurrent(helper, limit=configPraser.getLimit(),
-                                                          statistic=statistic, start=37600)
+                                                                       statistic=statistic,
+                                                                       start=configPraser.getStart())
 
         statistic.endTime = datetime.now()
 
@@ -59,6 +61,7 @@ class ProjectAllDataFetcher:
                     time.sleep(20)
                 exceptionTime += 1
                 print(e)
+                print('error time:', exceptionTime)
 
         if exceptionTime == configPraser.getRetryTime():
             raise Exception("error out the limit!")
@@ -141,9 +144,10 @@ class ProjectAllDataFetcher:
                 ProjectAllDataFetcher.getSinglePullRequest(helper, statistic, pull_number)
                 break
             except Exception as e:
-                time.sleep(20)
+                time.sleep(10)
                 exceptionTime += 1
                 print(e)
+                print("error time:", exceptionTime)
 
         if exceptionTime == configPraser.getRetryTime():
             raise Exception("error out the limit!")
@@ -240,7 +244,8 @@ class ProjectAllDataFetcher:
                   " useful review:", statistic.usefulReviewNumber,
                   " useful review comment:", statistic.usefulReviewCommentNumber,
                   " useful issue comment:", statistic.usefulIssueCommentNumber,
-                  " useful commit:", statistic.usefulCommitNumber)
+                  " useful commit:", statistic.usefulCommitNumber,
+                  " cost time:", datetime.now() - statistic.startTime)
             statistic.lock.release()
 
     @staticmethod
