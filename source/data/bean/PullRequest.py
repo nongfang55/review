@@ -1,4 +1,6 @@
 # coding=gbk
+from datetime import datetime
+
 from source.data.bean.Beanbase import BeanBase
 from source.utils.StringKeyUtils import StringKeyUtils
 from  source.data.bean.User import  User
@@ -121,6 +123,16 @@ class PullRequest(BeanBase):
                 res.updated_at = src.get(StringKeyUtils.STR_KEY_UPDATE_AT, None)
                 res.closed_at = src.get(StringKeyUtils.STR_KEY_CLOSED_AT, None)
                 res.merged_at = src.get(StringKeyUtils.STR_KEY_MERGED_AT, None)
+
+                if res.created_at is not None:
+                    res.created_at = datetime.strptime(res.created_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+                if res.updated_at is not None:
+                    res.updated_at = datetime.strptime(res.updated_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+                if res.closed_at is not None:
+                    res.closed_at = datetime.strptime(res.closed_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+                if res.merged_at is not None:
+                    res.merged_at = datetime.strptime(res.merged_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+
                 res.merge_commit_sha = src.get(StringKeyUtils.STR_KEY_MERGE_COMMIT_SHA, None)
                 res.author_association = src.get(StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION, None)
                 res.merged = src.get(StringKeyUtils.STR_KEY_MERGED, None)

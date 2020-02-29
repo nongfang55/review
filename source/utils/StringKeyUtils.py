@@ -186,3 +186,9 @@ class StringKeyUtils:
     STR_PARM_CLOSED = 'closed'
 
     RATE_LIMIT = 5
+
+    """json 404处理用到的"""
+    STR_NOT_FIND = 'Not Found'
+
+    """日期转换用到的"""
+    STR_STYLE_DATA_DATE = '%Y-%m-%dT%H:%M:%SZ'

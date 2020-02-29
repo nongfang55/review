@@ -108,7 +108,13 @@ class configPraser:  # 用于解析config。ini文件
         cp.read(projectConfig.getConfigPath())
         return int(cp.get(configPraser.STR_NETWORK, configPraser.STR_SEMAPHORE))
 
+    @staticmethod
+    def getDataBase():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return cp.get(configPraser.STR_DATABASE, configPraser.STR_DATABASE)
+
 
 if __name__ == '__main__':
-    print(configPraser.getSemaphore())
+    print(configPraser.getDataBase())
 

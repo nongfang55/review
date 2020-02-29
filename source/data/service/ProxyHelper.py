@@ -1,4 +1,5 @@
 # coding=gbk
+import aiohttp
 import requests
 
 
@@ -17,6 +18,21 @@ class ProxyHelper:
     INT_POSITIVE_POINT = 2  # 正反馈分数
     INT_NEGATIVE_POINT = -1  # 负反馈分数
     INT_DELETE_POINT = 0  # 删除分数
+    INT_KILL_POINT = -100  # 直接干掉
+
+    @staticmethod
+    async def getAsyncSingleProxy():
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(ProxyHelper.STR_PROXY_GET_API) as response:
+                    json = await response.json(content_type=None)
+            except Exception as e:
+                print(e)
+            if json is not None:
+                proxy = json.get(ProxyHelper.STR_KEY_PROXY, None)
+                if proxy is not None and ProxyHelper.ip_pool.get(proxy, None) is None:
+                    ProxyHelper.ip_pool[proxy] = ProxyHelper.INT_INITIAL_POINT
+                return proxy
 
     @staticmethod
     def getSingleProxy():
@@ -37,15 +53,16 @@ class ProxyHelper:
         requests.get(ProxyHelper.STR_PROXY_DELETE_API.format(proxy))
 
     @staticmethod
-    def judgeProxy(proxy, point):
+    async def judgeProxy(proxy, point):
         now = ProxyHelper.ip_pool[proxy]
         if now is not None:
             now += point
             if now < ProxyHelper.INT_DELETE_POINT:
                 ProxyHelper.ip_pool.pop(proxy)
+                ProxyHelper.delete_proxy(proxy)
             else:
                 ProxyHelper.ip_pool[proxy] = now
 
 
 if __name__ == '__main__':
-    print(ProxyHelper.getAllProxy())
+    print(ProxyHelper.getSingleProxy())

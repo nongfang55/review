@@ -5,6 +5,7 @@ import time
 from source.config.configPraser import configPraser
 from source.data.service.ApiHelper import ApiHelper
 from source.data.service.AsyncApiHelper import AsyncApiHelper
+from source.database.AsyncSqlExecuteHelper import getMysqlObj
 
 
 class AsyncProjectAllDataFetcher:
@@ -25,19 +26,29 @@ class AsyncProjectAllDataFetcher:
         if limit == -1:
             limit = startNumber
 
-        semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
-
         AsyncApiHelper.setRepo(owner, repo)
-
         t1 = time.time()
+
         loop = asyncio.get_event_loop()
-        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadInformation(pull_number, semaphore))
-                 for pull_number in range(start, max(start - limit, 0), -1)]
-        tasks = asyncio.gather(*tasks)
+        task = [asyncio.ensure_future(AsyncProjectAllDataFetcher.preProcess(loop, limit, start))]
+        tasks = asyncio.gather(*task)
         loop.run_until_complete(tasks)
 
         t2 = time.time()
         print('cost time:', t2 - t1)
+
+    @staticmethod
+    async def preProcess(loop, limit, start):
+
+        semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
+        mysql = await getMysqlObj(loop)
+
+        if configPraser.getPrintMode():
+            print("mysql init success")
+
+        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadInformation(pull_number, semaphore, mysql))
+                 for pull_number in range(start, max(start - limit, 0), -1)]
+        await asyncio.wait(tasks)
 
 
 if __name__ == '__main__':
