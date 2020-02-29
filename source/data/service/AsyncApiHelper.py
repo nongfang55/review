@@ -102,10 +102,20 @@ class AsyncApiHelper:
         async with semaphore:
             async with aiohttp.ClientSession() as session:
                 try:
+                    beanList = [] # 用来收集需要存储的bean类
+                    """先获取pull request信息"""
                     json = await AsyncApiHelper.fetchPullRequest(session, pull_number)
                     pull_request = await AsyncApiHelper.parserPullRequest(json)
                     print(pull_request)
-                    await AsyncSqlHelper.storeBeanData(pull_request, mysql)
+
+                    if pull_request is not None:
+                        beanList.append(pull_request)
+                    # await AsyncSqlHelper.storeBeanData(pull_request, mysql)
+                    if pull_request.head is not None:
+                        beanList.append(pull_request.head)
+                    if pull_request.base is not None:
+                        beanList.append(pull_request.base)
+                    await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
                 except Exception as e:
                     print(e)
 

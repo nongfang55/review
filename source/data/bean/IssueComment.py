@@ -1,4 +1,6 @@
 # coding=gbk
+from datetime import datetime
+
 from source.data.bean.Beanbase import BeanBase
 from source.utils.StringKeyUtils import StringKeyUtils
 from source.data.bean.User import User
@@ -69,6 +71,12 @@ class IssueComment(BeanBase):
                 res.node_id = src.get(StringKeyUtils.STR_KEY_NODE_ID, None)
                 res.created_at = src.get(StringKeyUtils.STR_KEY_CREATE_AT, None)
                 res.updated_at = src.get(StringKeyUtils.STR_KEY_UPDATE_AT, None)
+
+                if res.created_at is not None:
+                    res.created_at = datetime.strptime(res.created_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+                if res.updated_at is not None:
+                    res.updated_at = datetime.strptime(res.updated_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+
                 res.author_association = src.get(StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION, None)
                 res.body = src.get(StringKeyUtils.STR_KEY_BODY, None)
 

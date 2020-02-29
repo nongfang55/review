@@ -1,4 +1,5 @@
 # coding=gbk
+from datetime import datetime
 
 from source.data.bean.Beanbase import BeanBase
 from source.data.bean.CommentRelation import CommitRelation
@@ -88,10 +89,16 @@ class Commit(BeanBase):
                     authorData = commitData.get(StringKeyUtils.STR_KEY_AUTHOR, None)
                     if authorData is not None and isinstance(authorData, dict):
                         res.commit_author_date = authorData.get(StringKeyUtils.STR_KEY_DATE, None)
+                        if res.commit_author_date is not None:
+                            res.commit_author_date = datetime.strptime(res.commit_author_date,
+                                                                       StringKeyUtils.STR_STYLE_DATA_DATE)
 
                     committerData = commitData.get(StringKeyUtils.STR_KEY_COMMITTER, None)
                     if committerData is not None and isinstance(committerData, dict):
                         res.commit_committer_date = committerData.get(StringKeyUtils.STR_KEY_DATE, None)
+                        if res.commit_committer_date is not None:
+                            res.commit_committer_date = datetime.strptime(res.commit_committer_date,
+                                                                          StringKeyUtils.STR_STYLE_DATA_DATE)
 
                     res.commit_message = commitData.get(StringKeyUtils.STR_KEY_MESSAGE, None)
                     res.commit_comment_count = commitData.get(StringKeyUtils.STR_KEY_COMMENT_COUNT, None)

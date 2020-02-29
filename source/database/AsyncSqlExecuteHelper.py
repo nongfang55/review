@@ -81,6 +81,12 @@ class AsyncSqlExecuteHelper:
                 await cur.close()
             await self.pool.release(conn)
 
+    async def getDatabaseConnected(self):
+        """返回 cursor 和 conn"""
+        conn, cur = await self.getCursor()
+        return conn, cur
+
+
     # @staticmethod
     # def queryValuesFromTable(tableName, items, valueDict):
     #     """查询数据库"""
@@ -107,8 +113,6 @@ class AsyncSqlExecuteHelper:
     #         print(e)
     #     conn.close()
     #     return ret
-
-
 
 async def test():
     mysql = await getMysqlObj()

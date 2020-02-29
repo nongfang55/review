@@ -1,4 +1,6 @@
 # coding=gbk
+from datetime import datetime
+
 from source.data.bean.Beanbase import BeanBase
 from source.utils.StringKeyUtils import StringKeyUtils
 from source.data.bean.User import User
@@ -112,6 +114,12 @@ class ReviewComment(BeanBase):
                 res.original_commit_id = src.get(StringKeyUtils.STR_KEY_ORIGINAL_COMMIT_ID)
                 res.created_at = src.get(StringKeyUtils.STR_KEY_CREATE_AT)
                 res.updated_at = src.get(StringKeyUtils.STR_KEY_UPDATE_AT)
+
+                if res.created_at is not None:
+                    res.created_at = datetime.strptime(res.created_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+                if res.updated_at is not None:
+                    res.updated_at = datetime.strptime(res.updated_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+
                 res.author_association = src.get(StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION)
                 res.start_line = src.get(StringKeyUtils.STR_KEY_START_LINE)
                 res.original_start_line = src.get(StringKeyUtils.STR_KEY_ORIGINAL_START_LINE)

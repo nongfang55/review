@@ -1,4 +1,5 @@
 # coding=gbk
+from source.config.configPraser import configPraser
 from source.data.bean.Beanbase import BeanBase
 from source.data.bean.Branch import Branch
 from source.data.bean.CommentRelation import CommitRelation
@@ -57,3 +58,38 @@ class AsyncSqlHelper:
                                               bean.getIdentifyKeys())
 
             print("insert success")
+
+    @staticmethod
+    async def storeBeanDateList(beans, mysql):
+        """一次性存储多个bean对象 讲道理结构是被破坏的，但是可以吧所有数据库请求压缩为一次"""
+
+        conn, cur = await  mysql.getDatabaseConnected()
+
+        try:
+            for bean in beans:
+                if isinstance(bean, BeanBase):
+                    tableName = AsyncSqlHelper.getInsertTableName(bean)
+                    items = bean.getItemKeyList()
+                    valueDict = bean.getValueDict()
+
+                    format_table = SqlUtils.getInsertTableFormatString(tableName, items)
+                    format_values = SqlUtils.getInsertTableValuesString(items.__len__())
+
+                    if configPraser.getPrintMode():
+                        print(format_table)
+                        print(format_values)
+
+                    sql = SqlUtils.STR_SQL_INSERT_TABLE_UTILS.format(format_table, format_values)
+                    if configPraser.getPrintMode():
+                        print(sql)
+
+                    values = ()
+                    for item in items:
+                        values = values + (valueDict.get(item, None),)  # 元组相加
+                    await cur.execute(sql, values)
+        except Exception as e:
+            print(e)
+        finally:
+            if cur:
+                await cur.close()
+            await mysql.pool.release(conn)
