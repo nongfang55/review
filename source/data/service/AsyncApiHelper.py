@@ -267,7 +267,13 @@ class AsyncApiHelper:
         headers = AsyncApiHelper.getAuthorizationHeaders(headers)
         if isMediaType:
             headers = AsyncApiHelper.getMediaTypeHeaders(headers)
-        proxy = await AsyncApiHelper.getProxy()
+        while True:
+            proxy = await AsyncApiHelper.getProxy()
+            if configPraser.getProxy() and proxy is None:  # 对代理池没有ip的情况做考虑
+                print('no proxy and sleep!')
+                await asyncio.sleep(20)
+            else:
+                break
 
         try:
             async with session.get(api, ssl=False, proxy=proxy

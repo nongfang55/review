@@ -16,7 +16,7 @@ class ProxyHelper:
 
     INT_INITIAL_POINT = 5
     INT_POSITIVE_POINT = 1  # 正反馈分数
-    INT_NEGATIVE_POINT = -2  # 负反馈分数
+    INT_NEGATIVE_POINT = -1  # 负反馈分数
     INT_DELETE_POINT = 0  # 删除分数
     INT_KILL_POINT = -1000  # 直接干掉
 
