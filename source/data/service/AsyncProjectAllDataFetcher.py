@@ -1,11 +1,13 @@
 # coding=gbk
 import asyncio
 import time
+from datetime import datetime
 
 from source.config.configPraser import configPraser
 from source.data.service.ApiHelper import ApiHelper
 from source.data.service.AsyncApiHelper import AsyncApiHelper
 from source.database.AsyncSqlExecuteHelper import getMysqlObj
+from source.utils.statisticsHelper import statisticsHelper
 
 
 class AsyncProjectAllDataFetcher:
@@ -27,18 +29,25 @@ class AsyncProjectAllDataFetcher:
             limit = startNumber
 
         AsyncApiHelper.setRepo(owner, repo)
-        t1 = time.time()
+        t1 = datetime.now()
+
+        statistic = statisticsHelper()
+        statistic.startTime = t1
 
         loop = asyncio.get_event_loop()
-        task = [asyncio.ensure_future(AsyncProjectAllDataFetcher.preProcess(loop, limit, start))]
+        task = [asyncio.ensure_future(AsyncProjectAllDataFetcher.preProcess(loop, limit, start, statistic))]
         tasks = asyncio.gather(*task)
         loop.run_until_complete(tasks)
 
-        t2 = time.time()
-        print('cost time:', t2 - t1)
+        print("useful pull request:", statistic.usefulRequestNumber,
+              " useful review:", statistic.usefulReviewNumber,
+              " useful review comment:", statistic.usefulReviewCommentNumber,
+              " useful issue comment:", statistic.usefulIssueCommentNumber,
+              " useful commit:", statistic.usefulCommitNumber,
+              " cost time:", datetime.now() - statistic.startTime)
 
     @staticmethod
-    async def preProcess(loop, limit, start):
+    async def preProcess(loop, limit, start, statistic):
 
         semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
         mysql = await getMysqlObj(loop)
@@ -46,7 +55,7 @@ class AsyncProjectAllDataFetcher:
         if configPraser.getPrintMode():
             print("mysql init success")
 
-        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadInformation(pull_number, semaphore, mysql))
+        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadInformation(pull_number, semaphore, mysql, statistic))
                  for pull_number in range(start, max(start - limit, 0), -1)]
         await asyncio.wait(tasks)
 

@@ -3,11 +3,17 @@ import asyncio
 import random
 import time
 import traceback
+from datetime import datetime
 
 import aiohttp
 
 from source.config.configPraser import configPraser
+from source.data.bean.Commit import Commit
+from source.data.bean.CommitPRRelation import CommitPRRelation
+from source.data.bean.IssueComment import IssueComment
 from source.data.bean.PullRequest import PullRequest
+from source.data.bean.Review import Review
+from source.data.bean.ReviewComment import ReviewComment
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
 from source.data.service.ProxyHelper import ProxyHelper
 from source.utils.StringKeyUtils import StringKeyUtils
@@ -37,6 +43,12 @@ class AsyncApiHelper:
         if header is not None and isinstance(header, dict):
             # header[self.STR_HEADER_USER_AGENT] = self.STR_HEADER_USER_AGENT_SET
             header[StringKeyUtils.STR_HEADER_USER_AGENT] = random.choice(StringKeyUtils.USER_AGENTS)
+        return header
+
+    @staticmethod
+    def getMediaTypeHeaders(header):
+        if header is not None and isinstance(header, dict):
+            header[StringKeyUtils.STR_HEADER_ACCEPT] = StringKeyUtils.STR_HEADER_MEDIA_TYPE
         return header
 
     @staticmethod
@@ -72,9 +84,9 @@ class AsyncApiHelper:
                 #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_POSITIVE_POINT)
                 return await response.json()
         except Exception as e:
-            print(e)
+            # print(e)
             # traceback.print_exc()
-            print('重试：', pull_number)
+            # print('重试：', pull_number)
             # if proxy is not None:
             #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
             return await AsyncApiHelper.fetchPullRequest(session, pull_number)
@@ -98,24 +110,250 @@ class AsyncApiHelper:
         return False
 
     @staticmethod
-    async def downloadInformation(pull_number, semaphore, mysql):
+    async def downloadInformation(pull_number, semaphore, mysql, statistic):
         async with semaphore:
             async with aiohttp.ClientSession() as session:
                 try:
-                    beanList = [] # 用来收集需要存储的bean类
+                    beanList = []  # 用来收集需要存储的bean类
                     """先获取pull request信息"""
                     json = await AsyncApiHelper.fetchPullRequest(session, pull_number)
                     pull_request = await AsyncApiHelper.parserPullRequest(json)
                     print(pull_request)
 
                     if pull_request is not None:
+                        usefulPullRequestsCount = 1
                         beanList.append(pull_request)
-                    # await AsyncSqlHelper.storeBeanData(pull_request, mysql)
-                    if pull_request.head is not None:
-                        beanList.append(pull_request.head)
-                    if pull_request.base is not None:
-                        beanList.append(pull_request.base)
+
+                        if pull_request.head is not None:
+                            beanList.append(pull_request.head)
+                        if pull_request.base is not None:
+                            beanList.append(pull_request.base)
+                        if pull_request.user is not None:
+                            beanList.append(pull_request.user)
+
+                        """获取review信息"""
+                        api = AsyncApiHelper.getReviewForPullRequestApi(pull_number)
+                        json = await AsyncApiHelper.fetchBeanData(session, api)
+                        reviews = await AsyncApiHelper.parserReview(json, pull_number)
+                        if configPraser.getPrintMode():
+                            print(reviews)
+
+                        usefulReviewsCount = 0
+                        if reviews is not None:
+                            for review in reviews:
+                                usefulReviewsCount += 1
+                                beanList.append(review)
+                                if review.user is not None:
+                                    beanList.append(review.user)
+
+                        """获取review comment信息"""
+                        api = AsyncApiHelper.getReviewCommentForPullRequestApi(pull_number)
+                        json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
+                        reviewComments = await AsyncApiHelper.parserReviewComment(json)
+
+                        if configPraser.getPrintMode():
+                            print(reviewComments)
+                        usefulReviewCommentsCount = 0
+                        if reviewComments is not None:
+                            for reviewComment in reviewComments:
+                                usefulReviewCommentsCount += 1
+                                beanList.append(reviewComment)
+                                if reviewComment.user is not None:
+                                    beanList.append(reviewComment.user)
+
+                        '''获取 pull request对应的issue comment信息'''
+                        api = AsyncApiHelper.getIssueCommentForPullRequestApi(pull_number)
+                        json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
+                        issueComments = await  AsyncApiHelper.parserIssueComment(json, pull_number)
+                        usefulIssueCommentsCount = 0
+                        if issueComments is not None:
+                            for issueComment in issueComments:
+                                usefulIssueCommentsCount += 1
+                                beanList.append(issueComment)
+                                if issueComment.user is not None:
+                                    beanList.append(issueComment.user)
+
+                        '''获取 pull request对应的commit信息'''
+                        api = AsyncApiHelper.getCommitForPullRequestApi(pull_number)
+                        json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
+                        Commits, Relations = await AsyncApiHelper.parserCommitAndRelation(json, pull_number)
+                        usefulCommitsCount = 0
+                        for commit in Commits:
+                            if commit is not None:
+                                usefulCommitsCount += 1
+                                api = AsyncApiHelper.getCommitApi(commit.sha)
+                                json = await AsyncApiHelper.fetchBeanData(session, api)
+                                commit = await AsyncApiHelper.parserCommit(json)
+                                beanList.append(commit)
+
+                                if commit.committer is not None:
+                                    beanList.append(commit.committer)
+                                if commit.author is not None:
+                                    beanList.append(commit.author)
+                                if commit.files is not None:
+                                    for file in commit.files:
+                                        beanList.append(file)
+                                if commit.parents is not None:
+                                    for parent in commit.parents:
+                                        beanList.append(parent)
+                                """作为资源节约   commit comment不做采集"""
+
+                        for relation in Relations:
+                            beanList.append(relation)
+
+                        print(beanList)
+
                     await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+
+                    # 做了同步处理
+                    statistic.lock.acquire()
+                    statistic.usefulRequestNumber += usefulPullRequestsCount
+                    statistic.usefulReviewNumber += usefulReviewsCount
+                    statistic.usefulReviewCommentNumber += usefulReviewCommentsCount
+                    statistic.usefulIssueCommentNumber += usefulIssueCommentsCount
+                    statistic.usefulCommitNumber += usefulCommitsCount
+                    print("useful pull request:", statistic.usefulRequestNumber,
+                          " useful review:", statistic.usefulReviewNumber,
+                          " useful review comment:", statistic.usefulReviewCommentNumber,
+                          " useful issue comment:", statistic.usefulIssueCommentNumber,
+                          " useful commit:", statistic.usefulCommitNumber,
+                          " cost time:", datetime.now() - statistic.startTime)
+                    statistic.lock.release()
                 except Exception as e:
                     print(e)
 
+    @staticmethod
+    async def parserReview(json, pull_number):
+        try:
+            if not AsyncApiHelper.judgeNotFind(json):
+                items = []
+                for item in json:
+                    res = Review.parser.parser(item)
+                    res.repo_full_name = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo  # 对repo_full_name 做一个补全
+                    res.pull_number = pull_number
+                    items.append(res)
+                return items
+        except Exception as e:
+            print(e)
+
+    @staticmethod
+    def getReviewCommentForPullRequestApi(pull_number):
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMENTS_FOR_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, AsyncApiHelper.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, AsyncApiHelper.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
+        return api
+
+    @staticmethod
+    def getReviewForPullRequestApi(pull_number):
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_REVIEWS_FOR_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, AsyncApiHelper.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, AsyncApiHelper.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
+        return api
+
+    @staticmethod
+    def getIssueCommentForPullRequestApi(issue_number):
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_ISSUE_COMMENT_FOR_ISSUE
+        api = api.replace(StringKeyUtils.STR_OWNER, AsyncApiHelper.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, AsyncApiHelper.repo)
+        api = api.replace(StringKeyUtils.STR_ISSUE_NUMBER, str(issue_number))
+        return api
+
+    @staticmethod
+    def getCommitForPullRequestApi(pull_number):
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMITS_FOR_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, AsyncApiHelper.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, AsyncApiHelper.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
+        return api
+
+    @staticmethod
+    def getCommitApi(commit_sha):
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMIT
+        api = api.replace(StringKeyUtils.STR_OWNER, AsyncApiHelper.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, AsyncApiHelper.repo)
+        api = api.replace(StringKeyUtils.STR_COMMIT_SHA, str(commit_sha))
+        return api
+
+    @staticmethod
+    async def fetchBeanData(session, api, isMediaType=False):
+        headers = {}
+        headers = AsyncApiHelper.getUserAgentHeaders(headers)
+        headers = AsyncApiHelper.getAuthorizationHeaders(headers)
+        if isMediaType:
+            headers = AsyncApiHelper.getMediaTypeHeaders(headers)
+        proxy = await AsyncApiHelper.getProxy()
+
+        try:
+            async with session.get(api, ssl=False, proxy=proxy
+                    , headers=headers, timeout=configPraser.getTimeout()) as response:
+                print(response.headers.get(StringKeyUtils.STR_HEADER_RATE_LIMIT_REMIAN))
+                print("status:", response.status)
+                # if response.status == 403:
+                #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_KILL_POINT)
+                # elif proxy is not None:
+                #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_POSITIVE_POINT)
+                return await response.json()
+        except Exception as e:
+            print(e)
+            # traceback.print_exc()
+            # print('重试：', pull_number)
+            # if proxy is not None:
+            #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
+            return await AsyncApiHelper.fetchBeanData(session, api, isMediaType=isMediaType)
+
+    @staticmethod
+    async def parserReviewComment(json):
+        try:
+            if not AsyncApiHelper.judgeNotFind(json):
+                items = []
+                for item in json:
+                    res = ReviewComment.parser.parser(item)
+                    items.append(res)
+                return items
+        except Exception as e:
+            print(e)
+
+    @staticmethod
+    async def parserIssueComment(json, issue_number):
+        try:
+            if not AsyncApiHelper.judgeNotFind(json):
+                items = []
+                for item in json:
+                    res = IssueComment.parser.parser(item)
+                    """信息补全"""
+                    res.repo_full_name = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo  # 对repo_full_name 做一个补全
+                    res.pull_number = issue_number
+
+                    items.append(res)
+                return items
+        except Exception as e:
+            print(e)
+
+    @staticmethod
+    async def parserCommitAndRelation(json, pull_number):
+        try:
+            if not AsyncApiHelper.judgeNotFind(json):
+                items = []
+                relations = []
+                for item in json:
+                    res = Commit.parser.parser(item)
+                    relation = CommitPRRelation()
+                    relation.sha = res.sha
+                    relation.pull_number = pull_number
+                    relation.repo_full_name = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo
+                    relations.append(relation)
+                    items.append(res)
+                return items, relations
+        except Exception as e:
+            print(e)
+
+    @staticmethod
+    async def parserCommit(json):
+        try:
+            if not AsyncApiHelper.judgeNotFind(json):
+                res = Commit.parser.parser(json)
+                return res
+        except Exception as e:
+            print(e)

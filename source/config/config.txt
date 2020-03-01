@@ -10,10 +10,10 @@ print=True
 [project]
 owner=rails
 repo=rails
-limit=10
-start=20000
+limit=100
+start=38215
 [network]
 timeout=5
 retry=100
-proxy=True
+proxy=False
 semaphore=100

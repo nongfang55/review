@@ -75,10 +75,6 @@ class AsyncSqlHelper:
                     format_table = SqlUtils.getInsertTableFormatString(tableName, items)
                     format_values = SqlUtils.getInsertTableValuesString(items.__len__())
 
-                    if configPraser.getPrintMode():
-                        print(format_table)
-                        print(format_values)
-
                     sql = SqlUtils.STR_SQL_INSERT_TABLE_UTILS.format(format_table, format_values)
                     if configPraser.getPrintMode():
                         print(sql)
@@ -86,7 +82,10 @@ class AsyncSqlHelper:
                     values = ()
                     for item in items:
                         values = values + (valueDict.get(item, None),)  # 元组相加
-                    await cur.execute(sql, values)
+                    try:
+                        await cur.execute(sql, values)
+                    except Exception as e:
+                        print(e)
         except Exception as e:
             print(e)
         finally:
