@@ -15,10 +15,10 @@ class ProxyHelper:
     ip_pool = {}  # ip缓冲池
 
     INT_INITIAL_POINT = 5
-    INT_POSITIVE_POINT = 2  # 正反馈分数
-    INT_NEGATIVE_POINT = -1  # 负反馈分数
+    INT_POSITIVE_POINT = 1  # 正反馈分数
+    INT_NEGATIVE_POINT = -2  # 负反馈分数
     INT_DELETE_POINT = 0  # 删除分数
-    INT_KILL_POINT = -100  # 直接干掉
+    INT_KILL_POINT = -1000  # 直接干掉
 
     @staticmethod
     async def getAsyncSingleProxy():
@@ -48,21 +48,31 @@ class ProxyHelper:
         return requests.get(ProxyHelper.STR_PROXY_GET_ALL_API).json()
 
     @staticmethod
-    def delete_proxy(proxy):
+    async def delete_proxy(proxy):
         print('delete proxy:', proxy)
-        requests.get(ProxyHelper.STR_PROXY_DELETE_API.format(proxy))
+        # requests.get(ProxyHelper.STR_PROXY_DELETE_API.format(proxy))
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(ProxyHelper.STR_PROXY_DELETE_API.format(proxy)) as response:
+                    json = await response.json(content_type=None)
+            except Exception as e:
+                print(e)
 
     @staticmethod
     async def judgeProxy(proxy, point):
-        now = ProxyHelper.ip_pool[proxy]
-        if now is not None:
-            now += point
-            if now < ProxyHelper.INT_DELETE_POINT:
-                ProxyHelper.ip_pool.pop(proxy)
-                ProxyHelper.delete_proxy(proxy)
-            else:
-                ProxyHelper.ip_pool[proxy] = now
+        print("judge proxy:", proxy, "  :", point)
+        try:
+            now = ProxyHelper.ip_pool[proxy]
+            if now is not None:
+                now += point
+                if now < ProxyHelper.INT_DELETE_POINT:
+                    ProxyHelper.ip_pool.pop(proxy)
+                    await ProxyHelper.delete_proxy(proxy)
+                else:
+                    ProxyHelper.ip_pool[proxy] = now
+        except Exception as e:
+            print(e)
 
 
 if __name__ == '__main__':
-    print(ProxyHelper.getSingleProxy())
+    print(ProxyHelper.getAllProxy().__len__())

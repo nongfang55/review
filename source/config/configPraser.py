@@ -116,5 +116,5 @@ class configPraser:  # 用于解析config。ini文件
 
 
 if __name__ == '__main__':
-    print(configPraser.getDataBase())
+    print(configPraser.getLimit())
 

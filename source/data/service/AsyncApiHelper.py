@@ -62,36 +62,6 @@ class AsyncApiHelper:
         return None
 
     @staticmethod
-    async def fetchPullRequest(session, pull_number):
-        headers = {}
-        headers = AsyncApiHelper.getUserAgentHeaders(headers)
-        headers = AsyncApiHelper.getAuthorizationHeaders(headers)
-        proxy = await AsyncApiHelper.getProxy()
-
-        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_PULL_REQUEST
-        api = api.replace(StringKeyUtils.STR_OWNER, AsyncApiHelper.owner)
-        api = api.replace(StringKeyUtils.STR_REPO, AsyncApiHelper.repo)
-        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
-
-        try:
-            async with session.get(api, ssl=False, proxy=proxy
-                    , headers=headers, timeout=configPraser.getTimeout()) as response:
-                print(response.headers.get(StringKeyUtils.STR_HEADER_RATE_LIMIT_REMIAN))
-                print("status:", response.status)
-                # if response.status == 403:
-                #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_KILL_POINT)
-                # elif proxy is not None:
-                #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_POSITIVE_POINT)
-                return await response.json()
-        except Exception as e:
-            # print(e)
-            # traceback.print_exc()
-            # print('重试：', pull_number)
-            # if proxy is not None:
-            #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
-            return await AsyncApiHelper.fetchPullRequest(session, pull_number)
-
-    @staticmethod
     async def parserPullRequest(json):
         try:
             if not AsyncApiHelper.judgeNotFind(json):
@@ -116,9 +86,15 @@ class AsyncApiHelper:
                 try:
                     beanList = []  # 用来收集需要存储的bean类
                     """先获取pull request信息"""
-                    json = await AsyncApiHelper.fetchPullRequest(session, pull_number)
+                    api = AsyncApiHelper.getPullRequestApi(pull_number)
+                    json = await AsyncApiHelper.fetchBeanData(session, api)
                     pull_request = await AsyncApiHelper.parserPullRequest(json)
                     print(pull_request)
+                    usefulPullRequestsCount = 0
+                    usefulReviewsCount = 0
+                    usefulReviewCommentsCount = 0
+                    usefulIssueCommentsCount = 0
+                    usefulCommitsCount = 0
 
                     if pull_request is not None:
                         usefulPullRequestsCount = 1
@@ -237,6 +213,14 @@ class AsyncApiHelper:
             print(e)
 
     @staticmethod
+    def getPullRequestApi(pull_number):
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_PULL_REQUEST
+        api = api.replace(StringKeyUtils.STR_OWNER, AsyncApiHelper.owner)
+        api = api.replace(StringKeyUtils.STR_REPO, AsyncApiHelper.repo)
+        api = api.replace(StringKeyUtils.STR_PULL_NUMBER, str(pull_number))
+        return api
+
+    @staticmethod
     def getReviewCommentForPullRequestApi(pull_number):
         api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMENTS_FOR_PULL_REQUEST
         api = api.replace(StringKeyUtils.STR_OWNER, AsyncApiHelper.owner)
@@ -288,19 +272,20 @@ class AsyncApiHelper:
         try:
             async with session.get(api, ssl=False, proxy=proxy
                     , headers=headers, timeout=configPraser.getTimeout()) as response:
-                print(response.headers.get(StringKeyUtils.STR_HEADER_RATE_LIMIT_REMIAN))
+                print("rate:", response.headers.get(StringKeyUtils.STR_HEADER_RATE_LIMIT_REMIAN))
                 print("status:", response.status)
-                # if response.status == 403:
-                #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_KILL_POINT)
-                # elif proxy is not None:
-                #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_POSITIVE_POINT)
+                if response.status == 403:
+                    await ProxyHelper.judgeProxy(proxy.split('//')[1], ProxyHelper.INT_KILL_POINT)
+                    raise 403
+                elif proxy is not None:
+                    await ProxyHelper.judgeProxy(proxy.split('//')[1], ProxyHelper.INT_POSITIVE_POINT)
                 return await response.json()
         except Exception as e:
             print(e)
-            # traceback.print_exc()
-            # print('重试：', pull_number)
-            # if proxy is not None:
-            #     ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
+            if proxy is not None:
+                proxy = proxy.split('//')[1]
+                await ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
+            # print("judge end")
             return await AsyncApiHelper.fetchBeanData(session, api, isMediaType=isMediaType)
 
     @staticmethod
