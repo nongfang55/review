@@ -29,11 +29,11 @@ class ProjectAllDataFetcher:
         statistic.startTime = datetime.now()
 
         '''提取项目的信息以及项目的owner信息'''
-        # ProjectAllDataFetcher.getDataForRepository(helper)
+        ProjectAllDataFetcher.getDataForRepository(helper)
         '''提取项目的pull request信息'''
-        ProjectAllDataFetcher.getPullRequestForRepositoryUseConcurrent(helper, limit=configPraser.getLimit(),
-                                                                       statistic=statistic,
-                                                                       start=configPraser.getStart())
+        # ProjectAllDataFetcher.getPullRequestForRepositoryUseConcurrent(helper, limit=configPraser.getLimit(),
+        #                                                                statistic=statistic,
+        #                                                                start=configPraser.getStart())
 
         statistic.endTime = datetime.now()
 
