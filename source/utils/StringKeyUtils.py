@@ -136,6 +136,9 @@ class StringKeyUtils:
     STR_PROXY_HTTP = 'http'
     STR_PROXY_HTTP_FORMAT = 'http://{}'
 
+    '''column做屏蔽可能会使用到的key'''
+    STR_KEY_NOP = ''
+
 
     API_GITHUB = 'https://api.github.com'
     API_REVIEWS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/reviews'
@@ -192,3 +195,10 @@ class StringKeyUtils:
 
     """日期转换用到的"""
     STR_STYLE_DATA_DATE = '%Y-%m-%dT%H:%M:%SZ'
+
+    """tsv 文件使用到的"""
+    STR_SPLIT_SEP_TSV = '\t'
+
+    """做路径分割可能需要的"""
+    STR_SPLIT_SEP_ONE = '\\'
+    STR_SPLIT_SEP_TWO = '/'

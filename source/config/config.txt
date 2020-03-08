@@ -10,8 +10,8 @@ print=True
 [project]
 owner=scala
 repo=scala
-limit=1777
-start=8777
+limit=2000
+start=7000
 [network]
 timeout=5
 retry=100

@@ -10,7 +10,7 @@ class File(BeanBase):
     def __init__(self):
         self.commit_sha = None
         self.sha = None
-        self.fileName = None
+        self.filename = None
         self.status = None
         self.additions = None
         self.deletions = None
@@ -43,7 +43,7 @@ class File(BeanBase):
 
     def getValueDict(self):
         items = {StringKeyUtils.STR_KEY_COMMIT_SHA: self.commit_sha, StringKeyUtils.STR_KEY_SHA: self.sha,
-                 StringKeyUtils.STR_KEY_FILENAME: self.fileName, StringKeyUtils.STR_KEY_STATUS: self.status,
+                 StringKeyUtils.STR_KEY_FILENAME: self.filename, StringKeyUtils.STR_KEY_STATUS: self.status,
                  StringKeyUtils.STR_KEY_ADDITIONS: self.additions, StringKeyUtils.STR_KEY_DELETIONS: self.deletions,
                  StringKeyUtils.STR_KEY_CHANGES: self.changes, StringKeyUtils.STR_KEY_PATCH: self.patch}
 
@@ -58,7 +58,7 @@ class File(BeanBase):
                 res = File()
                 res.commit_sha = src.get(StringKeyUtils.STR_KEY_COMMIT_SHA, None)
                 res.sha = src.get(StringKeyUtils.STR_KEY_SHA, None)
-                res.fileName = src.get(StringKeyUtils.STR_KEY_FILENAME, None)
+                res.filename = src.get(StringKeyUtils.STR_KEY_FILENAME, None)
                 res.status = src.get(StringKeyUtils.STR_KEY_STATUS, None)
                 res.additions = src.get(StringKeyUtils.STR_KEY_ADDITIONS, None)
                 res.deletions = src.get(StringKeyUtils.STR_KEY_DELETIONS, None)
