@@ -28,7 +28,7 @@ class PullRequest(BeanBase):
         self.author_association = None
         self.merged = None
         self.comments = None
-        self.reviews_comments = None
+        self.review_comments = None
         self.commits = None
         self.additions = None
         self.deletions = None
@@ -96,7 +96,7 @@ class PullRequest(BeanBase):
                  StringKeyUtils.STR_KEY_MERGE_COMMIT_SHA: self.merge_commit_sha,
                  StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION: self.author_association,
                  StringKeyUtils.STR_KEY_MERGED: self.merged, StringKeyUtils.STR_KEY_COMMENTS: self.comments,
-                 StringKeyUtils.STR_KEY_REVIEW_COMMENTS: self.reviews_comments,
+                 StringKeyUtils.STR_KEY_REVIEW_COMMENTS: self.review_comments,
                  StringKeyUtils.STR_KEY_COMMITS: self.commits, StringKeyUtils.STR_KEY_ADDITIONS: self.additions,
                  StringKeyUtils.STR_KEY_DELETIONS: self.deletions,
                  StringKeyUtils.STR_KEY_CHANGED_FILES: self.changed_files,
@@ -137,7 +137,7 @@ class PullRequest(BeanBase):
                 res.author_association = src.get(StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION, None)
                 res.merged = src.get(StringKeyUtils.STR_KEY_MERGED, None)
                 res.comments = src.get(StringKeyUtils.STR_KEY_COMMENTS, None)
-                res.reviews_comments = src.get(StringKeyUtils.STR_KEY_REVIEW_COMMENTS, None)
+                res.review_comments = src.get(StringKeyUtils.STR_KEY_REVIEW_COMMENTS, None)
                 res.commits = src.get(StringKeyUtils.STR_KEY_COMMITS, None)
                 res.additions = src.get(StringKeyUtils.STR_KEY_ADDITIONS, None)
                 res.deletions = src.get(StringKeyUtils.STR_KEY_DELETIONS, None)

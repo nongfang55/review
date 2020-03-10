@@ -14,6 +14,7 @@ class configPraser:  # 用于解析config。ini文件
     STR_DEBUG = 'debug'
     STR_PROJECT = 'project'
     STR_NETWORK = 'network'
+    STR_RECOMMEND = 'recommend'
 
     STR_USERNAME = 'username'
     STR_PASSWORD = 'password'
@@ -28,6 +29,10 @@ class configPraser:  # 用于解析config。ini文件
     STR_START = 'start'
     STR_TIMEOUT = 'timeout'
     STR_SEMAPHORE = 'semaphore'
+    STR_TOPK = 'topk'
+    STR_TEST_NUMBER = 'testNumber'
+    STR_REVIEWER_NUMBER = 'reviewerNumber'
+    STR_FPS_REMOVE_AUTHOR = 'FPSRemoveAuthor'
 
     @staticmethod
     def getAuthorizationToken():
@@ -114,7 +119,31 @@ class configPraser:  # 用于解析config。ini文件
         cp.read(projectConfig.getConfigPath())
         return cp.get(configPraser.STR_DATABASE, configPraser.STR_DATABASE)
 
+    @staticmethod
+    def getTopK():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return int(cp.get(configPraser.STR_RECOMMEND, configPraser.STR_TOPK))
+
+    @staticmethod
+    def getTestNumber():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return int(cp.get(configPraser.STR_RECOMMEND, configPraser.STR_TEST_NUMBER))
+
+    @staticmethod
+    def getReviewerNumber():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return int(cp.get(configPraser.STR_RECOMMEND, configPraser.STR_REVIEWER_NUMBER))
+
+    @staticmethod
+    def getFPSRemoveAuthor():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return cp.get(configPraser.STR_RECOMMEND, configPraser.STR_FPS_REMOVE_AUTHOR) == configPraser.STR_TRUE
+
 
 if __name__ == '__main__':
-    print(configPraser.getLimit())
+    print(configPraser.getFPSRemoveAuthor())
 

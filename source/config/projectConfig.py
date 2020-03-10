@@ -16,7 +16,7 @@ class projectConfig:
     PATH_TEST_REVIEW_COMMENT = 'data' + os.sep + 'reviewComment.tsv'
     PATH_TEST_WINE_RED = 'data' + os.sep + 'winequality-red.xlsx'
     PATH_TEST_REVHELPER_DATA = 'data' + os.sep + 'revhelperDemoData.csv'
-    PATH_TEST_FPS_DATA = 'data' + os.sep + 'FPSDemoData.tsv'
+    PATH_TEST_FPS_DATA = 'data' + os.sep + 'FPSDemoData2.tsv'
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
 
     @staticmethod
