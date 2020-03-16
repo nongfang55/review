@@ -22,3 +22,4 @@ topk=10
 testNumber=10
 reviewerNumber=10
 FPSRemoveAuthor=False
+FPSCtypes=True

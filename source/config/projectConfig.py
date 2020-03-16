@@ -13,10 +13,12 @@ class projectConfig:
     PATH_USER_DICT_PATH = 'data' + os.sep + 'user_dict.utf8'
     PATH_TEST_CRF_INPUT = 'data' + os.sep + 'people-daily.txt'
     PATH_TEST_CRF_TEST_RESULT = 'data' + os.sep + 'test.rst'
-    PATH_TEST_REVIEW_COMMENT = 'data' + os.sep + 'reviewComment.tsv'
+    PATH_TEST_REVIEW_COMMENT = 'data' + os.sep + 'reviewComments.tsv'
     PATH_TEST_WINE_RED = 'data' + os.sep + 'winequality-red.xlsx'
     PATH_TEST_REVHELPER_DATA = 'data' + os.sep + 'revhelperDemoData.csv'
-    PATH_TEST_FPS_DATA = 'data' + os.sep + 'FPSDemoData2.tsv'
+    PATH_TEST_FPS_DATA = 'data' + os.sep + 'FPSDemoData.tsv'
+    PATH_STOP_WORD_ENGLISH = 'data' + os.sep + 'stop-words_english_1_en.txt'
+    PATH_RUBY_KEY_WORD = 'data' + os.sep + 'rubyKeyWord.txt'
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
 
     @staticmethod
@@ -73,6 +75,14 @@ class projectConfig:
     @staticmethod
     def getFPSTestData():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_TEST_FPS_DATA)
+
+    @staticmethod
+    def getStopWordEnglishPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_STOP_WORD_ENGLISH)
+
+    @staticmethod
+    def getRubyKeyWordPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_RUBY_KEY_WORD)
 
 
 if __name__ == "__main__":

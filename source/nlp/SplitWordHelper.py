@@ -16,7 +16,12 @@ class SplitWordHelper:
         print(content)
         return content.split('\n')
 
-    
+    def getEnglishStopList(self):
+        file = open(projectConfig.getStopWordEnglishPath() ,mode = 'r+',encoding = 'utf-8')
+        content = file.read()
+        return content.split('\n')
+
+
     def getSplitWordListFromListData(self,dataList,cut_all = False,filter = False):
         '''获取给定数据列表的分词统计元组 
             cut_all 做模式区分

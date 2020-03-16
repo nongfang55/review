@@ -1,5 +1,6 @@
 # coding=gbk
-from datetime import datetime
+from ctypes import *
+from datetime import datetime, time
 
 from source.config.configPraser import configPraser
 from source.config.projectConfig import projectConfig
@@ -8,6 +9,7 @@ from source.data.bean.File import File
 from source.data.bean.PullRequest import PullRequest
 from source.data.bean.Review import Review
 from source.scikit.FPS.FPSAlgorithm import FPSAlgorithm
+from source.scikit.FPS.FPSClassCovert import *
 from source.scikit.service.BeanNumpyHelper import BeanNumpyHelper
 from source.scikit.service.DataFrameColumnUtils import DataFrameColumnUtils
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
@@ -100,23 +102,68 @@ class FPSDemo:
         answerList = []
 
         testNumber = configPraser.getTestNumber()
-        for pos in range(0, testNumber):
-            """通过review算法获取推荐名单"""
-            candicateList, authorList = FPSAlgorithm.reviewerRecommend(pullrequests, pullrequestsIndex,
-                                                           reviews, reviewsIndex, commits, commitsIndex, files, filesIndex,
-                                                           pullrequestReviewIndex,
-                                                           reviewCommitIndex, commitFileIndex,
-                                                           pos, configPraser.getReviewerNumber())
 
-            print("candicateList", candicateList)
+        if configPraser.getFPSCtypes():
+            """调用dll库实现增加运行速度"""
+            dll = CDLL("cFPS.dll")
+            dll.addf.restype = c_float
+            dll.addf.argtypes = [c_float, c_float]
+            print(dll.addf(10, 30))
+
+            c_prs = FPSClassCovert.convertPullRequest(pullrequests)
+            c_reviews = FPSClassCovert.convertReview(reviews)
+            c_commits = FPSClassCovert.convertCommit(commits)
+            c_files = FPSClassCovert.convertFile(files)
+
+            c_result = c_fps_result()
+            print(c_prs)
+            print(c_reviews)
+            print(c_commits)
+            print(c_files)
+
+            dll.FPS.restype = None
+            dll.FPS.argtypes = (POINTER(c_fps_pr), c_int, POINTER(c_fps_review), c_int,
+                                POINTER(c_fps_commit), c_int, POINTER(c_fps_file), c_int,
+                                POINTER(c_fps_result), c_int, c_int)
+
+            prs_num = c_prs.__len__()
+            p_c_prs = (c_fps_pr * prs_num)(*c_prs)
+            reviews_num = c_reviews.__len__()
+            p_c_reviews = (c_fps_review * reviews_num)(*c_reviews)
+            commits_num = c_commits.__len__()
+            p_c_commits = (c_fps_commit * commits_num)(*c_commits)
+            files_num = c_files.__len__()
+            p_c_files = (c_fps_file * files_num)(*c_files)
+
+            dll.FPS(p_c_prs, prs_num, p_c_reviews, reviews_num, p_c_commits,
+                    commits_num, p_c_files, files_num, pointer(c_result), 0, 10, True)
 
             endTime = datetime.now()
             print("total cost time:", endTime - startTime, " recommend cost time:", endTime - receiveTime)
 
-            recommendList.append(candicateList)
-            answerList.append(authorList)
-        print(RecommendMetricUtils.topKAccuracy(recommendList, answerList, configPraser.getTopK()))
-        print(RecommendMetricUtils.MRR(recommendList, answerList))
+            print("answer:", str(c_result.answer, encoding='utf-8'))
+            print("recommend:", str(c_result.recommend, encoding='utf-8'))
+
+        else:
+            """使用Python实现算法 但是很慢"""
+            for pos in range(0, testNumber):
+                """通过review算法获取推荐名单"""
+                candicateList, authorList = FPSAlgorithm.reviewerRecommend(pullrequests, pullrequestsIndex,
+                                                                           reviews, reviewsIndex, commits, commitsIndex,
+                                                                           files, filesIndex,
+                                                                           pullrequestReviewIndex,
+                                                                           reviewCommitIndex, commitFileIndex,
+                                                                           pos, configPraser.getReviewerNumber())
+
+                print("candicateList", candicateList)
+                endTime = datetime.now()
+                print("total cost time:", endTime - startTime, " recommend cost time:", endTime - receiveTime)
+
+                recommendList.append(candicateList)
+                answerList.append(authorList)
+
+        # print(RecommendMetricUtils.topKAccuracy(recommendList, answerList, configPraser.getTopK()))
+        # print(RecommendMetricUtils.MRR(recommendList, answerList))
 
 
 if __name__ == '__main__':

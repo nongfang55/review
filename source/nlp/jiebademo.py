@@ -1,7 +1,5 @@
 #coding=gbk
 import jieba
-from source.data.ExcelHelper import ExcelHelper
-from source.config.projectConfig import projectConfig
 from source.nlp.SplitWordHelper import SplitWordHelper
 
 if __name__=='__main__':
@@ -47,7 +45,9 @@ if __name__=='__main__':
     '''词性标注demo '''
     
     sent = '中文分词是文本处理不可或缺的一步！'
-    print(SplitWordHelper().getPartOfSpeechTaggingFromListData(sent))
+    # print(SplitWordHelper().getPartOfSpeechTaggingFromListData(sent))
+
+    print(SplitWordHelper().getEnglishStopList())
     
     
 

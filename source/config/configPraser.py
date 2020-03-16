@@ -33,6 +33,7 @@ class configPraser:  # 用于解析config。ini文件
     STR_TEST_NUMBER = 'testNumber'
     STR_REVIEWER_NUMBER = 'reviewerNumber'
     STR_FPS_REMOVE_AUTHOR = 'FPSRemoveAuthor'
+    STR_FPS_CTYPES = 'FPSCtypes'
 
     @staticmethod
     def getAuthorizationToken():
@@ -143,7 +144,13 @@ class configPraser:  # 用于解析config。ini文件
         cp.read(projectConfig.getConfigPath())
         return cp.get(configPraser.STR_RECOMMEND, configPraser.STR_FPS_REMOVE_AUTHOR) == configPraser.STR_TRUE
 
+    @staticmethod
+    def getFPSCtypes():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return cp.get(configPraser.STR_RECOMMEND, configPraser.STR_FPS_CTYPES) == configPraser.STR_TRUE
+
 
 if __name__ == '__main__':
-    print(configPraser.getFPSRemoveAuthor())
+    print(configPraser.getFPSCtypes())
 
