@@ -103,3 +103,48 @@ class AsyncSqlHelper:
             if cur:
                 await cur.close()
             await mysql.pool.release(conn)
+
+    @staticmethod
+    async def queryBeanData(beans, mysql, defineItems=None):
+        """一次性查询多个bean对象  define 为[[key1,key2], [key3,key4] ...]
+        返回多个元组"""
+
+        conn, cur = await  mysql.getDatabaseConnected()
+
+        resultBeans = []
+
+        try:
+            pos = 0
+            for bean in beans:
+                if isinstance(bean, BeanBase):
+                    tableName = AsyncSqlHelper.getInsertTableName(bean)
+                    items = defineItems[pos]
+                    if items is None:
+                        items = bean.getIdentifyKeys()
+                    pos += 1
+                    valueDict = bean.getValueDict()
+
+                    format_values = SqlUtils.getQueryTableConditionString(items)
+                    sql = SqlUtils.STR_SQL_QUERY_TABLE_UTILS.format(tableName, format_values)
+
+                    if configPraser.getPrintMode():
+                        print(sql)
+
+                    values = ()
+                    for item in items:
+                        values = values + (valueDict.get(item, None),)  # 元组相加
+                    try:
+                        await cur.execute(sql, values)
+                        r = await cur.fetchall()
+                        resultBeans.append(r)
+                    except Exception as e:
+                        print(e)
+                        resultBeans.append(None)
+        except Exception as e:
+            print(e)
+        finally:
+            if cur:
+                await cur.close()
+            await mysql.pool.release(conn)
+
+        return resultBeans

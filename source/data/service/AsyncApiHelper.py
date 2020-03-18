@@ -9,6 +9,7 @@ from datetime import datetime
 import aiohttp
 
 from source.config.configPraser import configPraser
+from source.data.bean.CommentRelation import CommitRelation
 from source.data.bean.Commit import Commit
 from source.data.bean.CommitPRRelation import CommitPRRelation
 from source.data.bean.IssueComment import IssueComment
@@ -18,6 +19,7 @@ from source.data.bean.Review import Review
 from source.data.bean.ReviewComment import ReviewComment
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
 from source.data.service.GraphqlHelper import GraphqlHelper
+from source.data.service.PRTimeLineUtils import PRTimeLineUtils
 from source.data.service.ProxyHelper import ProxyHelper
 from source.utils.StringKeyUtils import StringKeyUtils
 
@@ -422,8 +424,7 @@ class AsyncApiHelper:
         try:
             if not AsyncApiHelper.judgeNotFind(resultJson):
                 res, items = PRTimeLineRelation.parser.parser(resultJson)
-                res.extend(items)
-                return res
+                return res, items
         except Exception as e:
             print(e)
 
@@ -436,15 +437,25 @@ class AsyncApiHelper:
                     """先获取pull request信息"""
                     api = AsyncApiHelper.getGraphQLApi()
                     resultJson = await AsyncApiHelper.postGraphqlData(session, api, args)
+                    beanList = []
                     # pull_request = await AsyncApiHelper.parserPullRequest(json)
                     # print(pull_request)
                     print(type(resultJson))
                     print("post json:", resultJson)
-                    beanList = await  AsyncApiHelper.parserPRItemLine(resultJson)
+                    timeLineRelations, timeLineItems = await  AsyncApiHelper.parserPRItemLine(resultJson)
+
                     usefulTimeLineItemCount = 0
                     usefulTimeLineCount = 0
 
+                    beanList.extend(timeLineRelations)
+                    beanList.extend(timeLineItems)
                     await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+
+                    """完善获取关联的commit 信息"""
+                    pairs = PRTimeLineUtils.splitTimeLine(timeLineRelations)
+                    for pair in pairs:
+                        print(pair)
+                        await AsyncApiHelper.completeCommitInformation(pair, mysql, session)
 
                     # 做了同步处理
                     statistic.lock.acquire()
@@ -454,3 +465,186 @@ class AsyncApiHelper:
                     statistic.lock.release()
                 except Exception as e:
                     print(e)
+
+    @staticmethod
+    async def completeCommitInformation(pair, mysql, session):
+        """完善 review和随后事件相关的commit"""
+        review = pair[0]
+        changes = pair[1]
+
+        for change in changes:
+            commit1 = review.pullrequestReviewCommit
+            commit2 = None
+            if change.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
+                commit2 = change.pullrequestCommitCommit
+            elif change.typename == StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT:
+                commit2 = change.headRefForcePushedEventAfterCommit
+
+            loop = 0
+            if commit2 is not None and commit1 is not None:
+
+                class CommitNode:
+                    willFetch = None
+                    oid = None
+
+                """为了统计使用的工具类"""
+
+                def isNodesContains(nodes1, nodes2):
+                    isContain = True
+                    for node in nodes2:
+                        isFind = False
+                        for node1 in nodes1:
+                            if node1.oid == node.oid:
+                                isFind = True
+                                break
+                        if not isFind and node.willFetch:
+                            isContain = False
+                            break
+                    return isContain
+
+                def printNodes(nodes1, nodes2):
+                    print('node1')
+                    for node in nodes1:
+                        print(node.oid, node.willFetch)
+                    print('node2')
+                    for node in nodes2:
+                        print(node.oid, node.willFetch)
+
+                async def fetNotFetchedNodes(nodes, mysql, session):
+                    fetchList = [node.oid for node in nodes if node.willFetch]
+                    """先尝试从数据库中读取"""
+                    localExistList, localRelationList = await AsyncApiHelper.getCommitsFromStore(fetchList, mysql)
+                    fetchList = [oid for oid in fetchList if oid not in localExistList]
+                    # print("res fetch list:", fetchList)
+                    webRelationList = await AsyncApiHelper.getCommitsFromApi(fetchList, mysql, session)
+
+                    for node in nodes:
+                        node.willFetch = False
+
+                    # for node in nodes:
+                    #     print("after fetched 1: " + f"{node.oid}  {node.willFetch}")
+
+                    relationList = []
+                    relationList.extend(localRelationList)
+                    relationList.extend(webRelationList)
+                    # print("relationList:", relationList)
+                    # for relation in relationList:
+                    #     print(relation.child, "    ", relation.parent)
+
+                    addNode = []
+                    for relation in relationList:
+                        isFind = False
+                        """确保在两个地方都不存在"""
+                        for node in nodes:
+                            if relation.parent == node.oid:
+                                isFind = True
+                                break
+                        for node in addNode:
+                            if relation.parent == node.oid:
+                                isFind = True
+                                break
+
+                        if not isFind:
+                            newNode = CommitNode()
+                            newNode.willFetch = True
+                            newNode.oid = relation.parent
+                            addNode.append(newNode)
+                    nodes.extend(addNode)
+
+                    # for node in nodes:
+                    #     print("after fetched  2: " + f"{node.oid}  {node.willFetch}")
+
+                    return nodes
+
+                commit1Nodes = []
+                commit2Nodes = []
+
+                node1 = CommitNode()
+                node1.oid = commit1
+                node1.willFetch = True
+                commit1Nodes.append(node1)
+                node2 = CommitNode()
+                node2.oid = commit2
+                commit2Nodes.append(node2)
+                node2.willFetch = True
+
+                completeFetch = False
+                while loop < configPraser.getCommitFetchLoop():
+
+                    loop += 1
+
+                    print("loop:", loop, " 1")
+                    printNodes(commit1Nodes, commit2Nodes)
+
+                    if isNodesContains(commit1Nodes, commit2Nodes):
+                        completeFetch = True
+                        break
+
+                    await fetNotFetchedNodes(commit2Nodes, mysql, session)
+                    print("loop:", loop, " 2")
+                    printNodes(commit1Nodes, commit2Nodes)
+
+                    if isNodesContains(commit1Nodes, commit2Nodes):
+                        completeFetch = True
+                        break
+
+                    await fetNotFetchedNodes(commit1Nodes, mysql, session)
+
+                    print("loop:", loop, " 3")
+                    printNodes(commit1Nodes, commit2Nodes)
+
+                if not completeFetch:
+                    raise Exception('out of the loop !')
+
+    @staticmethod
+    async def getCommitsFromStore(oids, mysql):
+
+        beans = []
+
+        existList = []  # 存在列表
+        relationList = []  # 查询得到的关系列表 在子列表出现代表了系统有存储
+
+        """先从sha(oid)转化为commit对象"""
+        for oid in oids:
+            bean = CommitRelation()
+            bean.child = oid
+            beans.append(bean)
+
+        results = await AsyncSqlHelper.queryBeanData(beans, mysql, [[StringKeyUtils.STR_KEY_CHILD] * beans.__len__()])
+        # print("result:", results)
+
+        """从本地返回的结果做解析"""
+        for relationTuple in results:
+            if relationTuple.__len__() > 0:
+                existList.append(relationTuple[0][0])
+                for relation in relationTuple:
+                    r = CommitRelation()
+                    r.child = relation[0]
+                    r.parent = relation[1]
+                    relationList.append(r)
+        """去重处理"""
+        existList = list(set(existList))
+        relationList = list(set(relationList))
+        return existList, relationList
+
+    @staticmethod
+    async def getCommitsFromApi(oids, mysql, session):
+
+        beanList = []
+        relationList = []  # 查询得到的关系列表
+
+        for oid in oids:
+            api = AsyncApiHelper.getCommitApi(oid)
+            json = await AsyncApiHelper.fetchBeanData(session, api)
+            # print(json)
+            commit = await AsyncApiHelper.parserCommit(json)
+
+            if commit.parents is not None:
+                relationList.extend(commit.parents)
+            if commit.files is not None:
+                beanList.extend(commit.files)
+
+            beanList.append(commit)
+        beanList.extend(relationList)
+        await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+        return relationList

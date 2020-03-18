@@ -14,6 +14,12 @@ class PRTimeLineRelation(BeanBase):
         self.typename = None
         self.position = None
 
+        """可选属性 做简化使用的 实际不进入存储"""
+        self.headRefForcePushedEventAfterCommit = None
+        self.headRefForcePushedEventBeforeCommit = None
+        self.pullrequestReviewCommit = None
+        self.pullrequestCommitCommit = None
+
     @staticmethod
     def getIdentifyKeys():
         return [StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE]
@@ -80,9 +86,11 @@ class PRTimeLineRelation(BeanBase):
                                                 bean.afterCommit = item_node.get(StringKeyUtils.STR_KEY_AFTER_COMMIT
                                                                                  , None).get(StringKeyUtils.STR_KEY_OID
                                                                                              , None)
+                                                relation.headRefForcePushedEventAfterCommit = bean.afterCommit
                                                 bean.beforeCommit = item_node.get(StringKeyUtils.STR_KEY_BEFORE_COMMIT,
                                                                                   None).get(StringKeyUtils.STR_KEY_OID,
                                                                                             None)
+                                                relation.headRefForcePushedEventBeforeCommit = bean.beforeCommit
                                                 resItems.append(bean)
                                             elif typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
                                                 bean = PullRequestCommit()
@@ -90,5 +98,12 @@ class PRTimeLineRelation(BeanBase):
                                                 commit = item_node.get(StringKeyUtils.STR_KEY_COMMIT)
                                                 if commit is not None and isinstance(commit, dict):
                                                     bean.oid = commit.get(StringKeyUtils.STR_KEY_OID, None)
+                                                    relation.pullrequestCommitCommit = commit.get(StringKeyUtils.STR_KEY_OID, None)
                                                 resItems.append(bean)
+                                            elif typename == StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW:
+                                                commit = item_node.get(StringKeyUtils.STR_KEY_COMMIT)
+                                                if commit is not None and isinstance(commit, dict):
+                                                    relation.pullrequestReviewCommit = \
+                                                        commit.get(StringKeyUtils.STR_KEY_OID, None)
+
             return resList, resItems

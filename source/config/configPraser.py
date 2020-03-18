@@ -34,6 +34,7 @@ class configPraser:  # 用于解析config。ini文件
     STR_REVIEWER_NUMBER = 'reviewerNumber'
     STR_FPS_REMOVE_AUTHOR = 'FPSRemoveAuthor'
     STR_FPS_CTYPES = 'FPSCtypes'
+    STR_COMMIT_FETCH_LOOP = 'commitFetchLoop'
 
     @staticmethod
     def getAuthorizationToken():
@@ -150,7 +151,13 @@ class configPraser:  # 用于解析config。ini文件
         cp.read(projectConfig.getConfigPath())
         return cp.get(configPraser.STR_RECOMMEND, configPraser.STR_FPS_CTYPES) == configPraser.STR_TRUE
 
+    @staticmethod
+    def getCommitFetchLoop():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return int(cp.get(configPraser.STR_PROJECT, configPraser.STR_COMMIT_FETCH_LOOP))
+
 
 if __name__ == '__main__':
-    print(configPraser.getFPSCtypes())
+    print(configPraser.getCommitFetchLoop())
 

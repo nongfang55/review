@@ -31,7 +31,7 @@ class GraphqlHelper:
     STR_KEY_NONE = "{}"
 
     STR_KEY_QUERY_PR_TIMELINE = '''
-   query($ids:[ID!]!) { 
+ query($ids:[ID!]!) { 
   nodes(ids:$ids) {
     ... on PullRequest {
       id
@@ -40,13 +40,20 @@ class GraphqlHelper:
           node {
             __typename
             ... on Node {
-            id
+               id
+            }
               
             ... on PullRequestCommit {
               commit {
                 oid
               }
             }
+            
+            ... on PullRequestReview {
+              commit {
+                oid
+                 }
+              }
             
             ... on HeadRefForcePushedEvent {
               afterCommit {
@@ -62,7 +69,6 @@ class GraphqlHelper:
 
       }
   	}
-  }
   rateLimit {
     limit
     cost
