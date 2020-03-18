@@ -14,6 +14,33 @@ class AsyncProjectAllDataFetcher:
     # 获取项目的所有信息 主题信息采用异步获取
 
     @staticmethod
+    def getPullRequestTimeLine(owner, repo, nodes):
+        # 获取一个pull request的时间线上面的信息
+        AsyncApiHelper.setRepo(owner, repo)
+        t1 = datetime.now()
+
+        statistic = statisticsHelper()
+        statistic.startTime = t1
+
+        loop = asyncio.get_event_loop()
+        task = [asyncio.ensure_future(AsyncProjectAllDataFetcher.preProcessTimeLine(loop, nodes, statistic))]
+        tasks = asyncio.gather(*task)
+        loop.run_until_complete(tasks)
+
+    @staticmethod
+    async def preProcessTimeLine(loop, node, statistic):
+
+        semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
+        mysql = await getMysqlObj(loop)
+
+        if configPraser.getPrintMode():
+            print("mysql init success")
+
+        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadRPTimeLine(nodeIds, semaphore, mysql, statistic))
+                 for nodeIds in node]  # 可以通过nodes 过多次嵌套节省请求数量
+        await asyncio.wait(tasks)
+
+    @staticmethod
     def getDataForRepository(owner, repo, limit=-1, start=-1):
         """指定目标owner/repo 获取start到  start - limit编号的pull-request相关评审信息"""
 
@@ -71,3 +98,7 @@ if __name__ == '__main__':
     """通过配置文件读取目标信息"""
     AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
                                                     , start=configPraser.getStart(), limit=configPraser.getLimit())
+    # AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
+    #                                                 , start=configPraser.getStart(), limit=configPraser.getLimit())
+    AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo(),
+                                                      nodes=[["MDExOlB1bGxSZXF1ZXN0MzU0MjA4ODU3"]])

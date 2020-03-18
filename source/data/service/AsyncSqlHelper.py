@@ -8,6 +8,7 @@ from source.data.bean.CommitComment import CommitComment
 from source.data.bean.CommitPRRelation import CommitPRRelation
 from source.data.bean.File import File
 from source.data.bean.IssueComment import IssueComment
+from source.data.bean.PRTimeLineRelation import PRTimeLineRelation
 from source.data.bean.PullRequest import PullRequest
 from source.data.bean.Repository import Repository
 from source.data.bean.Review import Review
@@ -48,6 +49,8 @@ class AsyncSqlHelper:
             return SqlUtils.STR_TABLE_NAME_REVIEW_COMMENT
         elif isinstance(bean, User):
             return SqlUtils.STR_TABLE_NAME_USER
+        elif isinstance(bean, PRTimeLineRelation):
+            return SqlUtils.STR_TABLE_NAME_PR_TIME_LINE
         else:
             return None
 

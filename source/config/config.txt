@@ -1,5 +1,5 @@
 [authorization]
-token=f290897772de8297f91c78ef53feb56130b452bd,d14775826584f020aa93a93cdddf28a8a6ed8993,949ad267ad59b46ca1a15cf4371640d9901848b2,167bd2f535158bf8b30ce5cbe6344fbc837892fc,d9991e8e848eddf4cca4225c19fb3541193178d1,5d74d730345c14cf51f5963527d9a34c520ccb2e
+token=3687b102d63d3faef42c42a9d0be8c2e57c53c9e
 [database]
 host=101.133.220.93
 username=review
@@ -13,7 +13,7 @@ repo=scala
 limit=2000
 start=7000
 [network]
-timeout=5
+timeout=10
 retry=100
 proxy=True
 semaphore=100

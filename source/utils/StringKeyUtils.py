@@ -139,6 +139,25 @@ class StringKeyUtils:
     '''column做屏蔽可能会使用到的key'''
     STR_KEY_NOP = ''
 
+    '''pr timelineItem 可能会使用到的'''
+    STR_KEY_PULL_REQUEST_NODE = 'pullrequest_node'
+    STR_KEY_TIME_LINE_ITEM_NODE = 'timelineitem_node'
+    STR_KEY_TYPE_NAME_JSON = '__typename'
+    STR_KEY_EDGE = 'edge'
+    STR_KEY_TYPE_NAME = 'typename'
+    STR_KEY_DATA = 'data'
+    STR_KEY_NODES = 'nodes'
+    STR_KEY_NODE = 'node'
+    STR_KEY_TIME_LINE_ITEMS = 'timelineItems'
+    STR_KEY_EDGES = 'edges'
+
+
+
+    '''HeadRefForcePushedEvent 可能会使用到的'''
+    STR_KEY_AFTER_COMMIT = 'afterCommit'
+    STR_KEY_BEFORE_COMMIT = 'beforeCommit'
+
+
 
     API_GITHUB = 'https://api.github.com'
     API_REVIEWS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/reviews'
@@ -153,6 +172,7 @@ class StringKeyUtils:
     API_COMMIT = '/repos/:owner/:repo/commits/:commit_sha'
     API_COMMITS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/commits'
     API_COMMIT_COMMENTS_FOR_COMMIT = '/repos/:owner/:repo/commits/:commit_sha/comments'
+    API_GRAPHQL = '/graphql'
 
     # 用于替换的字符串
     STR_HEADER_AUTHORIZAITON = 'Authorization'
@@ -202,3 +222,10 @@ class StringKeyUtils:
     """做路径分割可能需要的"""
     STR_SPLIT_SEP_ONE = '\\'
     STR_SPLIT_SEP_TWO = '/'
+
+    """graphql 可能用到的"""
+    STR_KEY_QUERY = 'query'
+    STR_KEY_OPERATIONAME = 'operationName'
+    STR_KEY_VARIABLES = 'variables'
+
+

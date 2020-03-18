@@ -1,5 +1,6 @@
 # coding=gbk
 import asyncio
+import json
 import random
 import time
 import traceback
@@ -11,10 +12,12 @@ from source.config.configPraser import configPraser
 from source.data.bean.Commit import Commit
 from source.data.bean.CommitPRRelation import CommitPRRelation
 from source.data.bean.IssueComment import IssueComment
+from source.data.bean.PRTimeLineRelation import PRTimeLineRelation
 from source.data.bean.PullRequest import PullRequest
 from source.data.bean.Review import Review
 from source.data.bean.ReviewComment import ReviewComment
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
+from source.data.service.GraphqlHelper import GraphqlHelper
 from source.data.service.ProxyHelper import ProxyHelper
 from source.utils.StringKeyUtils import StringKeyUtils
 
@@ -263,6 +266,11 @@ class AsyncApiHelper:
         return api
 
     @staticmethod
+    def getGraphQLApi():
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_GRAPHQL
+        return api
+
+    @staticmethod
     def getCommitApi(commit_sha):
         api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMIT
         api = api.replace(StringKeyUtils.STR_OWNER, AsyncApiHelper.owner)
@@ -311,6 +319,47 @@ class AsyncApiHelper:
             # print("judge end")
             """循环重试"""
             return await AsyncApiHelper.fetchBeanData(session, api, isMediaType=isMediaType)
+
+    @staticmethod
+    async def postGraphqlData(session, api, args=None):
+        """通过 github graphhql接口 通过post请求"""
+        headers = {}
+        headers = AsyncApiHelper.getUserAgentHeaders(headers)
+        headers = AsyncApiHelper.getAuthorizationHeaders(headers)
+
+        body = {}
+        body = GraphqlHelper.getTimeLineQueryByNodes(body)
+        body = GraphqlHelper.getGraphqlVariables(body, args)
+        bodyJson = json.dumps(body)
+        # print("bodyjson:", bodyJson)
+
+        while True:
+            proxy = await AsyncApiHelper.getProxy()
+            if configPraser.getProxy() and proxy is None:  # 对代理池没有ip的情况做考虑
+                print('no proxy and sleep!')
+                await asyncio.sleep(20)
+            else:
+                break
+
+        try:
+            async with session.post(api, ssl=False, proxy=proxy,
+                                    headers=headers, timeout=configPraser.getTimeout(),
+                                    data=bodyJson) as response:
+                print("rate:", response.headers.get(StringKeyUtils.STR_HEADER_RATE_LIMIT_REMIAN))
+                print("status:", response.status)
+                if response.status == 403:
+                    await ProxyHelper.judgeProxy(proxy.split('//')[1], ProxyHelper.INT_KILL_POINT)
+                    raise 403
+                elif proxy is not None:
+                    await ProxyHelper.judgeProxy(proxy.split('//')[1], ProxyHelper.INT_POSITIVE_POINT)
+                return await response.json()
+        except Exception as e:
+            print(e)
+            if proxy is not None:
+                proxy = proxy.split('//')[1]
+                await ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
+            # print("judge end")
+            return await AsyncApiHelper.postGraphqlData(session, api, args)
 
     @staticmethod
     async def parserReviewComment(json):
@@ -369,3 +418,40 @@ class AsyncApiHelper:
                 return res
         except Exception as e:
             print(e)
+
+    @staticmethod
+    async def parserPRItemLine(json):
+        try:
+            # if not AsyncApiHelper.judgeNotFind(json):
+            res = PRTimeLineRelation.parser.parser(json)
+            return res
+        except Exception as e:
+            print(e)
+
+    @staticmethod
+    async def downloadRPTimeLine(nodeIds, semaphore, mysql, statistic):
+        async with semaphore:
+            async with aiohttp.ClientSession() as session:
+                try:
+                    args = {"ids": nodeIds}
+                    """先获取pull request信息"""
+                    api = AsyncApiHelper.getGraphQLApi()
+                    resultJson = await AsyncApiHelper.postGraphqlData(session, api, args)
+                    # pull_request = await AsyncApiHelper.parserPullRequest(json)
+                    # print(pull_request)
+                    print(type(resultJson))
+                    print("post json:", resultJson)
+                    beanList = await  AsyncApiHelper.parserPRItemLine(resultJson)
+                    usefulTimeLineItemCount = 0
+                    usefulTimeLineCount = 0
+
+                    await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+
+                    # 做了同步处理
+                    statistic.lock.acquire()
+                    statistic.usefulTimeLineCount += usefulTimeLineCount
+                    print(f"usefulTimeLineItemCount: {usefulTimeLineCount}",
+                          f" usefulTimeLineCount:{usefulTimeLineItemCount}")
+                    statistic.lock.release()
+                except Exception as e:
+                    print(e)

@@ -15,4 +15,5 @@ class statisticsHelper:
         self.usefulCommitCommentNumber = 0  # commit comment的提取数量
         self.startTime = None  # 开始时间
         self.endTime = None  # 结束时间
+        self.usefulTimeLineCount = 0  # pull request的timeline线数量
         self.lock = threading.RLock()
