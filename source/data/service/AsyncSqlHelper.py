@@ -7,9 +7,11 @@ from source.data.bean.Commit import Commit
 from source.data.bean.CommitComment import CommitComment
 from source.data.bean.CommitPRRelation import CommitPRRelation
 from source.data.bean.File import File
+from source.data.bean.HeadRefForcePushedEvent import HeadRefForcePushedEvent
 from source.data.bean.IssueComment import IssueComment
 from source.data.bean.PRTimeLineRelation import PRTimeLineRelation
 from source.data.bean.PullRequest import PullRequest
+from source.data.bean.PullRequestCommit import PullRequestCommit
 from source.data.bean.Repository import Repository
 from source.data.bean.Review import Review
 from source.data.bean.ReviewComment import ReviewComment
@@ -51,6 +53,10 @@ class AsyncSqlHelper:
             return SqlUtils.STR_TABLE_NAME_USER
         elif isinstance(bean, PRTimeLineRelation):
             return SqlUtils.STR_TABLE_NAME_PR_TIME_LINE
+        elif isinstance(bean, HeadRefForcePushedEvent):
+            return SqlUtils.STR_TABLE_NAME_HEAD_REF_FORCE_PUSHED_EVENT
+        elif isinstance(bean, PullRequestCommit):
+            return SqlUtils.STR_TABLE_NAME_PULL_REQUEST_COMMIT
         else:
             return None
 

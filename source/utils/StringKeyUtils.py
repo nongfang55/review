@@ -150,12 +150,23 @@ class StringKeyUtils:
     STR_KEY_NODE = 'node'
     STR_KEY_TIME_LINE_ITEMS = 'timelineItems'
     STR_KEY_EDGES = 'edges'
+    STR_KEY_OID = 'oid'
+    STR_FAILED_FETCH = 'Failed to fetch'
 
 
 
     '''HeadRefForcePushedEvent 可能会使用到的'''
     STR_KEY_AFTER_COMMIT = 'afterCommit'
     STR_KEY_BEFORE_COMMIT = 'beforeCommit'
+    STR_KEY_HEAD_REF_PUSHED_EVENT = 'HeadRefForcePushedEvent'
+
+    '''PullRequestCommit 可能会使用到的'''
+    STR_KEY_PULL_REQUEST_COMMIT = 'PullRequestCommit'
+
+    '''time line item 可能会碰到的其他类型'''
+    STR_KEY_ISSUE_COMMIT = 'IssueComment'
+    STR_KEY_MENTIONED_EVENT = 'MentionedEvent'
+    STR_KEY_PULL_REQUEST_REVIEW = 'PullRequestReview'
 
 
 

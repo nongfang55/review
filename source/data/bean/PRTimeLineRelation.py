@@ -1,5 +1,7 @@
 # coding=gbk
 from source.data.bean.Beanbase import BeanBase
+from source.data.bean.HeadRefForcePushedEvent import HeadRefForcePushedEvent
+from source.data.bean.PullRequestCommit import PullRequestCommit
 from source.utils.StringKeyUtils import StringKeyUtils
 
 
@@ -45,6 +47,7 @@ class PRTimeLineRelation(BeanBase):
         @staticmethod
         def parser(src):
             resList = []  # 返回结果为一系列关系
+            resItems = []  # 从时间线中提取有意义的信息
             if isinstance(src, dict):
                 data = src.get(StringKeyUtils.STR_KEY_DATA, None)
                 if data is not None and isinstance(data, dict):
@@ -57,7 +60,7 @@ class PRTimeLineRelation(BeanBase):
                             if timelineitems is not None:
                                 edges = timelineitems.get(StringKeyUtils.STR_KEY_EDGES, None)
                                 if edges is not None:
-                                    for item in edges:
+                                    for item in edges:  # 对各个item做出解析
                                         item_node = item.get(StringKeyUtils.STR_KEY_NODE, None)
                                         if item_node is not None:
                                             typename = item_node.get(StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
@@ -69,4 +72,23 @@ class PRTimeLineRelation(BeanBase):
                                             relation.timelineitem_node = item_id
                                             relation.pullrequest_node = pr_id
                                             resList.append(relation)
-            return resList
+
+                                            """做出解析"""
+                                            if typename == StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT:
+                                                bean = HeadRefForcePushedEvent()
+                                                bean.node_id = item_id
+                                                bean.afterCommit = item_node.get(StringKeyUtils.STR_KEY_AFTER_COMMIT
+                                                                                 , None).get(StringKeyUtils.STR_KEY_OID
+                                                                                             , None)
+                                                bean.beforeCommit = item_node.get(StringKeyUtils.STR_KEY_BEFORE_COMMIT,
+                                                                                  None).get(StringKeyUtils.STR_KEY_OID,
+                                                                                            None)
+                                                resItems.append(bean)
+                                            elif typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
+                                                bean = PullRequestCommit()
+                                                bean.node_id = item_id
+                                                commit = item_node.get(StringKeyUtils.STR_KEY_COMMIT)
+                                                if commit is not None and isinstance(commit, dict):
+                                                    bean.oid = commit.get(StringKeyUtils.STR_KEY_OID, None)
+                                                resItems.append(bean)
+            return resList, resItems

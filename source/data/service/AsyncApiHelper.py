@@ -68,10 +68,10 @@ class AsyncApiHelper:
         return None
 
     @staticmethod
-    async def parserPullRequest(json):
+    async def parserPullRequest(resultJson):
         try:
-            if not AsyncApiHelper.judgeNotFind(json):
-                res = PullRequest.parser.parser(json)
+            if not AsyncApiHelper.judgeNotFind(resultJson):
+                res = PullRequest.parser.parser(resultJson)
                 if res is not None and res.base is not None:
                     res.repo_full_name = res.base.repo_full_name  # 对pull_request的repo_full_name 做一个补全
                 return res
@@ -79,10 +79,11 @@ class AsyncApiHelper:
             print(e)
 
     @staticmethod
-    def judgeNotFind(json):
-        """判断404的场景，用于按照某些编号检索Github实体失败"""
-        if json is not None and isinstance(json, dict):
-            if json.get(StringKeyUtils.STR_KEY_MESSAGE) == StringKeyUtils.STR_NOT_FIND:
+    def judgeNotFind(resultJson):
+        if resultJson is not None and isinstance(json, dict):
+            if resultJson.get(StringKeyUtils.STR_KEY_MESSAGE) == StringKeyUtils.STR_NOT_FIND:
+                return True
+            if resultJson.get(StringKeyUtils.STR_KEY_MESSAGE) == StringKeyUtils.STR_FAILED_FETCH:
                 return True
         return False
 
@@ -212,11 +213,11 @@ class AsyncApiHelper:
                     print(e)
 
     @staticmethod
-    async def parserReview(json, pull_number):
+    async def parserReview(resultJson, pull_number):
         try:
-            if not AsyncApiHelper.judgeNotFind(json):
+            if not AsyncApiHelper.judgeNotFind(resultJson):
                 items = []
-                for item in json:
+                for item in resultJson:
                     res = Review.parser.parser(item)
                     res.repo_full_name = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo  # 对repo_full_name 做一个补全
                     res.pull_number = pull_number
@@ -362,12 +363,11 @@ class AsyncApiHelper:
             return await AsyncApiHelper.postGraphqlData(session, api, args)
 
     @staticmethod
-    async def parserReviewComment(json):
-        """解析json 获取Review Comment信息"""
+    async def parserReviewComment(resultJson):
         try:
-            if not AsyncApiHelper.judgeNotFind(json):
+            if not AsyncApiHelper.judgeNotFind(resultJson):
                 items = []
-                for item in json:
+                for item in resultJson:
                     res = ReviewComment.parser.parser(item)
                     items.append(res)
                 return items
@@ -375,12 +375,11 @@ class AsyncApiHelper:
             print(e)
 
     @staticmethod
-    async def parserIssueComment(json, issue_number):
-        """解析json 获取Issue Comment信息"""
+    async def parserIssueComment(resultJson, issue_number):
         try:
             if not AsyncApiHelper.judgeNotFind(json):
                 items = []
-                for item in json:
+                for item in resultJson:
                     res = IssueComment.parser.parser(item)
                     """信息补全"""
                     res.repo_full_name = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo  # 对repo_full_name 做一个补全
@@ -392,12 +391,12 @@ class AsyncApiHelper:
             print(e)
 
     @staticmethod
-    async def parserCommitAndRelation(json, pull_number):
+    async def parserCommitAndRelation(resultJson, pull_number):
         try:
-            if not AsyncApiHelper.judgeNotFind(json):
+            if not AsyncApiHelper.judgeNotFind(resultJson):
                 items = []
                 relations = []
-                for item in json:
+                for item in resultJson:
                     res = Commit.parser.parser(item)
                     relation = CommitPRRelation()
                     relation.sha = res.sha
@@ -410,21 +409,21 @@ class AsyncApiHelper:
             print(e)
 
     @staticmethod
-    async def parserCommit(json):
-        """解析json 获取Commit信息"""
+    async def parserCommit(resultJson):
         try:
-            if not AsyncApiHelper.judgeNotFind(json):
-                res = Commit.parser.parser(json)
+            if not AsyncApiHelper.judgeNotFind(resultJson):
+                res = Commit.parser.parser(resultJson)
                 return res
         except Exception as e:
             print(e)
 
     @staticmethod
-    async def parserPRItemLine(json):
+    async def parserPRItemLine(resultJson):
         try:
-            # if not AsyncApiHelper.judgeNotFind(json):
-            res = PRTimeLineRelation.parser.parser(json)
-            return res
+            if not AsyncApiHelper.judgeNotFind(resultJson):
+                res, items = PRTimeLineRelation.parser.parser(resultJson)
+                res.extend(items)
+                return res
         except Exception as e:
             print(e)
 
