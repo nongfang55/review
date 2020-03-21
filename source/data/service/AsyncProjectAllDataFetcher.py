@@ -15,7 +15,7 @@ class AsyncProjectAllDataFetcher:
 
     @staticmethod
     def getPullRequestTimeLine(owner, repo, nodes):
-        # 获取一个pull request的时间线上面的信息
+        # 获取多个个pull request的时间线上面的信息
         AsyncApiHelper.setRepo(owner, repo)
         t1 = datetime.now()
 
@@ -26,6 +26,8 @@ class AsyncProjectAllDataFetcher:
         task = [asyncio.ensure_future(AsyncProjectAllDataFetcher.preProcessTimeLine(loop, nodes, statistic))]
         tasks = asyncio.gather(*task)
         loop.run_until_complete(tasks)
+
+        print('cost time:', datetime.now() - t1)
 
     @staticmethod
     async def preProcessTimeLine(loop, node, statistic):

@@ -33,6 +33,7 @@ class ReviewComment(BeanBase):
         self.node_id = None
 
         self.user_login = None
+        self.change_trigger = None  # comment 之后一系列改动中距离comment所指的line最近的距离
 
     @staticmethod
     def getIdentifyKeys():
@@ -48,7 +49,8 @@ class ReviewComment(BeanBase):
                  StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION, StringKeyUtils.STR_KEY_START_LINE,
                  StringKeyUtils.STR_KEY_ORIGINAL_START_LINE, StringKeyUtils.STR_KEY_START_SIDE,
                  StringKeyUtils.STR_KEY_LINE, StringKeyUtils.STR_KEY_ORIGINAL_LINE, StringKeyUtils.STR_KEY_SIDE,
-                 StringKeyUtils.STR_KEY_IN_REPLY_TO_ID, StringKeyUtils.STR_KEY_NODE_ID]
+                 StringKeyUtils.STR_KEY_IN_REPLY_TO_ID, StringKeyUtils.STR_KEY_NODE_ID,
+                 StringKeyUtils.STR_KEY_CHANGE_TRIGGER]
 
         return items
 
@@ -74,7 +76,8 @@ class ReviewComment(BeanBase):
                  (StringKeyUtils.STR_KEY_ORIGINAL_LINE, BeanBase.DATA_TYPE_INT),
                  (StringKeyUtils.STR_KEY_SIDE, BeanBase.DATA_TYPE_STRING),
                  (StringKeyUtils.STR_KEY_IN_REPLY_TO_ID, BeanBase.DATA_TYPE_INT),
-                 (StringKeyUtils.STR_KEY_NODE_ID, BeanBase.DATA_TYPE_STRING)]
+                 (StringKeyUtils.STR_KEY_NODE_ID, BeanBase.DATA_TYPE_STRING),
+                 (StringKeyUtils.STR_KEY_CHANGE_TRIGGER, BeanBase.DATA_TYPE_INT)]
 
         return items
 
@@ -93,7 +96,8 @@ class ReviewComment(BeanBase):
                  StringKeyUtils.STR_KEY_START_SIDE: self.start_side, StringKeyUtils.STR_KEY_LINE: self.line,
                  StringKeyUtils.STR_KEY_ORIGINAL_LINE: self.original_line, StringKeyUtils.STR_KEY_SIDE: self.side,
                  StringKeyUtils.STR_KEY_IN_REPLY_TO_ID: self.in_reply_to_id,
-                 StringKeyUtils.STR_KEY_NODE_ID: self.node_id}
+                 StringKeyUtils.STR_KEY_NODE_ID: self.node_id,
+                 StringKeyUtils.STR_KEY_CHANGE_TRIGGER: self.change_trigger}
         return items
 
     class parser(BeanBase.parser):
@@ -114,6 +118,7 @@ class ReviewComment(BeanBase):
                 res.original_commit_id = src.get(StringKeyUtils.STR_KEY_ORIGINAL_COMMIT_ID)
                 res.created_at = src.get(StringKeyUtils.STR_KEY_CREATE_AT)
                 res.updated_at = src.get(StringKeyUtils.STR_KEY_UPDATE_AT)
+                res.change_trigger = src.get(StringKeyUtils.STR_KEY_CHANGE_TRIGGER)
 
                 if res.created_at is not None:
                     res.created_at = datetime.strptime(res.created_at, StringKeyUtils.STR_STYLE_DATA_DATE)
@@ -136,4 +141,3 @@ class ReviewComment(BeanBase):
                     res.user_login = res.user.login
 
             return res
-

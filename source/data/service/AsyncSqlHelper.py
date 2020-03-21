@@ -104,10 +104,11 @@ class AsyncSqlHelper:
                 await cur.close()
             await mysql.pool.release(conn)
 
+
     @staticmethod
     async def queryBeanData(beans, mysql, defineItems=None):
         """一次性查询多个bean对象  define 为[[key1,key2], [key3,key4] ...]
-        返回多个元组"""
+        返回多个元组  [((),),((),())...]"""
 
         conn, cur = await  mysql.getDatabaseConnected()
 
@@ -148,3 +149,38 @@ class AsyncSqlHelper:
             await mysql.pool.release(conn)
 
         return resultBeans
+
+    @staticmethod
+    async def updateBeanDateList(beans, mysql):
+        """一次性更新多个bean对象 讲道理结构是被破坏的，但是可以吧所有数据库请求压缩为一次"""
+
+        conn, cur = await  mysql.getDatabaseConnected()
+
+        try:
+            for bean in beans:
+                if isinstance(bean, BeanBase):
+                    tableName = AsyncSqlHelper.getInsertTableName(bean)
+                    valueDict = bean.getValueDict()
+
+                    format_target = SqlUtils.getUpdateTableSetString(bean.getItemKeyList())
+                    format_condition = SqlUtils.getQueryTableConditionString(bean.getIdentifyKeys())
+                    sql = SqlUtils.STR_SQL_UPDATE_TABLE_UTILS.format(tableName, format_target, format_condition)
+                    if configPraser.getPrintMode():
+                        print(sql)
+
+                    values = ()
+                    for item in bean.getItemKeyList():
+                        values = values + (valueDict.get(item, None),)
+
+                    for item in bean.getIdentifyKeys():
+                        values = values + (valueDict.get(item, None),)  # 元组相加
+                    try:
+                        await cur.execute(sql, values)
+                    except Exception as e:
+                        print(e)
+        except Exception as e:
+            print(e)
+        finally:
+            if cur:
+                await cur.close()
+            await mysql.pool.release(conn)

@@ -9,18 +9,22 @@ from datetime import datetime
 import aiohttp
 
 from source.config.configPraser import configPraser
+from source.data.bean.Comment import Comment
 from source.data.bean.CommentRelation import CommitRelation
 from source.data.bean.Commit import Commit
 from source.data.bean.CommitPRRelation import CommitPRRelation
+from source.data.bean.File import File
 from source.data.bean.IssueComment import IssueComment
 from source.data.bean.PRTimeLineRelation import PRTimeLineRelation
 from source.data.bean.PullRequest import PullRequest
 from source.data.bean.Review import Review
 from source.data.bean.ReviewComment import ReviewComment
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
+from source.data.service.BeanParserHelper import BeanParserHelper
 from source.data.service.GraphqlHelper import GraphqlHelper
 from source.data.service.PRTimeLineUtils import PRTimeLineUtils
 from source.data.service.ProxyHelper import ProxyHelper
+from source.data.service.TextCompareUtils import TextCompareUtils
 from source.utils.StringKeyUtils import StringKeyUtils
 
 
@@ -472,7 +476,12 @@ class AsyncApiHelper:
         review = pair[0]
         changes = pair[1]
 
-        for change in changes:
+        """review 的 comments 获取一次即可"""
+
+        """获得review comments"""
+        comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timelineitem_node, mysql)
+
+        for change in changes:  # 对后面连续改动依次遍历
             commit1 = review.pullrequestReviewCommit
             commit2 = None
             if change.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
@@ -486,10 +495,22 @@ class AsyncApiHelper:
                 class CommitNode:
                     willFetch = None
                     oid = None
+                    parents = None  # [sha1, sha2 ...]
 
                 """为了统计使用的工具类"""
 
-                def isNodesContains(nodes1, nodes2):
+                def findNodes(nodes, oid):
+                    for node in nodes:
+                        if node.oid == oid:
+                            return node
+
+                def isExist(nodes, oid):
+                    for node in nodes:
+                        if node.oid == oid:
+                            return True
+                    return False
+
+                def isNodesContains(nodes1, nodes2):  # nodes2 的所有未探索的点被nodes1 包含
                     isContain = True
                     for node in nodes2:
                         isFind = False
@@ -505,10 +526,10 @@ class AsyncApiHelper:
                 def printNodes(nodes1, nodes2):
                     print('node1')
                     for node in nodes1:
-                        print(node.oid, node.willFetch)
+                        print(node.oid, node.willFetch, node.parents)
                     print('node2')
                     for node in nodes2:
-                        print(node.oid, node.willFetch)
+                        print(node.oid, node.willFetch, node.parents)
 
                 async def fetNotFetchedNodes(nodes, mysql, session):
                     fetchList = [node.oid for node in nodes if node.willFetch]
@@ -531,6 +552,13 @@ class AsyncApiHelper:
                     # for relation in relationList:
                     #     print(relation.child, "    ", relation.parent)
 
+                    """原有的node 补全parents"""
+                    for relation in relationList:
+                        node = findNodes(nodes, relation.child)
+                        if node is not None:
+                            if relation.parent not in node.parents:
+                                node.parents.append(relation.parent)
+
                     addNode = []
                     for relation in relationList:
                         isFind = False
@@ -548,6 +576,7 @@ class AsyncApiHelper:
                             newNode = CommitNode()
                             newNode.willFetch = True
                             newNode.oid = relation.parent
+                            newNode.parents = []
                             addNode.append(newNode)
                     nodes.extend(addNode)
 
@@ -562,11 +591,13 @@ class AsyncApiHelper:
                 node1 = CommitNode()
                 node1.oid = commit1
                 node1.willFetch = True
+                node1.parents = []
                 commit1Nodes.append(node1)
                 node2 = CommitNode()
                 node2.oid = commit2
                 commit2Nodes.append(node2)
                 node2.willFetch = True
+                node2.parents = []
 
                 completeFetch = 0
                 while loop < configPraser.getCommitFetchLoop():
@@ -606,7 +637,149 @@ class AsyncApiHelper:
                 """找出两组不同的node进行比较"""
 
                 """被包含的那里开始行走测试 找出两者差异的点  并筛选出一些特殊情况做舍弃"""
+                finishNodes1 = None
+                finishNodes2 = None
+                startNode1 = None
+                startNode2 = None
 
+                """依据包含关系 确认1，2位对象"""
+                if completeFetch == 2:
+                    finishNodes1 = commit1Nodes
+                    finishNodes2 = commit2Nodes  # 2号位为被包含
+                    startNode1 = node1.oid
+                    startNode2 = node2.oid
+                if completeFetch == 1:
+                    finishNodes1 = commit2Nodes
+                    finishNodes2 = commit1Nodes
+                    startNode1 = node2.oid
+                    startNode2 = node1.oid
+
+                diff_nodes1 = []  # 用于存储两边不同差异的点
+                diff_nodes2 = [x for x in finishNodes2 if not findNodes(finishNodes1, x.oid)]
+
+                # diff_nodes1 先包含所有点，然后找出从2出发到达不了的点
+
+                diff_nodes1 = finishNodes1.copy()
+                for node in finishNodes2:
+                    if not findNodes(finishNodes1, node.oid):  # 去除
+                        diff_nodes1.append(node)
+
+                temp = [startNode2]
+                while temp.__len__() > 0:
+                    oid = temp.pop(0)
+                    node = findNodes(diff_nodes1, oid)
+                    if node is not None:
+                        temp.extend(node.parents)
+                    diff_nodes1.remove(node)
+
+                for node in diff_nodes1:
+                    if node.willFetch:
+                        raise Exception('will fetch node in set 1 !')  # 去除分叉节点未经之前遍历的情况
+
+                """diff_node1 和 diff_node2 分别存储两边都各异的点"""
+                printNodes(diff_nodes1, diff_nodes2)
+
+                """除去特异的点中有merge 节点的存在"""
+                for node in diff_nodes1:
+                    if node.parents.__len__() >= 2:
+                        raise Exception('merge node find in set1 !')
+                for node in diff_nodes2:
+                    if node.parents.__len__() >= 2:
+                        raise Exception('merge node find in set 2!')
+
+                if comments is not None:
+
+                    """获得commit 所有的change file"""
+                    file1s = await AsyncApiHelper.getFilesFromStore([x.oid for x in diff_nodes1], mysql)
+                    file2s = await AsyncApiHelper.getFilesFromStore([x.oid for x in diff_nodes2], mysql)
+
+                    for comment in comments:  # 对每一个comment统计change trigger
+                        commentFile = comment.path
+                        commentLine = comment.original_line
+
+                        diff_patch1 = []  # 两边不同的patch patch就是不同文本
+                        diff_patch2 = []
+
+                        startNode = [startNode1]  # 从commit源头找到根中每一个commit的涉及文件名的patch
+                        while startNode.__len__() > 0:
+                            node_oid = startNode.pop(0)
+                            for node in diff_nodes1:
+                                if node.oid == node_oid:
+                                    for file in file1s:
+                                        if file.filename == commentFile and file.commit_sha == node.oid:
+                                            diff_patch1.insert(0, file.patch)
+                                    startNode.extend(node.parents)
+
+                        startNode = [startNode2]
+                        while startNode.__len__() > 0:
+                            node_oid = startNode.pop(0)
+                            for node in diff_nodes2:
+                                if node.oid == node_oid:
+                                    for file in file2s:
+                                        if file.filename == commentFile and file.commit_sha == node.oid:
+                                            diff_patch2.insert(0, file.patch)
+                                    startNode.extend(node.parents)
+
+                        closedChange = TextCompareUtils.getClosedFileChange(diff_patch1, diff_patch2, commentLine)
+                        print("closedChange :", closedChange)
+                        if comment.change_trigger is None:
+                            comment.change_trigger = closedChange
+                        else:
+                            comment.change_trigger = min(comment.change_trigger, closedChange)
+
+        await AsyncSqlHelper.updateBeanDateList(comments, mysql)
+
+    @staticmethod
+    async def getReviewCommentsByNodeFromStore(node_id, mysql):
+        """从数据库中读取review id 到时候更新只要从数据库中增加就ok了"""
+
+        review = Review()
+        review.node_id = node_id
+
+        reviews = await AsyncSqlHelper.queryBeanData([review], mysql, [[StringKeyUtils.STR_KEY_NODE_ID]])
+        print("reviews:", reviews)
+        if reviews[0].__len__() > 0:
+            review_id = reviews[0][0][2]
+            print("review_id:", review_id)
+            comment = ReviewComment()
+            comment.pull_request_review_id = review_id
+
+            result = await AsyncSqlHelper.queryBeanData([comment], mysql,
+                                                        [[StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_ID]])
+            print(result)
+            if result[0].__len__() > 0:
+                comments = BeanParserHelper.getBeansFromTuple(ReviewComment(), ReviewComment.getItemKeyList(),
+                                                              result[0])
+
+                """获取comment 以及对应的sha 和nodeId 和行数,fileName"""
+                for comment in comments:
+                    print(comment.getValueDict())
+                return comments
+
+    @staticmethod
+    async def getFilesFromStore(oids, mysql):
+        """从数据库中读取多个oid的file changes"""
+
+        print("query file oids:", oids)
+
+        queryFiles = []
+        for oid in oids:
+            file = File()
+            file.commit_sha = oid
+            queryFiles.append(file)
+
+        gitFiles = []
+
+        if queryFiles.__len__() > 0:
+            results = await AsyncSqlHelper.queryBeanData(queryFiles, mysql,
+                                                         [[StringKeyUtils.STR_KEY_COMMIT_SHA]] * queryFiles.__len__())
+            print("files:", results)
+            for result in results:
+                if result.__len__() > 0:
+                    files = BeanParserHelper.getBeansFromTuple(File(), File.getItemKeyList(), result)
+                    gitFiles.extend(files)
+
+        return gitFiles
 
     @staticmethod
     async def getCommitsFromStore(oids, mysql):
@@ -622,8 +795,8 @@ class AsyncApiHelper:
             bean.child = oid
             beans.append(bean)
 
-        results = await AsyncSqlHelper.queryBeanData(beans, mysql, [[StringKeyUtils.STR_KEY_CHILD] * beans.__len__()])
-        # print("result:", results)
+        results = await AsyncSqlHelper.queryBeanData(beans, mysql, [[StringKeyUtils.STR_KEY_CHILD]] * beans.__len__())
+        print("result:", results)
 
         """从本地返回的结果做解析"""
         for relationTuple in results:

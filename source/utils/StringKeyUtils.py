@@ -98,6 +98,7 @@ class StringKeyUtils:
     STR_KEY_ORIGINAL_LINE = 'original_line'
     STR_KEY_SIDE = 'side'
     STR_KEY_IN_REPLY_TO_ID = 'in_reply_to_id'
+    STR_KEY_CHANGE_TRIGGER = 'change_trigger'
 
     '''issue comment 可能会使用的数据'''
 

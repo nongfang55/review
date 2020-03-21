@@ -47,7 +47,7 @@ class SqlUtils:
         '''获取插入语句的表的格式'''
 
         res = tableName
-        if (items.__len__() > 0):
+        if items.__len__() > 0:
             res += '('
             pos = 0
             for item in items:
@@ -62,12 +62,12 @@ class SqlUtils:
 
     @staticmethod
     def getInsertTableValuesString(number):
-        '''获取插入语句值的格式'''
+        """获取插入语句值的格式"""
 
         res = '('
         pos = 0
-        while (pos < number):
-            if (pos == 0):
+        while pos < number:
+            if pos == 0:
                 res += '%s'
             else:
                 res += ','
@@ -79,13 +79,13 @@ class SqlUtils:
     @staticmethod
     def getQueryTableConditionString(items):
 
-        '''获取查询语句的标准格式'''
+        """获取查询语句的标准格式"""
         res = ''
         pos = 0
-        if (items != None and items.__len__() > 0):
+        if items is not None and items.__len__() > 0:
             res += 'where'
             for item in items:
-                if (pos == 0):
+                if pos == 0:
                     res += ' '
                     res += item
                     res += '=%s'
@@ -102,10 +102,10 @@ class SqlUtils:
         """获取更新表的语句的标准格式"""
         res = ''
         pos = 0
-        if (items != None and items.__len__() > 0):
+        if items is not None and items.__len__() > 0:
             res += 'set'
             for item in items:
-                if (pos == 0):
+                if pos == 0:
                     res += ' '
                     res += item
                     res += '=%s'
