@@ -36,12 +36,19 @@ class configPraser:  # 用于解析config。ini文件
     STR_FPS_CTYPES = 'FPSCtypes'
     STR_COMMIT_FETCH_LOOP = 'commitFetchLoop'
 
+    cacheDict = {}  # 用于缓存的字典，防止多次访问拖慢速度
+
     @staticmethod
     def getAuthorizationToken():
-        cp = configparser.ConfigParser()
-        cp.read(projectConfig.getConfigPath())
-        tokenList = cp.get(configPraser.STR_AUTHORIZATION, configPraser.STR_TOKEN).split(',')
-        return tokenList[random.randint(0, tokenList.__len__() - 1)]
+        temp = configPraser.cacheDict.get((configPraser.STR_AUTHORIZATION, configPraser.STR_TOKEN), None)
+        if temp is None:
+            cp = configparser.ConfigParser()
+            cp.read(projectConfig.getConfigPath())
+            tokenList = cp.get(configPraser.STR_AUTHORIZATION, configPraser.STR_TOKEN).split(',')
+            configPraser.cacheDict[(configPraser.STR_AUTHORIZATION, configPraser.STR_TOKEN)] = tokenList
+            return tokenList[random.randint(0, tokenList.__len__() - 1)]
+        else:
+            return temp[random.randint(0, temp.__len__() - 1)]
 
     @staticmethod
     def getDataBaseUserName():
@@ -63,21 +70,39 @@ class configPraser:  # 用于解析config。ini文件
 
     @staticmethod
     def getPrintMode():
-        cp = configparser.ConfigParser()
-        cp.read(projectConfig.getConfigPath())
-        return cp.get(configPraser.STR_DEBUG, configPraser.STR_PRINT) == configPraser.STR_TRUE
+        temp = configPraser.cacheDict.get((configPraser.STR_DEBUG, configPraser.STR_PRINT), None)
+        if temp is None:
+            cp = configparser.ConfigParser()
+            cp.read(projectConfig.getConfigPath())
+            res = cp.get(configPraser.STR_DEBUG, configPraser.STR_PRINT) == configPraser.STR_TRUE
+            configPraser.cacheDict[(configPraser.STR_DEBUG, configPraser.STR_PRINT)] = res
+            return res
+        else:
+            return temp
 
     @staticmethod
     def getProxy():
-        cp = configparser.ConfigParser()
-        cp.read(projectConfig.getConfigPath())
-        return cp.get(configPraser.STR_NETWORK, configPraser.STR_PROXY) == configPraser.STR_TRUE
+        temp = configPraser.cacheDict.get((configPraser.STR_NETWORK, configPraser.STR_PROXY), None)
+        if temp is None:
+            cp = configparser.ConfigParser()
+            cp.read(projectConfig.getConfigPath())
+            res = cp.get(configPraser.STR_NETWORK, configPraser.STR_PROXY) == configPraser.STR_TRUE
+            configPraser.cacheDict[(configPraser.STR_NETWORK, configPraser.STR_PROXY)] = res
+            return res
+        else:
+            return temp
 
     @staticmethod
     def getRetryTime():
-        cp = configparser.ConfigParser()
-        cp.read(projectConfig.getConfigPath())
-        return int(cp.get(configPraser.STR_NETWORK, configPraser.STR_RETRY))
+        temp = configPraser.cacheDict.get((configPraser.STR_NETWORK, configPraser.STR_RETRY), None)
+        if temp is None:
+            cp = configparser.ConfigParser()
+            cp.read(projectConfig.getConfigPath())
+            res = int(cp.get(configPraser.STR_NETWORK, configPraser.STR_RETRY))
+            configPraser.cacheDict[(configPraser.STR_NETWORK, configPraser.STR_RETRY)] = res
+            return res
+        else:
+            return temp
 
     @staticmethod
     def getOwner():
@@ -105,15 +130,27 @@ class configPraser:  # 用于解析config。ini文件
 
     @staticmethod
     def getTimeout():
-        cp = configparser.ConfigParser()
-        cp.read(projectConfig.getConfigPath())
-        return int(cp.get(configPraser.STR_NETWORK, configPraser.STR_TIMEOUT))
+        temp = configPraser.cacheDict.get((configPraser.STR_NETWORK, configPraser.STR_TIMEOUT), None)
+        if temp is None:
+            cp = configparser.ConfigParser()
+            cp.read(projectConfig.getConfigPath())
+            res = int(cp.get(configPraser.STR_NETWORK, configPraser.STR_TIMEOUT))
+            configPraser.cacheDict[(configPraser.STR_NETWORK, configPraser.STR_TIMEOUT)] = res
+            return res
+        else:
+            return temp
 
     @staticmethod
     def getSemaphore():
-        cp = configparser.ConfigParser()
-        cp.read(projectConfig.getConfigPath())
-        return int(cp.get(configPraser.STR_NETWORK, configPraser.STR_SEMAPHORE))
+        temp = configPraser.cacheDict.get((configPraser.STR_NETWORK, configPraser.STR_SEMAPHORE), None)
+        if temp is None:
+            cp = configparser.ConfigParser()
+            cp.read(projectConfig.getConfigPath())
+            res = int(cp.get(configPraser.STR_NETWORK, configPraser.STR_SEMAPHORE))
+            configPraser.cacheDict[(configPraser.STR_NETWORK, configPraser.STR_SEMAPHORE)] = res
+            return res
+        else:
+            return temp
 
     @staticmethod
     def getDataBase():
@@ -160,4 +197,3 @@ class configPraser:  # 用于解析config。ini文件
 
 if __name__ == '__main__':
     print(configPraser.getCommitFetchLoop())
-

@@ -8,10 +8,10 @@ database=REVIEW
 [debug]
 print=False
 [project]
-owner=rails
-repo=rails
-limit=1000
-start=18000
+owner=cakephp
+repo=cakephp
+limit=500
+start=11000
 commitFetchLoop=10
 [network]
 timeout=5

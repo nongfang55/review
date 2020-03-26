@@ -126,6 +126,8 @@ class AsyncApiHelper:
                         if pull_request.user is not None:
                             beanList.append(pull_request.user)
 
+                        reviewCommits = []  # review中涉及的Commit的点
+
                         """获取review信息"""
                         api = AsyncApiHelper.getReviewForPullRequestApi(pull_number)
                         json = await AsyncApiHelper.fetchBeanData(session, api)
@@ -140,6 +142,8 @@ class AsyncApiHelper:
                                 beanList.append(review)
                                 if review.user is not None:
                                     beanList.append(review.user)
+                                if review.commit_id not in reviewCommits:
+                                    reviewCommits.append(review.commit_id)
 
                         """获取review comment信息"""
                         api = AsyncApiHelper.getReviewCommentForPullRequestApi(pull_number)
@@ -172,6 +176,21 @@ class AsyncApiHelper:
                         api = AsyncApiHelper.getCommitForPullRequestApi(pull_number)
                         json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
                         Commits, Relations = await AsyncApiHelper.parserCommitAndRelation(json, pull_number)
+
+                        for commit in Commits:
+                            if commit.sha in reviewCommits:
+                                reviewCommits.remove(commit.sha)
+
+                        """有些review涉及的commit的点没有在PR线中收集到 这些点主要是中间存在最后
+                        没有的点 但是最后需要在特征提取中用到 所以也需要收集"""
+
+                        """剩下的点需要依次获取"""
+                        for commit_id in reviewCommits:
+                            api = AsyncApiHelper.getCommitApi(commit_id)
+                            json = await AsyncApiHelper.fetchBeanData(session, api)
+                            commit = await AsyncApiHelper.parserCommit(json)
+                            Commits.append(commit)
+
                         usefulCommitsCount = 0
                         for commit in Commits:
                             if commit is not None:

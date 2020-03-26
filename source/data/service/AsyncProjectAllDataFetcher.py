@@ -98,19 +98,15 @@ class AsyncProjectAllDataFetcher:
 
 
 if __name__ == '__main__':
-    """爬虫启动地址"""
-    """通过配置文件读取目标信息"""
     AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
                                                     , start=configPraser.getStart(), limit=configPraser.getLimit())
-    # AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
-    #                                                 , start=configPraser.getStart(), limit=configPraser.getLimit())
 
-    data = pandasHelper.readTSVFile(projectConfig.getChangeTriggerPRPath(), pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
-    print(data.as_matrix().shape)
-    node_to = configPraser.getStart()
-    node_from = max(configPraser.getStart() - configPraser.getLimit(), 0)
-    pr_nodes = data.as_matrix()[node_from:node_to, 3]
-    print(pr_nodes.__len__())
-
-    AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo(),
-                                                      nodes=[[x] for x in pr_nodes])
+    # data = pandasHelper.readTSVFile(projectConfig.getChangeTriggerPRPath(), pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+    # print(data.as_matrix().shape)
+    # node_to = configPraser.getStart()
+    # node_from = max(configPraser.getStart() - configPraser.getLimit(), 0)
+    # pr_nodes = data.as_matrix()[node_from:node_to, 3]
+    # print(pr_nodes.__len__())
+    #
+    # AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo(),
+    #                                                   nodes=[[x] for x in pr_nodes])
