@@ -16,4 +16,7 @@ class statisticsHelper:
         self.startTime = None  # 开始时间
         self.endTime = None  # 结束时间
         self.usefulTimeLineCount = 0  # pull request的timeline线数量
+        self.usefulChangeTrigger = 0  # 有用的comment的change trigger数量
+        self.twoParentsNodeCase = 0  # 舍弃的双点的case数量
+        self.outOfLoopCase = 0  # 迭代超出预算的case数量
         self.lock = threading.RLock()

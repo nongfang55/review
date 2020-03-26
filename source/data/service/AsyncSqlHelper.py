@@ -104,7 +104,6 @@ class AsyncSqlHelper:
                 await cur.close()
             await mysql.pool.release(conn)
 
-
     @staticmethod
     async def queryBeanData(beans, mysql, defineItems=None):
         """一次性查询多个bean对象  define 为[[key1,key2], [key3,key4] ...]
@@ -184,3 +183,21 @@ class AsyncSqlHelper:
             if cur:
                 await cur.close()
             await mysql.pool.release(conn)
+
+    @staticmethod
+    async def query(mysql, sql, values):  # 纯粹通过sql语句执行返回结果
+        conn, cur = await  mysql.getDatabaseConnected()
+        r = None
+        try:
+            try:
+                await cur.execute(sql,values)
+                r = await cur.fetchall()
+            except Exception as e:
+                print(e)
+        except Exception as e:
+            print(e)
+        finally:
+            if cur:
+                await cur.close()
+            await mysql.pool.release(conn)
+        return r

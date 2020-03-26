@@ -56,7 +56,8 @@ class DataFrameColumnUtils:
                                 StringKeyUtils.STR_KEY_USER_LOGIN, StringKeyUtils.STR_KEY_BODY,
                                 StringKeyUtils.STR_KEY_STATE, StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION,
                                 StringKeyUtils.STR_KEY_SUBMITTED_AT, StringKeyUtils.STR_KEY_COMMIT_ID,
-                                StringKeyUtils.STR_KEY_NODE_ID, StringKeyUtils.STR_KEY_COMMIT_SHA,
+                                StringKeyUtils.STR_KEY_NODE_ID,
+                                StringKeyUtils.STR_KEY_COMMIT_SHA,
                                 StringKeyUtils.STR_KEY_SHA, StringKeyUtils.STR_KEY_FILENAME,
                                 StringKeyUtils.STR_KEY_STATUS, StringKeyUtils.STR_KEY_ADDITIONS,
                                 StringKeyUtils.STR_KEY_DELETIONS, StringKeyUtils.STR_KEY_CHANGES,
@@ -117,3 +118,20 @@ class DataFrameColumnUtils:
                               StringKeyUtils.STR_KEY_STATUS, StringKeyUtils.STR_KEY_ADDITIONS,
                               StringKeyUtils.STR_KEY_DELETIONS, StringKeyUtils.STR_KEY_CHANGES,
                               StringKeyUtils.STR_KEY_PATCH]
+
+    """只收集 感兴趣的信息"""
+    COLUMN_REVIEW_FPS_ALL = [StringKeyUtils.STR_KEY_NUMBER, StringKeyUtils.STR_KEY_AUTHOR,
+                             StringKeyUtils.STR_KEY_ID, StringKeyUtils.STR_KEY_USER_LOGIN,
+                             StringKeyUtils.STR_KEY_SHA, StringKeyUtils.STR_KEY_FILENAME]
+
+
+
+
+
+
+
+
+
+
+
+

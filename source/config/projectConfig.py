@@ -19,6 +19,7 @@ class projectConfig:
     PATH_TEST_FPS_DATA = 'data' + os.sep + 'FPSDemoData.tsv'
     PATH_STOP_WORD_ENGLISH = 'data' + os.sep + 'stop-words_english_1_en.txt'
     PATH_RUBY_KEY_WORD = 'data' + os.sep + 'rubyKeyWord.txt'
+    PATH_CHANGE_TRIGGER = 'data' + os.sep + 'pullrequest_rails.tsv'
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
 
     @staticmethod
@@ -83,6 +84,10 @@ class projectConfig:
     @staticmethod
     def getRubyKeyWordPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_RUBY_KEY_WORD)
+
+    @staticmethod
+    def getChangeTriggerPRPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CHANGE_TRIGGER)
 
 
 if __name__ == "__main__":

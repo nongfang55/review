@@ -68,7 +68,7 @@ class Commit(BeanBase):
                  StringKeyUtils.STR_KEY_COMMIT_MESSAGE: self.commit_message,
                  StringKeyUtils.STR_KEY_COMMIT_COMMENT_COUNT: self.commit_comment_count,
                  StringKeyUtils.STR_KEY_STATUS_TOTAL: self.status_total,
-                 StringKeyUtils.STR_KEY_STATUS_ADDITIONS: self.status_total,
+                 StringKeyUtils.STR_KEY_STATUS_ADDITIONS: self.status_additions,
                  StringKeyUtils.STR_KEY_STATUS_DELETIONS: self.status_deletions}
 
         return items

@@ -14,8 +14,8 @@ class BeanNumpyHelper:
     def getBeansFromDataFrame(beanClass, columns, dataFrame):
         result = []
         beanIndex = {}  # 字典用于做主键映射
-        if configPraser.getPrintMode():
-            print(columns)
+        # if configPraser.getPrintMode():
+        #     print(columns)
         if isinstance(dataFrame, DataFrame) and isinstance(beanClass, BeanBase):
             matrix = dataFrame.as_matrix()
             [rows, cols] = matrix.shape
@@ -33,11 +33,11 @@ class BeanNumpyHelper:
                     if beanIndex.get(mapKey, None) is None:
                         beanIndex[mapKey] = result.__len__()
                         result.append(obj)
-                if configPraser.getPrintMode():
-                    print(obj.getValueDict())
-            if configPraser.getPrintMode():
-                print(result.__len__())
-                print(beanIndex)
+                # if configPraser.getPrintMode():
+                #     print(obj.getValueDict())
+            # if configPraser.getPrintMode():
+            #     print(result.__len__())
+            #     print(beanIndex)
         return result, beanIndex
 
     @staticmethod

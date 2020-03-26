@@ -459,19 +459,21 @@ class AsyncApiHelper:
                     pairs = PRTimeLineUtils.splitTimeLine(timeLineRelations)
                     for pair in pairs:
                         print(pair)
-                        await AsyncApiHelper.completeCommitInformation(pair, mysql, session)
+                        await AsyncApiHelper.completeCommitInformation(pair, mysql, session, statistic)
 
                     # 做了同步处理
                     statistic.lock.acquire()
-                    statistic.usefulTimeLineCount += usefulTimeLineCount
-                    print(f"usefulTimeLineItemCount: {usefulTimeLineCount}",
-                          f" usefulTimeLineCount:{usefulTimeLineItemCount}")
+                    statistic.usefulTimeLineCount += 1
+                    print(f" usefulTimeLineCount:{statistic.usefulTimeLineCount}",
+                          f" change trigger count:{statistic.usefulChangeTrigger}",
+                          f" twoParents case:{statistic.twoParentsNodeCase}",
+                          f" outOfLoop case:{statistic.outOfLoopCase}")
                     statistic.lock.release()
                 except Exception as e:
                     print(e)
 
     @staticmethod
-    async def completeCommitInformation(pair, mysql, session):
+    async def completeCommitInformation(pair, mysql, session, statistic):
         """完善 review和随后事件相关的commit"""
         review = pair[0]
         changes = pair[1]
@@ -480,6 +482,9 @@ class AsyncApiHelper:
 
         """获得review comments"""
         comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timelineitem_node, mysql)
+
+        twoParentsBadCase = 0
+        outOfLoopCase = 0
 
         for change in changes:  # 对后面连续改动依次遍历
             commit1 = review.pullrequestReviewCommit
@@ -585,147 +590,160 @@ class AsyncApiHelper:
 
                     return nodes
 
-                commit1Nodes = []
-                commit2Nodes = []
+                try:
+                    commit1Nodes = []
+                    commit2Nodes = []
 
-                node1 = CommitNode()
-                node1.oid = commit1
-                node1.willFetch = True
-                node1.parents = []
-                commit1Nodes.append(node1)
-                node2 = CommitNode()
-                node2.oid = commit2
-                commit2Nodes.append(node2)
-                node2.willFetch = True
-                node2.parents = []
+                    node1 = CommitNode()
+                    node1.oid = commit1
+                    node1.willFetch = True
+                    node1.parents = []
+                    commit1Nodes.append(node1)
+                    node2 = CommitNode()
+                    node2.oid = commit2
+                    commit2Nodes.append(node2)
+                    node2.willFetch = True
+                    node2.parents = []
 
-                completeFetch = 0
-                while loop < configPraser.getCommitFetchLoop():
+                    completeFetch = 0
+                    while loop < configPraser.getCommitFetchLoop():
 
-                    loop += 1
+                        loop += 1
 
-                    print("loop:", loop, " 1")
-                    printNodes(commit1Nodes, commit2Nodes)
+                        print("loop:", loop, " 1")
+                        printNodes(commit1Nodes, commit2Nodes)
 
-                    if isNodesContains(commit1Nodes, commit2Nodes):
-                        completeFetch = 2
-                        break
+                        if isNodesContains(commit1Nodes, commit2Nodes):
+                            completeFetch = 2
+                            break
 
-                    if isNodesContains(commit2Nodes, commit1Nodes):
-                        completeFetch = 1
-                        break
+                        if isNodesContains(commit2Nodes, commit1Nodes):
+                            completeFetch = 1
+                            break
 
-                    await fetNotFetchedNodes(commit2Nodes, mysql, session)
-                    print("loop:", loop, " 2")
-                    printNodes(commit1Nodes, commit2Nodes)
+                        await fetNotFetchedNodes(commit2Nodes, mysql, session)
+                        print("loop:", loop, " 2")
+                        printNodes(commit1Nodes, commit2Nodes)
 
-                    if isNodesContains(commit1Nodes, commit2Nodes):
-                        completeFetch = 2
-                        break
-                    if isNodesContains(commit2Nodes, commit1Nodes):
-                        completeFetch = 1
-                        break
+                        if isNodesContains(commit1Nodes, commit2Nodes):
+                            completeFetch = 2
+                            break
+                        if isNodesContains(commit2Nodes, commit1Nodes):
+                            completeFetch = 1
+                            break
 
-                    await fetNotFetchedNodes(commit1Nodes, mysql, session)
+                        await fetNotFetchedNodes(commit1Nodes, mysql, session)
 
-                    print("loop:", loop, " 3")
-                    printNodes(commit1Nodes, commit2Nodes)
+                        print("loop:", loop, " 3")
+                        printNodes(commit1Nodes, commit2Nodes)
 
-                if completeFetch == 0:
-                    raise Exception('out of the loop !')
+                    if completeFetch == 0:
+                        outOfLoopCase += 1
+                        raise Exception('out of the loop !')
 
-                """找出两组不同的node进行比较"""
+                    """找出两组不同的node进行比较"""
 
-                """被包含的那里开始行走测试 找出两者差异的点  并筛选出一些特殊情况做舍弃"""
-                finishNodes1 = None
-                finishNodes2 = None
-                startNode1 = None
-                startNode2 = None
+                    """被包含的那里开始行走测试 找出两者差异的点  并筛选出一些特殊情况做舍弃"""
+                    finishNodes1 = None
+                    finishNodes2 = None
+                    startNode1 = None
+                    startNode2 = None
 
-                """依据包含关系 确认1，2位对象"""
-                if completeFetch == 2:
-                    finishNodes1 = commit1Nodes
-                    finishNodes2 = commit2Nodes  # 2号位为被包含
-                    startNode1 = node1.oid
-                    startNode2 = node2.oid
-                if completeFetch == 1:
-                    finishNodes1 = commit2Nodes
-                    finishNodes2 = commit1Nodes
-                    startNode1 = node2.oid
-                    startNode2 = node1.oid
+                    """依据包含关系 确认1，2位对象"""
+                    if completeFetch == 2:
+                        finishNodes1 = commit1Nodes
+                        finishNodes2 = commit2Nodes  # 2号位为被包含
+                        startNode1 = node1.oid
+                        startNode2 = node2.oid
+                    if completeFetch == 1:
+                        finishNodes1 = commit2Nodes
+                        finishNodes2 = commit1Nodes
+                        startNode1 = node2.oid
+                        startNode2 = node1.oid
 
-                diff_nodes1 = []  # 用于存储两边不同差异的点
-                diff_nodes2 = [x for x in finishNodes2 if not findNodes(finishNodes1, x.oid)]
+                    diff_nodes1 = []  # 用于存储两边不同差异的点
+                    diff_nodes2 = [x for x in finishNodes2 if not findNodes(finishNodes1, x.oid)]
 
-                # diff_nodes1 先包含所有点，然后找出从2出发到达不了的点
+                    # diff_nodes1 先包含所有点，然后找出从2出发到达不了的点
 
-                diff_nodes1 = finishNodes1.copy()
-                for node in finishNodes2:
-                    if not findNodes(finishNodes1, node.oid):  # 去除
-                        diff_nodes1.append(node)
+                    diff_nodes1 = finishNodes1.copy()
+                    for node in finishNodes2:
+                        if not findNodes(finishNodes1, node.oid):  # 去除
+                            diff_nodes1.append(node)
 
-                temp = [startNode2]
-                while temp.__len__() > 0:
-                    oid = temp.pop(0)
-                    node = findNodes(diff_nodes1, oid)
-                    if node is not None:
-                        temp.extend(node.parents)
-                    diff_nodes1.remove(node)
+                    temp = [startNode2]
+                    while temp.__len__() > 0:
+                        oid = temp.pop(0)
+                        node = findNodes(diff_nodes1, oid)
+                        if node is not None:
+                            temp.extend(node.parents)
+                        diff_nodes1.remove(node)
 
-                for node in diff_nodes1:
-                    if node.willFetch:
-                        raise Exception('will fetch node in set 1 !')  # 去除分叉节点未经之前遍历的情况
+                    for node in diff_nodes1:
+                        if node.willFetch:
+                            twoParentsBadCase += 1
+                            raise Exception('will fetch node in set 1 !')  # 去除分叉节点未经之前遍历的情况
 
-                """diff_node1 和 diff_node2 分别存储两边都各异的点"""
-                printNodes(diff_nodes1, diff_nodes2)
+                    """diff_node1 和 diff_node2 分别存储两边都各异的点"""
+                    printNodes(diff_nodes1, diff_nodes2)
 
-                """除去特异的点中有merge 节点的存在"""
-                for node in diff_nodes1:
-                    if node.parents.__len__() >= 2:
-                        raise Exception('merge node find in set1 !')
-                for node in diff_nodes2:
-                    if node.parents.__len__() >= 2:
-                        raise Exception('merge node find in set 2!')
+                    """除去特异的点中有merge 节点的存在"""
+                    for node in diff_nodes1:
+                        if node.parents.__len__() >= 2:
+                            twoParentsBadCase += 1
+                            raise Exception('merge node find in set1 !')
+                    for node in diff_nodes2:
+                        if node.parents.__len__() >= 2:
+                            twoParentsBadCase += 1
+                            raise Exception('merge node find in set 2!')
 
-                if comments is not None:
+                    if comments is not None:
 
-                    """获得commit 所有的change file"""
-                    file1s = await AsyncApiHelper.getFilesFromStore([x.oid for x in diff_nodes1], mysql)
-                    file2s = await AsyncApiHelper.getFilesFromStore([x.oid for x in diff_nodes2], mysql)
+                        """获得commit 所有的change file"""
+                        file1s = await AsyncApiHelper.getFilesFromStore([x.oid for x in diff_nodes1], mysql)
+                        file2s = await AsyncApiHelper.getFilesFromStore([x.oid for x in diff_nodes2], mysql)
 
-                    for comment in comments:  # 对每一个comment统计change trigger
-                        commentFile = comment.path
-                        commentLine = comment.original_line
+                        for comment in comments:  # 对每一个comment统计change trigger
+                            commentFile = comment.path
+                            commentLine = comment.original_line
 
-                        diff_patch1 = []  # 两边不同的patch patch就是不同文本
-                        diff_patch2 = []
+                            diff_patch1 = []  # 两边不同的patch patch就是不同文本
+                            diff_patch2 = []
 
-                        startNode = [startNode1]  # 从commit源头找到根中每一个commit的涉及文件名的patch
-                        while startNode.__len__() > 0:
-                            node_oid = startNode.pop(0)
-                            for node in diff_nodes1:
-                                if node.oid == node_oid:
-                                    for file in file1s:
-                                        if file.filename == commentFile and file.commit_sha == node.oid:
-                                            diff_patch1.insert(0, file.patch)
-                                    startNode.extend(node.parents)
+                            startNode = [startNode1]  # 从commit源头找到根中每一个commit的涉及文件名的patch
+                            while startNode.__len__() > 0:
+                                node_oid = startNode.pop(0)
+                                for node in diff_nodes1:
+                                    if node.oid == node_oid:
+                                        for file in file1s:
+                                            if file.filename == commentFile and file.commit_sha == node.oid:
+                                                diff_patch1.insert(0, file.patch)
+                                        startNode.extend(node.parents)
 
-                        startNode = [startNode2]
-                        while startNode.__len__() > 0:
-                            node_oid = startNode.pop(0)
-                            for node in diff_nodes2:
-                                if node.oid == node_oid:
-                                    for file in file2s:
-                                        if file.filename == commentFile and file.commit_sha == node.oid:
-                                            diff_patch2.insert(0, file.patch)
-                                    startNode.extend(node.parents)
+                            startNode = [startNode2]
+                            while startNode.__len__() > 0:
+                                node_oid = startNode.pop(0)
+                                for node in diff_nodes2:
+                                    if node.oid == node_oid:
+                                        for file in file2s:
+                                            if file.filename == commentFile and file.commit_sha == node.oid:
+                                                diff_patch2.insert(0, file.patch)
+                                        startNode.extend(node.parents)
 
-                        closedChange = TextCompareUtils.getClosedFileChange(diff_patch1, diff_patch2, commentLine)
-                        print("closedChange :", closedChange)
-                        if comment.change_trigger is None:
-                            comment.change_trigger = closedChange
-                        else:
-                            comment.change_trigger = min(comment.change_trigger, closedChange)
+                            closedChange = TextCompareUtils.getClosedFileChange(diff_patch1, diff_patch2, commentLine)
+                            print("closedChange :", closedChange)
+                            if comment.change_trigger is None:
+                                comment.change_trigger = closedChange
+                            else:
+                                comment.change_trigger = min(comment.change_trigger, closedChange)
+                except Exception as e:
+                    print(e)
+                    continue
+
+            statistic.lock.acquire()
+            statistic.outOfLoopCase += outOfLoopCase
+            statistic.usefulChangeTrigger += [x for x in comments if x.change_trigger is not None].__len__()
+            statistic.lock.release()
 
         await AsyncSqlHelper.updateBeanDateList(comments, mysql)
 

@@ -4,9 +4,11 @@ import time
 from datetime import datetime
 
 from source.config.configPraser import configPraser
+from source.config.projectConfig import projectConfig
 from source.data.service.ApiHelper import ApiHelper
 from source.data.service.AsyncApiHelper import AsyncApiHelper
 from source.database.AsyncSqlExecuteHelper import getMysqlObj
+from source.utils.pandas.pandasHelper import pandasHelper
 from source.utils.statisticsHelper import statisticsHelper
 
 
@@ -15,7 +17,7 @@ class AsyncProjectAllDataFetcher:
 
     @staticmethod
     def getPullRequestTimeLine(owner, repo, nodes):
-        # 获取多个个pull request的时间线上面的信息
+        # 获取多个个pull request的时间线上面的信息 并对上面的comment做拼接
         AsyncApiHelper.setRepo(owner, repo)
         t1 = datetime.now()
 
@@ -102,5 +104,13 @@ if __name__ == '__main__':
                                                     , start=configPraser.getStart(), limit=configPraser.getLimit())
     # AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
     #                                                 , start=configPraser.getStart(), limit=configPraser.getLimit())
+
+    data = pandasHelper.readTSVFile(projectConfig.getChangeTriggerPRPath(), pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+    print(data.as_matrix().shape)
+    node_to = configPraser.getStart()
+    node_from = max(configPraser.getStart() - configPraser.getLimit(), 0)
+    pr_nodes = data.as_matrix()[node_from:node_to, 3]
+    print(pr_nodes.__len__())
+
     AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo(),
-                                                      nodes=[["MDExOlB1bGxSZXF1ZXN0MzU0MjA4ODU3"]])
+                                                      nodes=[[x] for x in pr_nodes])

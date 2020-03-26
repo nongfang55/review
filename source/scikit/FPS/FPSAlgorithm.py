@@ -104,8 +104,8 @@ class FPSAlgorithm:
             """对review的文件做两两算分"""
             for targetFilename in targetFilenameList:
                 for filename in filenameList:
-                    if configPraser.getPrintMode():
-                        print(targetFilename, filename)
+                    # if configPraser.getPrintMode():
+                    #     print(targetFilename, filename)
                     time1 = datetime.now()
                     scores[0] += FPSAlgorithm.LCP(targetFilename, filename)
                     time2 = datetime.now()
@@ -177,8 +177,8 @@ class FPSAlgorithm:
                 pre += 1
             else:
                 break
-        if configPraser.getPrintMode():
-            print("Longest common pre:", pre)
+        # if configPraser.getPrintMode():
+        #     print("Longest common pre:", pre)
         return pre
 
     @staticmethod
@@ -193,8 +193,8 @@ class FPSAlgorithm:
                 suf += 1
             else:
                 break
-        if configPraser.getPrintMode():
-            print("Longest common suffix:", suf)
+        # if configPraser.getPrintMode():
+        #     print("Longest common suffix:", suf)
         return suf
 
     @staticmethod
@@ -211,8 +211,8 @@ class FPSAlgorithm:
                     com = max(com, dp[i][j])
                 else:
                     dp[i][j] = 0
-        if configPraser.getPrintMode():
-            print("Longest common subString", com)
+        # if configPraser.getPrintMode():
+        #     print("Longest common subString", com)
         return com
 
     @staticmethod
@@ -230,6 +230,116 @@ class FPSAlgorithm:
                 else:
                     dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
         com = dp[list1.__len__()][list2.__len__()]
-        if configPraser.getPrintMode():
-            print("Longest common subString", com)
+        # if configPraser.getPrintMode():
+        #     print("Longest common subString", com)
         return com
+
+    @staticmethod
+    def LCS_2(path1, path2):
+        """计算最长后缀"""
+        list1 = FPSAlgorithm.getSplitFilePath(path1)
+        list2 = FPSAlgorithm.getSplitFilePath(path2)
+        suf = 0
+        length = min(list1.__len__(), list2.__len__())
+        for i in range(0, length):
+            if list1[list1.__len__() - 1 - i] == list2[list2.__len__() - 1 - i]:
+                suf += 1
+            else:
+                break
+        score = suf / max(list1.__len__(), list2.__len__())
+        return score
+
+    @staticmethod
+    def LCP_2(path1, path2):
+        """计算最长前缀"""
+        list1 = FPSAlgorithm.getSplitFilePath(path1)
+        list2 = FPSAlgorithm.getSplitFilePath(path2)
+        pre = 0
+        length = min(list1.__len__(), list2.__len__())
+        for i in range(0, length):
+            if list1[i] == list2[i]:
+                pre += 1
+            else:
+                break
+        # if configPraser.getPrintMode():
+        #     print("Longest common pre:", pre)
+        return pre / max(list1.__len__(), list2.__len__())
+
+    @staticmethod
+    def LCSubseq_2(path1, path2):
+        """计算最大公共子字串"""
+        list1 = FPSAlgorithm.getSplitFilePath(path1)
+        list2 = FPSAlgorithm.getSplitFilePath(path2)
+
+        com = 0
+        dp = [[0 for i in range(0, list2.__len__() + 1)] for i in range(0, list1.__len__() + 1)]
+        for i in range(1, list1.__len__() + 1):
+            for j in range(1, list2.__len__() + 1):
+                if list1[i - 1] == list2[j - 1]:
+                    dp[i][j] = dp[i - 1][j - 1] + 1
+                else:
+                    dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+        com = dp[list1.__len__()][list2.__len__()]
+        # if configPraser.getPrintMode():
+        #     print("Longest common subString", com)
+        return com / max(list1.__len__(), list2.__len__())
+
+    @staticmethod
+    def LCSubstr_2(path1, path2):
+        """计算连续公共子字串"""
+        list1 = FPSAlgorithm.getSplitFilePath(path1)
+        list2 = FPSAlgorithm.getSplitFilePath(path2)
+        com = 0
+        dp = [[0 for i in range(0, list2.__len__() + 1)] for i in range(0, list1.__len__() + 1)]
+        for i in range(1, list1.__len__() + 1):
+            for j in range(1, list2.__len__() + 1):
+                if list1[i - 1] == list2[j - 1]:
+                    dp[i][j] = dp[i - 1][j - 1] + 1
+                    com = max(com, dp[i][j])
+                else:
+                    dp[i][j] = 0
+        # if configPraser.getPrintMode():
+        #     print("Longest common subString", com)
+        return com / max(list1.__len__(), list2.__len__())
+
+
+
+    @staticmethod
+    def reviewerRecommendByNumpy(trainData, targetData, review_size, k=2):
+        """input: 历史数据，目标review数据, 历史数据每一个reivew的文件数量， review推荐的数量  默认targetData中id都是一个
+           output: reviewers 推荐list 和正确答案list"""
+
+        scores = {}  # 记录推荐者的得分
+
+        answerList = []  # 作者列表
+
+        targetFileCount = targetData.shape[1]  # 这个review的文件个数
+
+        print(trainData.shape)
+        print(targetData.shape)
+
+        for target in targetData.itertuples():
+            answer = getattr(target, StringKeyUtils.STR_KEY_USER_LOGIN)
+            filename1 = getattr(target, StringKeyUtils.STR_KEY_FILENAME)
+            if answer not in answerList:
+                answerList.append(answer)
+            for data in trainData.itertuples():
+                """对文件两两计算"""
+                reviewer = getattr(data, StringKeyUtils.STR_KEY_USER_LOGIN)
+                review_id = getattr(data, StringKeyUtils.STR_KEY_ID)
+                # dataFileCount = trainData.loc[trainData[StringKeyUtils.STR_KEY_ID] == review_id].shape[0]
+                dataFileCount = review_size[review_id]
+
+                if scores.get(reviewer, None) is None:
+                    scores[reviewer] = 0
+                filename2 = getattr(data, StringKeyUtils.STR_KEY_FILENAME)
+                # print("filename1:", filename1, " filename2:", filename2)
+                # print(f"dataFileCount:{dataFileCount}, targetFileCount:{targetFileCount}")
+                scores[reviewer] += (FPSAlgorithm.LCSubseq_2(filename1, filename2)) / (dataFileCount * targetFileCount)
+                                     # + FPSAlgorithm.LCP_2(filename1, filename2)
+                                     # + FPSAlgorithm.LCSubseq_2(filename1, filename2)
+                                     # + FPSAlgorithm.LCSubstr_2(filename1, filename2)) / (dataFileCount * targetFileCount)
+
+
+        # print(scores)
+        return [x[0] for x in sorted(scores.items(), key=lambda d: d[1], reverse=True)[0:k-1]], answerList

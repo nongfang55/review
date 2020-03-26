@@ -32,9 +32,9 @@ class FPSDemo:
             BeanNumpyHelper.getBeansFromDataFrame(PullRequest(),
                                                   DataFrameColumnUtils.COLUMN_REVIEW_FPS_PULL_REQUEST,
                                                   data)
-        if configPraser.getPrintMode():
-            print(pullrequests.__len__())
-            print(pullrequestsIndex)
+        # if configPraser.getPrintMode():
+        #     print(pullrequests.__len__())
+        #     print(pullrequestsIndex)
 
         time2 = datetime.now()
         print("pull request cost time:", time2 - startTime)
@@ -54,18 +54,18 @@ class FPSDemo:
                                                                       data)
         time4 = datetime.now()
         print("commits cost time:", time4 - time3)
-        if configPraser.getPrintMode():
-            print(commits)
-            print(commitsIndex)
+        # if configPraser.getPrintMode():
+        #     print(commits)
+        #     print(commitsIndex)
         files, filesIndex = BeanNumpyHelper.getBeansFromDataFrame(File(),
                                                                   DataFrameColumnUtils.COLUMN_REVIEW_FPS_FILE,
                                                                   data)
 
         time5 = datetime.now()
         print("file cost time:", time5 - time4)
-        if configPraser.getPrintMode():
-            print(files)
-            print(filesIndex)
+        # if configPraser.getPrintMode():
+        #     print(files)
+        #     print(filesIndex)
 
         pullrequestReviewIndex = BeanNumpyHelper.beanAssociate(pullrequests, [StringKeyUtils.STR_KEY_REPO_FULL_NAME,
                                                                               StringKeyUtils.STR_KEY_NUMBER],
@@ -74,16 +74,16 @@ class FPSDemo:
         time6 = datetime.now()
         print("pull request index time:", time6 - time5)
 
-        if configPraser.getPrintMode():
-            print(pullrequestReviewIndex)
+        # if configPraser.getPrintMode():
+        #     print(pullrequestReviewIndex)
 
         reviewCommitIndex = BeanNumpyHelper.beanAssociate(reviews, [StringKeyUtils.STR_KEY_COMMIT_ID],
                                                           commits, [StringKeyUtils.STR_KEY_SHA])
         time7 = datetime.now()
         print("commits index cost time:", time7 - time6)
-
-        if configPraser.getPrintMode():
-            print(reviewCommitIndex)
+        #
+        # if configPraser.getPrintMode():
+        #     print(reviewCommitIndex)
 
         commitFileIndex = BeanNumpyHelper.beanAssociate(commits, [StringKeyUtils.STR_KEY_SHA],
                                                         files, [StringKeyUtils.STR_KEY_COMMIT_SHA])
@@ -91,8 +91,8 @@ class FPSDemo:
         time8 = datetime.now()
         print("files index cost time:", time8 - time7)
 
-        if configPraser.getPrintMode():
-            print(commitFileIndex)
+        # if configPraser.getPrintMode():
+        #     print(commitFileIndex)
 
         receiveTime = datetime.now()
         print("load cost time:", receiveTime - startTime)
@@ -145,7 +145,7 @@ class FPSDemo:
             print("recommend:", str(c_result.recommend, encoding='utf-8'))
 
         else:
-            """使用Python实现算法 但是很慢"""
+            """使用Python实现算法"""
             for pos in range(0, testNumber):
                 """通过review算法获取推荐名单"""
                 candicateList, authorList = FPSAlgorithm.reviewerRecommend(pullrequests, pullrequestsIndex,
