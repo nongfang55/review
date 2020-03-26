@@ -7,7 +7,9 @@ from source.config.configPraser import configPraser
 from source.config.projectConfig import projectConfig
 from source.data.service.ApiHelper import ApiHelper
 from source.data.service.AsyncApiHelper import AsyncApiHelper
+from source.data.service.AsyncSqlHelper import AsyncSqlHelper
 from source.database.AsyncSqlExecuteHelper import getMysqlObj
+from source.database.SqlUtils import SqlUtils
 from source.utils.pandas.pandasHelper import pandasHelper
 from source.utils.statisticsHelper import statisticsHelper
 
@@ -96,10 +98,41 @@ class AsyncProjectAllDataFetcher:
                  for pull_number in range(start, max(start - limit, 0), -1)]
         await asyncio.wait(tasks)
 
+    @staticmethod
+    def getUnmatchedCommits():
+        # 获取 数据库中没有获得的commit点，一次最多2000个
+        t1 = datetime.now()
+
+        statistic = statisticsHelper()
+        statistic.startTime = t1
+
+        loop = asyncio.get_event_loop()
+        task = [asyncio.ensure_future(AsyncProjectAllDataFetcher.preProcessUnmatchCommits(loop, statistic))]
+        tasks = asyncio.gather(*task)
+        loop.run_until_complete(tasks)
+
+        print('cost time:', datetime.now() - t1)
+
+    @staticmethod
+    async def preProcessUnmatchCommits(loop, statistic):
+
+        semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
+        mysql = await getMysqlObj(loop)
+
+        if configPraser.getPrintMode():
+            print("mysql init success")
+
+        res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMITS, None)
+        print(res)
+
+        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadCommits(item[0], item[1], semaphore, mysql, statistic))
+                 for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
+        await asyncio.wait(tasks)
+
 
 if __name__ == '__main__':
-    AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
-                                                    , start=configPraser.getStart(), limit=configPraser.getLimit())
+    # AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
+    #                                                 , start=configPraser.getStart(), limit=configPraser.getLimit())
 
     # data = pandasHelper.readTSVFile(projectConfig.getChangeTriggerPRPath(), pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
     # print(data.as_matrix().shape)
@@ -110,3 +143,5 @@ if __name__ == '__main__':
     #
     # AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo(),
     #                                                   nodes=[[x] for x in pr_nodes])
+
+    AsyncProjectAllDataFetcher.getUnmatchedCommits()

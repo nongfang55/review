@@ -305,6 +305,15 @@ class AsyncApiHelper:
         return api
 
     @staticmethod
+    def getCommitApiWithProjectName(owner, repo, commit_sha):
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMIT
+        api = api.replace(StringKeyUtils.STR_OWNER, owner)
+        api = api.replace(StringKeyUtils.STR_REPO, repo)
+        api = api.replace(StringKeyUtils.STR_COMMIT_SHA, str(commit_sha))
+        return api
+
+
+    @staticmethod
     async def fetchBeanData(session, api, isMediaType=False):
         """异步获取数据通用接口（重要）"""
 
@@ -870,3 +879,31 @@ class AsyncApiHelper:
         beanList.extend(relationList)
         await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
         return relationList
+
+    @staticmethod
+    async def downloadCommits(projectName, oid, semaphore, mysql, statistic):
+        async with semaphore:
+            async with aiohttp.ClientSession() as session:
+                try:
+                    beanList = []
+                    owner, repo = projectName.split('/')
+                    api = AsyncApiHelper.getCommitApiWithProjectName(owner, repo, oid)
+                    json = await AsyncApiHelper.fetchBeanData(session, api)
+                    # print(json)
+                    commit = await AsyncApiHelper.parserCommit(json)
+
+                    if commit.parents is not None:
+                        beanList.extend(commit.parents)
+                    if commit.files is not None:
+                        beanList.extend(commit.files)
+
+                    beanList.append(commit)
+                    await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+
+                    # 做了同步处理
+                    statistic.lock.acquire()
+                    statistic.usefulCommitNumber += 1
+                    print(f" usefulCommitCount:{statistic.usefulCommitNumber}")
+                    statistic.lock.release()
+                except Exception as e:
+                    print(e)

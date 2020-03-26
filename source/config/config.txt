@@ -1,5 +1,5 @@
 [authorization]
-token=3687b102d63d3faef42c42a9d0be8c2e57c53c9e
+token=becbfcf40bca6abe65c1b1254472a2bc4f8be9df
 [database]
 host=101.133.220.93
 username=review
