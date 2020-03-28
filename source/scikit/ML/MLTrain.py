@@ -1,10 +1,12 @@
 # coding=gbk
+from datetime import datetime
 import heapq
 import time
 
 import numpy
 import pandas
 from pandas import DataFrame
+from sklearn.model_selection import PredefinedSplit
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 from source.config.projectConfig import projectConfig
@@ -18,7 +20,42 @@ from sklearn.impute import SimpleImputer
 class MLTrain:
 
     @staticmethod
-    def testAlgorithms(project, dates):  # 输入测试日期和对应文件序列  输出一整个算法的表现
+    def testSVMAlgorithms(project, dates):
+
+        recommendNum = 5  # 推荐数量
+        excelName = 'outputSVM.xlsx'
+        sheetName = 'result'
+
+        """初始化excel文件"""
+        ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
+
+        for date in dates:
+            startTime = datetime.now()
+            filename = projectConfig.getRootPath() + r'\data' + r'\\' + \
+                       f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
+            df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+            """df做预处理"""
+            train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, (date[2], date[3]), isNOR=True)
+            """根据算法获得推荐列表"""
+            recommendList, answerList = MLTrain.RecommendBySVM(train_data, train_data_y, test_data,
+                                                               test_data_y, recommendNum=recommendNum)
+
+            """根据推荐列表做评价"""
+            topk, mrr = MLTrain.judgeRecommend(recommendList, answerList, recommendNum)
+
+            """结果写入excel"""
+            MLTrain.saveResult(excelName, sheetName, topk, mrr, date)
+
+            """文件分割"""
+            content = ['']
+            ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+            content = ['训练集', '测试集']
+            ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+
+            print("cost time:", datetime.now() - startTime)
+
+    @staticmethod
+    def testBayesAlgorithms(project, dates):  # 输入测试日期和对应文件序列  输出一整个算法的表现
 
         recommendNum = 5  # 推荐数量
         excelName = 'output.xlsx'
@@ -29,11 +66,15 @@ class MLTrain:
 
         for i in range(1, 4):  # Bayes 有三个模型
             for date in dates:
-                filename = projectConfig.getRootPath() + r'\data\train' + r'\\' \
+                filename = projectConfig.getRootPath() + r'\data' + r'\\' \
                            + f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
                 """df做预处理"""
-                train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, (date[2], date[3]))
+                isNOR = True
+                if i == 1:
+                    isNOR = False  # 对伯努利不做归一
+                train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, (date[2], date[3]),
+                                                                                      isNOR=isNOR)
 
                 """根据算法获得推荐列表"""
                 recommendList, answerList = MLTrain.RecommendByNativeBayes(train_data, train_data_y, test_data,
@@ -72,7 +113,6 @@ class MLTrain:
         content = ['', ''] + mrr
         ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
 
-
     @staticmethod
     def RecommendByNativeBayes(train_data, train_data_y, test_data, test_data_y, recommendNum=5, bayesType=1):
         """使用NB
@@ -95,6 +135,58 @@ class MLTrain:
         pre = clf.predict_proba(test_data)
         # print(clf.classes_)
         pre_class = clf.classes_
+
+        recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
+        # print(recommendList)
+        answer = [[x] for x in test_data_y]
+        # print(answer)
+        return [recommendList, answer]
+
+    @staticmethod
+    def RecommendBySVM(train_data, train_data_y, test_data, test_data_y, recommendNum=5, CoreType='rbf', C=1,
+                       gamma='auto',
+                       decisionShip='ovo'):
+        """使用SVM
+           recommendNum : 推荐数量
+           CoreType : 'linear' 线性
+                      'rbf' 高斯
+           C： 惩罚系数
+           gamma： 核参数lambda
+           decisionShip: 分类策略
+        """
+
+        """设定判断参数"""
+
+        """自定义验证集 而不是使用交叉验证"""
+        train_features = numpy.concatenate((train_data, test_data), axis=0)
+        train_label = numpy.concatenate((train_data_y, test_data_y), axis=0)
+        test_fold = numpy.zeros(train_features.shape[0])
+        test_fold[:train_data.shape[0]] = -1
+        ps = PredefinedSplit(test_fold=test_fold)
+
+        grid_parameters = [
+            # {'kernel': ['rbf'], 'gamma': [0.00075, 0.0001, 0.0002],
+            #                 'C': [105, 108, 110, 112, 115], 'decision_function_shape': ['ovr']},
+                           {'kernel': ['linear'], 'C': [90, 95, 100],
+                            'decision_function_shape': ['ovr']}]  # 调节参数
+
+        # # scores = ['precision', 'recall']  # 判断依据
+
+        from sklearn import svm
+        from sklearn.model_selection import GridSearchCV
+        clf = svm.SVC(C=C, kernel=CoreType, probability=True, gamma=gamma, decision_function_shape=decisionShip)
+        clf = GridSearchCV(clf, param_grid=grid_parameters, cv=ps, n_jobs=-1)
+        clf.fit(X=train_features, y=train_label)
+
+        print(clf.best_params_)
+
+        # clf = svm.SVC(C=100, kernel='linear', probability=True)
+        # clf.fit(train_data, train_data_y)
+
+        pre = clf.predict_proba(test_data)
+        pre_class = clf.classes_
+        # print(pre)
+        # print(pre_class)
 
         recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
         # print(recommendList)
@@ -148,7 +240,8 @@ class MLTrain:
             lambda x: int(time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S"))))
 
         """去除无用的 commit_sha, review_id 和 pr_number 和review_submitted_at"""
-        df.drop(axis=1, columns=['commit_sha', 'review_id', 'pr_number', 'review_submitted_at'], inplace=True)
+        df.drop(axis=1, columns=['commit_sha', 'review_id', 'pr_number', 'review_submitted_at'
+                                 ], inplace=True)
         # inplace 代表直接数据上面
 
         """参数处理缺省值"""
@@ -180,14 +273,14 @@ class MLTrain:
             test_data_std = stdsc.transform(test_data)
             # print(train_data_std)
             # print(test_data_std.shape)
-            return train_data_std, train_data_y, test_data_std, test_data
+            return train_data_std, train_data_y, test_data_std, test_data_y
         elif isNOR:
             maxminsc = MinMaxScaler()
             train_data_std = maxminsc.fit_transform(train_data)
             test_data_std = maxminsc.transform(test_data)
-            return train_data_std, train_data_y, test_data_std, test_data
+            return train_data_std, train_data_y, test_data_std, test_data_y
         else:
-            return test_data, test_data_y, train_data, train_data_y
+            return train_data, train_data_y, test_data, test_data_y
 
     @staticmethod
     def judgeRecommend(recommendList, answer, recommendNum):
@@ -229,5 +322,6 @@ class MLTrain:
 if __name__ == '__main__':
     # inputPath = projectConfig.getRootPath() + r'\data\train\ML_rails_data_2018_4_to_2019_4.tsv'
     # featureProcess.preProcess(inputPath)
-    dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4), (2018, 4, 2019, 4)]
-    MLTrain.testAlgorithms('rails', dates)
+    # dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4), (2018, 4, 2019, 4)]
+    dates = [(2019, 1, 2019, 4)]
+    MLTrain.testSVMAlgorithms('rails', dates)
