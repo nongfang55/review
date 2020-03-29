@@ -240,4 +240,12 @@ class StringKeyUtils:
     STR_KEY_OPERATIONAME = 'operationName'
     STR_KEY_VARIABLES = 'variables'
 
+    """机器学习做标识使用的"""
+    STR_ALGORITHM_FPS = 'fps'
+    STR_ALGORITHM_NB = 'naiveBayes'
+    STR_ALGORITHM_SVM = 'svm'
+    STR_ALGORITHM_DT = 'decisionTree'
+    STR_ALGORITHM_RF = 'randomForest'
+
+
 

@@ -2,16 +2,21 @@
 from datetime import datetime
 import heapq
 import time
+from math import ceil
 
+import graphviz
 import numpy
 import pandas
 from pandas import DataFrame
-from sklearn.model_selection import PredefinedSplit
+from sklearn.model_selection import PredefinedSplit, GridSearchCV
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.tree import export_graphviz
 
 from source.config.projectConfig import projectConfig
+from source.scikit.service.MLGraphHelper import MLGraphHelper
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
 from source.utils.ExcelHelper import ExcelHelper
+from source.utils.StringKeyUtils import StringKeyUtils
 from source.utils.pandas.pandasHelper import pandasHelper
 
 from sklearn.impute import SimpleImputer
@@ -20,10 +25,14 @@ from sklearn.impute import SimpleImputer
 class MLTrain:
 
     @staticmethod
-    def testSVMAlgorithms(project, dates):
+    def testMLAlgorithms(project, dates, algorithm):
+        """
+           测试算法接口，把流程相似的算法统一
+           algorithm : svm, dt, rf
+        """
 
         recommendNum = 5  # 推荐数量
-        excelName = 'outputSVM.xlsx'
+        excelName = f'output{algorithm}.xlsx'
         sheetName = 'result'
 
         """初始化excel文件"""
@@ -31,14 +40,23 @@ class MLTrain:
 
         for date in dates:
             startTime = datetime.now()
-            filename = projectConfig.getRootPath() + r'\data' + r'\\' + \
+            filename = projectConfig.getRootPath() + r'\data\train' + r'\\' + \
                        f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
             df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
             """df做预处理"""
             train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, (date[2], date[3]), isNOR=True)
+            recommendList = None
+            answerList = None
             """根据算法获得推荐列表"""
-            recommendList, answerList = MLTrain.RecommendBySVM(train_data, train_data_y, test_data,
-                                                               test_data_y, recommendNum=recommendNum)
+            if algorithm == StringKeyUtils.STR_ALGORITHM_SVM:  # 支持向量机
+                recommendList, answerList = MLTrain.RecommendBySVM(train_data, train_data_y, test_data,
+                                                                   test_data_y, recommendNum=recommendNum)
+            elif algorithm == StringKeyUtils.STR_ALGORITHM_DT:  # 决策树
+                recommendList, answerList = MLTrain.RecommendByDecisionTree(train_data, train_data_y, test_data,
+                                                                            test_data_y, recommendNum=recommendNum)
+            elif algorithm == StringKeyUtils.STR_ALGORITHM_RF:  # 随机森林
+                recommendList, answerList = MLTrain.RecommendByRandomForest(train_data, train_data_y, test_data,
+                                                                            test_data_y, recommendNum=recommendNum)
 
             """根据推荐列表做评价"""
             topk, mrr = MLTrain.judgeRecommend(recommendList, answerList, recommendNum)
@@ -58,7 +76,7 @@ class MLTrain:
     def testBayesAlgorithms(project, dates):  # 输入测试日期和对应文件序列  输出一整个算法的表现
 
         recommendNum = 5  # 推荐数量
-        excelName = 'output.xlsx'
+        excelName = 'outputNB.xlsx'
         sheetName = 'result'
 
         """初始化excel文件"""
@@ -66,12 +84,12 @@ class MLTrain:
 
         for i in range(1, 4):  # Bayes 有三个模型
             for date in dates:
-                filename = projectConfig.getRootPath() + r'\data' + r'\\' \
+                filename = projectConfig.getRootPath() + r'\data\train' + r'\\' \
                            + f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
                 """df做预处理"""
                 isNOR = True
-                if i == 1:
+                if i == 1 or i == 3:
                     isNOR = False  # 对伯努利不做归一
                 train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, (date[2], date[3]),
                                                                                       isNOR=isNOR)
@@ -124,14 +142,22 @@ class MLTrain:
         """
         from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
         clf = None
-        if bayesType == 3:
+        if bayesType == 2:
             clf = GaussianNB()
-        elif bayesType == 2:
+        elif bayesType == 3:
             clf = MultinomialNB()
+            param = {"alpha": [0.2 * x for x in range(0, 10)], "fit_prior": [False, True]}
+            clf = GridSearchCV(clf, param_grid=param)
         elif bayesType == 1:
             clf = BernoulliNB()
 
         clf.fit(X=train_data, y=train_data_y)
+        if bayesType == 3:
+            print(clf.best_params_, clf.best_score_)
+
+        """查看算法的学习曲线"""
+        MLGraphHelper.plot_learning_curve(clf, 'Bayes', train_data, train_data_y).show()
+
         pre = clf.predict_proba(test_data)
         # print(clf.classes_)
         pre_class = clf.classes_
@@ -157,26 +183,30 @@ class MLTrain:
 
         """设定判断参数"""
 
+        """训练集按照3 7开分成训练集和交叉验证集"""
+
         """自定义验证集 而不是使用交叉验证"""
-        train_features = numpy.concatenate((train_data, test_data), axis=0)
-        train_label = numpy.concatenate((train_data_y, test_data_y), axis=0)
-        test_fold = numpy.zeros(train_features.shape[0])
-        test_fold[:train_data.shape[0]] = -1
+        test_fold = numpy.zeros(train_data.shape[0])
+        test_fold[:ceil(train_data.shape[0] * 0.7)] = -1
         ps = PredefinedSplit(test_fold=test_fold)
 
         grid_parameters = [
-            # {'kernel': ['rbf'], 'gamma': [0.00075, 0.0001, 0.0002],
-            #                 'C': [105, 108, 110, 112, 115], 'decision_function_shape': ['ovr']},
-                           {'kernel': ['linear'], 'C': [90, 95, 100],
-                            'decision_function_shape': ['ovr']}]  # 调节参数
-
-        # # scores = ['precision', 'recall']  # 判断依据
+            {'kernel': ['rbf'], 'gamma': [0.00075, 0.0001, 0.0002],
+             'C': [105, 108, 110, 112, 115], 'decision_function_shape': ['ovr']}]
+        # {'kernel': ['linear'], 'C': [90, 95, 100],
+        #  'decision_function_shape': ['ovr', 'ovo'],
+        #  'class_weight': ['balanced', None]}]  # 调节参数
 
         from sklearn import svm
         from sklearn.model_selection import GridSearchCV
         clf = svm.SVC(C=C, kernel=CoreType, probability=True, gamma=gamma, decision_function_shape=decisionShip)
-        clf = GridSearchCV(clf, param_grid=grid_parameters, cv=ps, n_jobs=-1)
-        clf.fit(X=train_features, y=train_label)
+        """
+          因为REVIEW中有特征是时间相关的  所以讲道理nfold不能使用     
+          需要自定义验证集 如果使用自定义验证集   GridSearchCVA(CV=ps)
+          
+        """
+        clf = GridSearchCV(clf, param_grid=grid_parameters, n_jobs=-1)  # 网格搜索参数
+        clf.fit(X=train_data, y=train_data_y)
 
         print(clf.best_params_)
 
@@ -187,6 +217,8 @@ class MLTrain:
         pre_class = clf.classes_
         # print(pre)
         # print(pre_class)
+        """查看算法的学习曲线"""
+        MLGraphHelper.plot_learning_curve(clf, 'SVM', train_data, train_data_y).show()
 
         recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
         # print(recommendList)
@@ -318,10 +350,118 @@ class MLTrain:
                     data.at[pos, column] = convertDict[item]
                     pos += 1
 
+    @staticmethod
+    def RecommendByDecisionTree(train_data, train_data_y, test_data, test_data_y, recommendNum=5):
+        """使用决策树
+           recommendNum : 推荐数量
+           max_depth 决策树最大深度
+           min_samples_split 内部节点划分所需最小样本数
+           min_samples_leaf 叶子节点最小样本数
+           class_weight 分类权重
+        """
+
+        """设定判断参数"""
+
+        """训练集按照3 7开分成训练集和交叉验证集"""
+
+        """自定义验证集 而不是使用交叉验证"""
+        test_fold = numpy.zeros(train_data.shape[0])
+        test_fold[:ceil(train_data.shape[0] * 0.7)] = -1
+        ps = PredefinedSplit(test_fold=test_fold)
+
+        grid_parameters = [
+            {'min_samples_leaf': [2, 4, 8, 16, 32, 64], 'max_depth': [2, 4, 6, 8],
+             'class_weight': [None]}]  # 调节参数
+
+        # # scores = ['precision', 'recall']  # 判断依据
+
+        from sklearn.tree import DecisionTreeClassifier
+        from sklearn.model_selection import GridSearchCV
+        clf = DecisionTreeClassifier()
+        clf = GridSearchCV(clf, param_grid=grid_parameters, cv=ps, n_jobs=-1)
+        clf.fit(train_data, train_data_y)
+
+        print(clf.best_params_)
+        # dot_data = export_graphviz(clf, out_file=None)
+        # graph = graphviz.Source(dot_data)
+        # graph.render("DTree")
+
+        pre = clf.predict_proba(test_data)
+        pre_class = clf.classes_
+        # print(pre)
+        # print(pre_class)
+
+        recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
+        # print(recommendList)
+        answer = [[x] for x in test_data_y]
+        # print(answer)
+        return [recommendList, answer]
+
+    @staticmethod
+    def getSeriesBarPlot(series):
+        #  获得 输入数据的柱状分布图
+        import matplotlib.pyplot as plt
+
+        fig = plt.figure()
+        # fig.add_subplot(2, 1, 1)
+        counts = series.value_counts()
+        counts.plot(kind='bar')
+        plt.show()
+
+    @staticmethod
+    def RecommendByRandomForest(train_data, train_data_y, test_data, test_data_y, recommendNum=5):
+        """使用随机森林
+           n_estimators : 最大弱学习器个数
+           recommendNum : 推荐数量
+           max_depth 决策树最大深度
+           min_samples_split 内部节点划分所需最小样本数
+           min_samples_leaf 叶子节点最小样本数
+           class_weight 分类权重
+        """
+
+        """设定判断参数"""
+
+        """自定义验证集 而不是使用交叉验证"""
+        test_fold = numpy.zeros(train_data.shape[0])
+        test_fold[:ceil(train_data.shape[0] * 0.7)] = -1
+        ps = PredefinedSplit(test_fold=test_fold)
+
+        """导入模型"""
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.model_selection import GridSearchCV
+        clf = RandomForestClassifier(min_samples_split=100,
+                                     min_samples_leaf=20, max_depth=8, max_features='sqrt', random_state=10)
+        # clf = GridSearchCV(clf, param_grid=grid_parameters, cv=ps, n_jobs=-1)
+        # clf.fit(train_data, train_data_y)
+        #
+        # print("OOB SCORE:", clf.oob_score_)
+
+        """对弱分类器数量做调参数量"""
+        # param_test1 = {'n_estimators': range(10, 200, 10)}
+        # clf = GridSearchCV(estimator=clf, param_grid=param_test1)
+        # clf.fit(train_data, train_data_y)
+        # print(clf.best_params_, clf.best_score_)
+
+        """对决策树的参数做调参"""
+        param_test2 = {'max_depth': range(3, 14, 2), 'min_samples_split': range(50, 201, 20)}
+        clf = GridSearchCV(estimator=clf, param_grid=param_test2, iid=False, cv=5)
+        clf.fit(test_data, test_data_y)
+        # gsearch2.grid_scores_, gsearch2.best_params_, gsearch2.best_score_
+
+        pre = clf.predict_proba(test_data)
+        pre_class = clf.classes_
+        # print(pre)
+        # print(pre_class)
+
+        recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
+        # print(recommendList)
+        answer = [[x] for x in test_data_y]
+        # print(answer)
+        return [recommendList, answer]
+
 
 if __name__ == '__main__':
-    # inputPath = projectConfig.getRootPath() + r'\data\train\ML_rails_data_2018_4_to_2019_4.tsv'
-    # featureProcess.preProcess(inputPath)
-    # dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4), (2018, 4, 2019, 4)]
-    dates = [(2019, 1, 2019, 4)]
-    MLTrain.testSVMAlgorithms('rails', dates)
+    dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4)]
+    # dates = [(2018, 4, 2019, 4)]
+    MLTrain.testMLAlgorithms('rails', dates, StringKeyUtils.STR_ALGORITHM_SVM)
+    # MLTrain.testBayesAlgorithms('akka', dates)

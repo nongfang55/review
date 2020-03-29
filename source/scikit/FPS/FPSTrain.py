@@ -56,7 +56,8 @@ class FPSTrain:
                 # print("review_id:", review_id)
                 reviewData = testData.loc[testData[StringKeyUtils.STR_KEY_ID] == review_id].reset_index(drop=True)
                 # print(reviewData)
-                recommendList, answerList = FPSAlgorithm.reviewerRecommendByNumpy(trainData, reviewData, review_size, 10)
+                recommendList, answerList = FPSAlgorithm.reviewerRecommendByNumpy(trainData, reviewData, review_size,
+                                                                                  10)
                 # print(recommendList)
                 # print(answerList)
                 resultList.append([recommendList, answerList])
@@ -75,7 +76,7 @@ class FPSTrain:
             df2 = pandas.DataFrame(data=mrr).T
             print(df1)
             print(df2)
-            df1.to_excel(writer, sheet_name='topk',)
+            df1.to_excel(writer, sheet_name='topk', )
             df2.to_excel(writer, sheet_name='mrr')
             writer.save()
             pos = pos + 1
@@ -95,11 +96,11 @@ if __name__ == '__main__':
     #                  projectConfig.getRootPath() + r'\data\train\FPS_rails_data_2018_5.tsv',
     #                  projectConfig.getRootPath() + r'\data\train\FPS_rails_data_2018_4.tsv']
 
-    trainDataPath = [projectConfig.getRootPath() + r'\data\train\FPS_akka_data_2018_10_to_2019_9.tsv']
-                     # projectConfig.getRootPath() + r'\data\train\FPS_scala_data_2019_1_to_2019_3.tsv']
-                     # projectConfig.getRootPath() + r'\data\train\FPS_scala_data_2018_10_to_2019_3.tsv',
-                     # projectConfig.getRootPath() + r'\data\train\FPS_scala_data_2018_7_to_2019_3.tsv',
-                     # projectConfig.getRootPath() + r'\data\train\FPS_scala_data_2018_4_to_2019_3.tsv']
+    trainDataPath = [projectConfig.getRootPath() + r'\data\train\FPS_rails_data_2019_3_to_2019_3.tsv',
+                     projectConfig.getRootPath() + r'\data\train\FPS_rails_data_2019_1_to_2019_3.tsv',
+                     projectConfig.getRootPath() + r'\data\train\FPS_rails_data_2018_10_to_2019_3.tsv']
+    # projectConfig.getRootPath() + r'\data\train\FPS_scala_data_2018_7_to_2019_3.tsv',
+    # projectConfig.getRootPath() + r'\data\train\FPS_scala_data_2018_4_to_2019_3.tsv']
 
-    testDataPath = projectConfig.getRootPath() + r'\data\train\FPS_akka_data_2019_10_to_2019_10.tsv'
+    testDataPath = projectConfig.getRootPath() + r'\data\train\FPS_rails_data_2019_4_to_2019_4.tsv'
     FPSTrain.TestAlgorithm(trainDataPath, testDataPath)

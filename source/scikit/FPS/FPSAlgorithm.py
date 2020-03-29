@@ -302,8 +302,6 @@ class FPSAlgorithm:
         #     print("Longest common subString", com)
         return com / max(list1.__len__(), list2.__len__())
 
-
-
     @staticmethod
     def reviewerRecommendByNumpy(trainData, targetData, review_size, k=2):
         """input: 历史数据，目标review数据, 历史数据每一个reivew的文件数量， review推荐的数量  默认targetData中id都是一个
@@ -313,7 +311,7 @@ class FPSAlgorithm:
 
         answerList = []  # 作者列表
 
-        targetFileCount = targetData.shape[1]  # 这个review的文件个数
+        targetFileCount = targetData.shape[0]  # 这个review的文件个数 fixbug
 
         print(trainData.shape)
         print(targetData.shape)
@@ -336,10 +334,9 @@ class FPSAlgorithm:
                 # print("filename1:", filename1, " filename2:", filename2)
                 # print(f"dataFileCount:{dataFileCount}, targetFileCount:{targetFileCount}")
                 scores[reviewer] += (FPSAlgorithm.LCSubseq_2(filename1, filename2)) / (dataFileCount * targetFileCount)
-                                     # + FPSAlgorithm.LCP_2(filename1, filename2)
-                                     # + FPSAlgorithm.LCSubseq_2(filename1, filename2)
-                                     # + FPSAlgorithm.LCSubstr_2(filename1, filename2)) / (dataFileCount * targetFileCount)
-
+                # + FPSAlgorithm.LCP_2(filename1, filename2)
+                # + FPSAlgorithm.LCSubseq_2(filename1, filename2)
+                # + FPSAlgorithm.LCSubstr_2(filename1, filename2)) / (dataFileCount * targetFileCount)
 
         # print(scores)
-        return [x[0] for x in sorted(scores.items(), key=lambda d: d[1], reverse=True)[0:k-1]], answerList
+        return [x[0] for x in sorted(scores.items(), key=lambda d: d[1], reverse=True)[0:k - 1]], answerList
