@@ -13,6 +13,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.tree import export_graphviz
 
 from source.config.projectConfig import projectConfig
+from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.scikit.service.MLGraphHelper import MLGraphHelper
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
 from source.utils.ExcelHelper import ExcelHelper
@@ -59,10 +60,10 @@ class MLTrain:
                                                                             test_data_y, recommendNum=recommendNum)
 
             """根据推荐列表做评价"""
-            topk, mrr = MLTrain.judgeRecommend(recommendList, answerList, recommendNum)
+            topk, mrr = DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
 
             """结果写入excel"""
-            MLTrain.saveResult(excelName, sheetName, topk, mrr, date)
+            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, date)
 
             """文件分割"""
             content = ['']
@@ -99,37 +100,16 @@ class MLTrain:
                                                                            test_data_y, recommendNum, i)
 
                 """根据推荐列表做评价"""
-                topk, mrr = MLTrain.judgeRecommend(recommendList, answerList, recommendNum)
+                topk, mrr = DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
 
                 """结果写入excel"""
-                MLTrain.saveResult(excelName, sheetName, topk, mrr, date)
+                DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, date)
 
             """文件分割"""
             content = ['']
             ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
             content = ['训练集', '测试集']
             ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
-
-    @staticmethod
-    def saveResult(filename, sheetName, topk, mrr, date):
-        """时间和准确率"""
-        content = None
-        if date[3] == 1:
-            content = [f"{date[2]}.{date[3]}", f"{date[0]}.{date[1]} - {date[2] - 1}.{12}", "TopKAccuracy"]
-        else:
-            content = [f"{date[2]}.{date[3]}", f"{date[0]}.{date[1]} - {date[2]}.{date[3] - 1}", "TopKAccuracy"]
-
-        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
-        content = ['', '', 1, 2, 3, 4, 5]
-        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
-        content = ['', ''] + topk
-        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
-        content = ['', '', 'MRR']
-        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
-        content = ['', '', 1, 2, 3, 4, 5]
-        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
-        content = ['', ''] + mrr
-        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
 
     @staticmethod
     def RecommendByNativeBayes(train_data, train_data_y, test_data, test_data_y, recommendNum=5, bayesType=1):
@@ -313,17 +293,6 @@ class MLTrain:
             return train_data_std, train_data_y, test_data_std, test_data_y
         else:
             return train_data, train_data_y, test_data, test_data_y
-
-    @staticmethod
-    def judgeRecommend(recommendList, answer, recommendNum):
-
-        """评价推荐表现"""
-        topk = RecommendMetricUtils.topKAccuracy(recommendList, answer, recommendNum)
-        print(topk)
-        mrr = RecommendMetricUtils.MRR(recommendList, answer, recommendNum)
-        print(mrr)
-
-        return topk, mrr
 
     @staticmethod
     def getListFromProbable(probable, classList, k):  # 推荐k个

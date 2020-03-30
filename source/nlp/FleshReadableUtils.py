@@ -18,13 +18,22 @@ from source.utils.pandas.pandasHelper import pandasHelper
 
 class FleshReadableUtils:
 
+    # @staticmethod
+    # def word_list(comment):
+    #
+    #     word_re = re.compile(r'[^A-Za-z\']+')
+    #     words = [x for x in word_re.split(comment.lower()) if x.__len__() != 0]
+    #     # print("单词数:" + str(len(words)))
+    #     # print(words)
+    #     return words
+
     @staticmethod
     def word_list(comment):
-
-        word_re = re.compile(r'[^A-Za-z\']+')
+        """分词正则去除了带引号的场景"""
+        word_re = re.compile(r'[^A-Za-z]+')
         words = [x for x in word_re.split(comment.lower()) if x.__len__() != 0]
-        print("单词数:" + str(len(words)))
-        print(words)
+        # print("单词数:" + str(len(words)))
+        # print(words)
         return words
 
     @staticmethod
