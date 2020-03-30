@@ -2,6 +2,8 @@
 import os
 import time
 
+import numpy
+import pandas
 from pandas import DataFrame
 
 from source.config.projectConfig import projectConfig
@@ -52,6 +54,10 @@ class DataProcessUtils:
         and pullRequest.number = review.pull_number and
           gitCommit.sha = review.commit_id and gitFile.commit_sha = gitCommit.sha
         and reviewComment.pull_request_review_id = review.id
+    """
+
+    """
+     不幸的是 这样会有漏洞，导致没有reviewcomment的数据被忽视掉，需要reviewcomment那里外连接
     """
 
     @staticmethod
@@ -138,10 +144,27 @@ class DataProcessUtils:
         content = ['', ''] + mrr
         ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
 
+    @staticmethod
+    def convertFeatureDictToDataFrame(dicts, featureNum):
+        """通过转换 feature的形式来让tf-idf 模型生成的数据可以转换成向量"""
+        ar = numpy.zeros((dicts.__len__(), featureNum))
+        result = pandas.DataFrame(ar)
+        pos = 0
+        for d in dicts:
+            for key in d.keys():
+                result.loc[pos, key] = d[key]
+            pos = pos + 1
+
+        return result
+
 
 if __name__ == '__main__':
-    DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_scala_data.tsv',
-                                      projectConfig.getRootPath() + r'\data\train\all' + os.sep)
+    # DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_bitcoin_data.tsv',
+    #                                   projectConfig.getRootPath() + r'\data\train\all' + os.sep)
+    #
+    # print(pandasHelper.readTSVFile(
+    #     projectConfig.getRootPath() + r'\data\train\all\ALL_scala_data_2012_6_to_2012_6.tsv', ))
 
-    print(pandasHelper.readTSVFile(
-        projectConfig.getRootPath() + r'\data\train\all\ALL_scala_data_2012_6_to_2012_6.tsv', ))
+    a = {0:2, 3:5}
+    b = {1:2, 5:6}
+    print(DataProcessUtils.convertFeatureDictToDataFrame([a,b], 6))

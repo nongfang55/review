@@ -11,6 +11,7 @@ from source.config.projectConfig import projectConfig
 from source.nlp.FleshReadableUtils import FleshReadableUtils
 from source.nlp.SplitWordHelper import SplitWordHelper
 from source.nltk import nltkFunction
+from source.scikit.ML.MLTrain import MLTrain
 from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.utils.ExcelHelper import ExcelHelper
 from source.utils.pandas.pandasHelper import pandasHelper
@@ -55,16 +56,20 @@ class IRTrain:
 
             df.reset_index(inplace=True, drop=True)
             """df做预处理"""
-            train_data, train_data_y, test_data, test_data_y = IRTrain.preProcess(df, (date[2], date[3]))
+            train_data, train_data_y, test_data, test_data_y = IRTrain.preProcess(df, (date[2], date[3]), isDict=False)
 
-            print("train data:", train_data.__len__())
+            print("train data:", train_data.shape)
+            # print("train data:", train_data)
             # print("traindatay:", train_data_y)
-            print("test data:", test_data.__len__())
+            print("test data:", test_data.shape)
+            # print("test data:", test_data)
             # print("testdatay:", test_data_y)
 
             """根据算法获得推荐列表"""
-            recommendList, answerList = IRTrain.RecommendByIR(train_data, train_data_y, test_data,
-                                                              test_data_y, recommendNum=recommendNum)
+            # recommendList, answerList = IRTrain.RecommendByIR(train_data, train_data_y, test_data,
+            #                                                   test_data_y, recommendNum=recommendNum)
+            recommendList, answerList = MLTrain.RecommendBySVM(train_data, train_data_y, test_data,
+                                                               test_data_y, recommendNum=recommendNum)
 
             """根据推荐列表做评价"""
             topk, mrr = DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -81,10 +86,11 @@ class IRTrain:
             print("cost time:", datetime.now() - startTime)
 
     @staticmethod
-    def preProcess(df, testDate):
+    def preProcess(df, testDate, isDict=True):
         """参数说明
          df：读取的dataframe对象
          testDate:作为测试的年月 (year,month)
+         isDict 数据集和向量及返回是否是代表稀疏矩阵的字典形式，否则就是返回向量
         """
 
         """注意： 输入文件中已经带有列名了"""
@@ -109,7 +115,7 @@ class IRTrain:
         """处理一个review有多个comment的场景  把comment都合并到一起"""
 
         comments = df['review_comment_body'].groupby(df['review_id']).sum()  # 一个review的所有评论字符串连接
-        print(comments.index)
+        # print(comments.index)
 
         """留下去除comment之后的信息 去重"""
         df = df[['pr_number', 'review_id', 'pr_title', 'pr_body', 'review_user_login',
@@ -119,12 +125,11 @@ class IRTrain:
         print(df.shape)
 
         df = (df.join(comments, on=['review_id'], how='inner')).copy(deep=True).reset_index(drop=True)
-        print(df)
+        # print(df)
 
         """对人名字做数字处理"""
         DataProcessUtils.changeStringToNumber(df, ['review_user_login'])
-        print(df)
-
+        # print(df)
 
         """先尝试所有信息团在一起"""
 
@@ -139,29 +144,29 @@ class IRTrain:
 
             """初步尝试提取词干效果反而下降了 。。。。"""
 
-            # """对单词做提取词干"""
-            # pr_title_word_list = nltkFunction.stemList(pr_title_word_list)
+            """对单词做提取词干"""
+            pr_title_word_list = nltkFunction.stemList(pr_title_word_list)
             textList.append(pr_title_word_list)
 
             """pull request的body"""
             pr_body = getattr(row, 'pr_body')
             pr_body_word_list = [x for x in FleshReadableUtils.word_list(pr_body) if x not in stopwords]
-            # """对单词做提取词干"""
-            # pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
+            """对单词做提取词干"""
+            pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
             textList.append(pr_body_word_list)
 
             """review 的comment"""
             review_comment = getattr(row, 'review_comment_body')
             review_comment_word_list = [x for x in FleshReadableUtils.word_list(review_comment) if x not in stopwords]
-            # """对单词做提取词干"""
-            # review_comment_word_list = nltkFunction.stemList(review_comment_word_list)
+            """对单词做提取词干"""
+            review_comment_word_list = nltkFunction.stemList(review_comment_word_list)
             textList.append(review_comment_word_list)
 
             """review的commit的 message"""
             commit_message = getattr(row, 'commit_commit_message')
             commit_message_word_list = [x for x in FleshReadableUtils.word_list(commit_message) if x not in stopwords]
-            # """对单词做提取词干"""
-            # commit_message_word_list = nltkFunction.stemList(commit_message_word_list)
+            """对单词做提取词干"""
+            commit_message_word_list = nltkFunction.stemList(commit_message_word_list)
             textList.append(commit_message_word_list)
 
         print(textList.__len__())
@@ -175,7 +180,7 @@ class IRTrain:
 
         """根据词典建立语料库"""
         corpus = [dictionary.doc2bow(text) for text in textList]
-        print('语料库:', corpus)
+        # print('语料库:', corpus)
 
         """语料库训练TF-IDF模型"""
         tfidf = models.TfidfModel(corpus)
@@ -188,7 +193,7 @@ class IRTrain:
                 words.extend(textList[4 * i + j])
             # print(words)
             wordVectors.append(dict(tfidf[dictionary.doc2bow(words)]))
-        print(wordVectors)
+        # print(wordVectors)
 
         """对已经有的本文特征向量和标签做训练集和测试集的拆分"""
 
@@ -196,16 +201,25 @@ class IRTrain:
         test_data_y = df.loc[df['label']]['review_user_login'].copy(deep=True)
 
         """训练集"""
-        print(train_data_y.index)
+        # print(train_data_y.index)
         train_data = [wordVectors[x] for x in train_data_y.index]
         train_data_y.reset_index(drop=True, inplace=True)
 
         """测试集"""
-        print(test_data_y.index)
+        # print(test_data_y.index)
         test_data = [wordVectors[x] for x in test_data_y.index]
         test_data_y.reset_index(drop=True, inplace=True)
 
-        """返回特征是一个稀疏矩阵的字典"""
+        """默认返回特征是一个稀疏矩阵的字典， 否则字典填充为向量，作为机器学习算法输入"""
+        if not isDict:
+            train_data = DataProcessUtils.convertFeatureDictToDataFrame(train_data, featureNum=feature_cnt)
+            test_data = DataProcessUtils.convertFeatureDictToDataFrame(test_data, featureNum=feature_cnt)
+            print(train_data.shape)
+            print(test_data.shape)
+            train_data = train_data.astype('float64')
+            test_data = test_data.astype('float64')
+            train_data_y = train_data_y.astype('int32')
+            test_data_y = test_data.astype('int32')
 
         return train_data, train_data_y, test_data, test_data_y
 
@@ -263,6 +277,7 @@ class IRTrain:
 
 
 if __name__ == '__main__':
-    dates = [(2018, 4, 2019, 4), (2018, 4, 2019, 3), (2018, 4, 2019, 2), (2018, 4, 2019, 1),
-             (2018, 4, 2018, 12), (2018, 4, 2018, 11), (2018, 4, 2018, 10)]
-    IRTrain.testIRAlgorithm('scala', dates)
+    # dates = [(2018, 4, 2019, 4), (2018, 4, 2019, 3), (2018, 4, 2019, 2), (2018, 4, 2019, 1),
+    #          (2018, 4, 2018, 12), (2018, 4, 2018, 11), (2018, 4, 2018, 10)]
+    dates = [(2018, 4, 2018, 5)]
+    IRTrain.testIRAlgorithm('bitcoin', dates)

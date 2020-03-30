@@ -180,15 +180,15 @@ class MLTrain:
         from sklearn import svm
         from sklearn.model_selection import GridSearchCV
         clf = svm.SVC(C=C, kernel=CoreType, probability=True, gamma=gamma, decision_function_shape=decisionShip)
-        """
-          因为REVIEW中有特征是时间相关的  所以讲道理nfold不能使用     
-          需要自定义验证集 如果使用自定义验证集   GridSearchCVA(CV=ps)
-          
-        """
-        clf = GridSearchCV(clf, param_grid=grid_parameters, n_jobs=-1)  # 网格搜索参数
-        clf.fit(X=train_data, y=train_data_y)
+        # """
+        #   因为REVIEW中有特征是时间相关的  所以讲道理nfold不能使用
+        #   需要自定义验证集 如果使用自定义验证集   GridSearchCVA(CV=ps)
+        #
+        # """
+        # clf = GridSearchCV(clf, param_grid=grid_parameters, n_jobs=-1)  # 网格搜索参数
+        clf.fit(X=train_data, y=train_data_y.astype('float'))
 
-        print(clf.best_params_)
+        # print(clf.best_params_)
 
         # clf = svm.SVC(C=100, kernel='linear', probability=True)
         # clf.fit(train_data, train_data_y)
@@ -430,7 +430,7 @@ class MLTrain:
 
 
 if __name__ == '__main__':
-    dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4)]
-    # dates = [(2018, 4, 2019, 4)]
+    # dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4)]
+    dates = [(2019, 1, 2019, 4)]
     MLTrain.testMLAlgorithms('rails', dates, StringKeyUtils.STR_ALGORITHM_SVM)
     # MLTrain.testBayesAlgorithms('akka', dates)
