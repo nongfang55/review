@@ -219,7 +219,7 @@ class IRTrain:
             train_data = train_data.astype('float64')
             test_data = test_data.astype('float64')
             train_data_y = train_data_y.astype('int32')
-            test_data_y = test_data.astype('int32')
+            test_data_y = test_data_y.astype('int32')
 
         return train_data, train_data_y, test_data, test_data_y
 
@@ -273,11 +273,14 @@ class IRTrain:
             for key in dict1.keys():
                 if dict2.get(key, None) is not None:
                     mul += dict1[key] * dict2[key]
+
+            if mul == 0:
+                return 0
             return mul / (sqrt(l1) * sqrt(l2))
 
 
 if __name__ == '__main__':
-    # dates = [(2018, 4, 2019, 4), (2018, 4, 2019, 3), (2018, 4, 2019, 2), (2018, 4, 2019, 1),
-    #          (2018, 4, 2018, 12), (2018, 4, 2018, 11), (2018, 4, 2018, 10)]
+    # dates = [(2018, 4, 2018, 5), (2018, 4, 2018, 7), (2018, 4, 2018, 10), (2018, 4, 2019, 1),
+    #          (2018, 4, 2019, 4)]
     dates = [(2018, 4, 2018, 5)]
-    IRTrain.testIRAlgorithm('bitcoin', dates)
+    IRTrain.testIRAlgorithm('scala', dates)

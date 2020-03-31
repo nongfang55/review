@@ -166,6 +166,8 @@ class MLTrain:
         """训练集按照3 7开分成训练集和交叉验证集"""
 
         """自定义验证集 而不是使用交叉验证"""
+
+        """这里使用交叉验证还是自定义验证需要再研究一下  3.31"""
         test_fold = numpy.zeros(train_data.shape[0])
         test_fold[:ceil(train_data.shape[0] * 0.7)] = -1
         ps = PredefinedSplit(test_fold=test_fold)
@@ -180,15 +182,16 @@ class MLTrain:
         from sklearn import svm
         from sklearn.model_selection import GridSearchCV
         clf = svm.SVC(C=C, kernel=CoreType, probability=True, gamma=gamma, decision_function_shape=decisionShip)
-        # """
-        #   因为REVIEW中有特征是时间相关的  所以讲道理nfold不能使用
-        #   需要自定义验证集 如果使用自定义验证集   GridSearchCVA(CV=ps)
-        #
-        # """
-        # clf = GridSearchCV(clf, param_grid=grid_parameters, n_jobs=-1)  # 网格搜索参数
-        clf.fit(X=train_data, y=train_data_y.astype('float'))
+        """
+          因为REVIEW中有特征是时间相关的  所以讲道理nfold不能使用
+          需要自定义验证集 如果使用自定义验证集   GridSearchCVA(CV=ps)
 
-        # print(clf.best_params_)
+        """
+        clf = GridSearchCV(clf, param_grid=grid_parameters, cv=ps, n_jobs=-1)  # 网格搜索参数
+        clf.fit(X=train_data, y=train_data_y.astype('float'))
+        # clf.fit(X=train_features, y=train_label)
+
+        print(clf.best_params_)
 
         # clf = svm.SVC(C=100, kernel='linear', probability=True)
         # clf.fit(train_data, train_data_y)
@@ -198,12 +201,12 @@ class MLTrain:
         # print(pre)
         # print(pre_class)
         """查看算法的学习曲线"""
-        MLGraphHelper.plot_learning_curve(clf, 'SVM', train_data, train_data_y).show()
+        # MLGraphHelper.plot_learning_curve(clf, 'SVM', train_data, train_data_y).show()
 
         recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
-        # print(recommendList)
+        # print(recommendList.__len__())
         answer = [[x] for x in test_data_y]
-        # print(answer)
+        # print(answer.__len__())
         return [recommendList, answer]
 
     @staticmethod
@@ -431,6 +434,6 @@ class MLTrain:
 
 if __name__ == '__main__':
     # dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4)]
-    dates = [(2019, 1, 2019, 4)]
+    dates = [(2019, 3, 2019, 4)]
     MLTrain.testMLAlgorithms('rails', dates, StringKeyUtils.STR_ALGORITHM_SVM)
     # MLTrain.testBayesAlgorithms('akka', dates)

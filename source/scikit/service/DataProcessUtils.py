@@ -60,15 +60,54 @@ class DataProcessUtils:
      不幸的是 这样会有漏洞，导致没有reviewcomment的数据被忽视掉，需要reviewcomment那里外连接
     """
 
+    COLUMN_NAME_PR_REVIEW_COMMIT_FILE = ['pr_repo_full_name', 'pr_number', 'pr_id', 'pr_node_id',
+                                         'pr_state', 'pr_title', 'pr_user_login', 'pr_body',
+                                         'pr_created_at',
+                                         'pr_updated_at', 'pr_closed_at', 'pr_merged_at', 'pr_merge_commit_sha',
+                                         'pr_author_association', 'pr_merged', 'pr_comments', 'pr_review_comments',
+                                         'pr_commits', 'pr_additions', 'pr_deletions', 'pr_changed_files',
+                                         'pr_head_label', 'pr_base_label',
+                                         'review_repo_full_name', 'review_pull_number',
+                                         'review_id', 'review_user_login', 'review_body', 'review_state',
+                                         'review_author_association',
+                                         'review_submitted_at', 'review_commit_id', 'review_node_id',
+
+                                         'commit_sha',
+                                         'commit_node_id', 'commit_author_login', 'commit_committer_login',
+                                         'commit_commit_author_date',
+                                         'commit_commit_committer_date', 'commit_commit_message',
+                                         'commit_commit_comment_count',
+                                         'commit_status_total', 'commit_status_additions', 'commit_status_deletions',
+
+                                         'file_commit_sha',
+                                         'file_sha', 'file_filename', 'file_status', 'file_additions', 'file_deletions',
+                                         'file_changes',
+                                         'file_patch']
+
+    COLUMN_NAME_REVIEW_COMMENT = [
+        'review_comment_id', 'review_comment_user_login', 'review_comment_body',
+        'review_comment_pull_request_review_id', 'review_comment_diff_hunk', 'review_comment_path',
+        'review_comment_commit_id', 'review_comment_position', 'review_comment_original_position',
+        'review_comment_original_commit_id', 'review_comment_created_at', 'review_comment_updated_at',
+        'review_comment_author_association', 'review_comment_start_line',
+        'review_comment_original_start_line',
+        'review_comment_start_side', 'review_comment_line', 'review_comment_original_line',
+        'review_comment_side', 'review_comment_in_reply_to_id', 'review_comment_node_id',
+        'review_comment_change_trigger']
+
     @staticmethod
-    def splitDataByMonth(filename, targetPath):
+    def splitDataByMonth(filename, targetPath, hasHead=False):
         """把提供的filename 中的数据按照日期分类并切分生成不同文件
             targetPath: 切分文件目标路径
         """
-
-        df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD, low_memory=False)
-        print(DataProcessUtils.COLUMN_NAME_ALL.__len__())
-        df.columns = DataProcessUtils.COLUMN_NAME_ALL
+        df = None
+        if not hasHead:
+            df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD, low_memory=False)
+            print(DataProcessUtils.COLUMN_NAME_ALL.__len__())
+            df.columns = DataProcessUtils.COLUMN_NAME_ALL
+        else:
+            df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False)
+            print(DataProcessUtils.COLUMN_NAME_ALL.__len__())
         print(df['pr_created_at'])
 
         df['label'] = df['pr_created_at'].apply(lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
@@ -157,14 +196,38 @@ class DataProcessUtils:
 
         return result
 
+    @staticmethod
+    def contactReviewCommentData(projectName):
+        """用于拼接项目的数据并保存  之前在SQL语句上面跑太花时间了"""
+
+        pr_review_file_name = os.path.join(projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train'
+                                           , f'ALL_{projectName}_data_pr_review_commit_file.tsv')
+        review_comment_file_name = os.path.join(projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train'
+                                                , f'ALL_data_review_comment.tsv')
+
+        out_put_file_name = os.path.join(projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train'
+                                         , f'ALL_{projectName}_data.tsv')
+
+        reviewData = pandasHelper.readTSVFile(pr_review_file_name, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+        reviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
+        print(reviewData.shape)
+
+        commentData = pandasHelper.readTSVFile(review_comment_file_name, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+        commentData.columns = DataProcessUtils.COLUMN_NAME_REVIEW_COMMENT
+        print(commentData.shape)
+
+        result = reviewData.join(other=commentData.set_index('review_comment_pull_request_review_id')
+                                 , on='review_id', how='left')
+
+        print(result.loc[result['review_comment_id'].isna()].shape)
+        pandasHelper.writeTSVFile(out_put_file_name, result)
+
 
 if __name__ == '__main__':
-    # DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_bitcoin_data.tsv',
-    #                                   projectConfig.getRootPath() + r'\data\train\all' + os.sep)
+    DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_bitcoin_data.tsv',
+                                      projectConfig.getRootPath() + r'\data\train\all' + os.sep, hasHead=True)
     #
     # print(pandasHelper.readTSVFile(
     #     projectConfig.getRootPath() + r'\data\train\all\ALL_scala_data_2012_6_to_2012_6.tsv', ))
-
-    a = {0:2, 3:5}
-    b = {1:2, 5:6}
-    print(DataProcessUtils.convertFeatureDictToDataFrame([a,b], 6))
+    #
+    # DataProcessUtils.contactReviewCommentData('bitcoin')
