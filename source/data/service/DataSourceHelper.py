@@ -263,7 +263,8 @@ def processFilePathVectorByGensim(filename=None, df=None):
             file_path_dict[file_path] = set()
         file_path_dict[file_path] = file_path_dict[file_path].union(sub_file_path)
     cur_time = datetime.now()
-    print("init dict(filepath -> sub_filepath) success! number of filepath: %d cur_cost_time: %s" % (len(file_path_dict.keys()), cur_time - start_time))
+    print("init dict(filepath -> sub_filepath) success! number of filepath: %d cur_cost_time: %s" % (
+    len(file_path_dict.keys()), cur_time - start_time))
 
     """获取pr_number -> sub_filepath语料"""
     pr_to_file_path = df[['pr_number', 'filename']]
@@ -273,8 +274,8 @@ def processFilePathVectorByGensim(filename=None, df=None):
     pr_file_path_corpora = []
     for pr in groups:
         paths = list(groups[pr]['filename'])
-        sub_paths = list(map(lambda x: splitFileName(x), paths))
-        sub_paths = reduce(set.union, sub_paths)
+        sub_paths = list(map(lambda x: list(file_path_dict[x]), paths))
+        sub_paths = reduce(lambda x, y: x + y, sub_paths)
         pr_file_path_corpora.append(sub_paths)
     cur_time = datetime.now()
     print("init pr_corpora success! cur_cost_time: ", cur_time - start_time)
