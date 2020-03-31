@@ -1,4 +1,5 @@
 # coding=gbk
+import os
 from datetime import datetime
 import heapq
 import time
@@ -13,6 +14,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.tree import export_graphviz
 
 from source.config.projectConfig import projectConfig
+from source.data.service.DataSourceHelper import processFilePathVectorByGensim
 from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.scikit.service.MLGraphHelper import MLGraphHelper
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
@@ -41,9 +43,18 @@ class MLTrain:
 
         for date in dates:
             startTime = datetime.now()
-            filename = projectConfig.getRootPath() + r'\data\train' + r'\\' + \
-                       f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
-            df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+
+            # """直接读取不带路径的信息"""
+            # filename = projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + \
+            #            f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
+            # df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+
+            """读取带路径的文件信息"""
+            filename = projectConfig.getRootPath() + os.sep + r'data' + os.sep + 'train' + os.sep + \
+                       f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}_include_filepath.csv'
+            df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD,
+                                          sep=StringKeyUtils.STR_SPLIT_SEP_CSV)
+
             """df做预处理"""
             train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, (date[2], date[3]), isNOR=True)
             recommendList = None
@@ -217,12 +228,16 @@ class MLTrain:
          isSTD:对数据是否标准化
          isNOR:对数据是否归一化
         """
-        columnName = ['reviewer_reviewer', 'pr_number', 'review_id', 'commit_sha', 'author', 'pr_created_at',
-                      'pr_commits', 'pr_additions', 'pr_deletions', 'pr_head_label', 'pr_base_label',
-                      'review_submitted_at', 'commit_status_total', 'commit_status_additions',
-                      'commit_status_deletions', 'commit_files', 'author_review_count',
-                      'author_push_count', 'author_submit_gap']
-        df.columns = columnName
+
+        """计算filepath的tf-idf"""
+        df = processFilePathVectorByGensim(df=df)
+
+        # columnName = ['reviewer_reviewer', 'pr_number', 'review_id', 'commit_sha', 'author', 'pr_created_at',
+        #               'pr_commits', 'pr_additions', 'pr_deletions', 'pr_head_label', 'pr_base_label',
+        #               'review_submitted_at', 'commit_status_total', 'commit_status_additions',
+        #               'commit_status_deletions', 'commit_files', 'author_review_count',
+        #               'author_push_count', 'author_submit_gap']
+        # df.columns = columnName
 
         """对df添加一列标识训练集和测试集"""
         df['label'] = df['pr_created_at'].apply(
@@ -255,8 +270,8 @@ class MLTrain:
             lambda x: int(time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S"))))
 
         """去除无用的 commit_sha, review_id 和 pr_number 和review_submitted_at"""
-        df.drop(axis=1, columns=['commit_sha', 'review_id', 'pr_number', 'review_submitted_at'
-                                 ], inplace=True)
+        df.drop(axis=1, columns=['commit_sha', 'review_id', 'pr_number', 'review_submitted_at',
+                                 'author_review_count', 'author_push_count', 'author_submit_gap'], inplace=True)
         # inplace 代表直接数据上面
 
         """参数处理缺省值"""

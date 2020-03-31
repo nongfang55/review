@@ -231,6 +231,9 @@ class StringKeyUtils:
     """tsv 文件使用到的"""
     STR_SPLIT_SEP_TSV = '\t'
 
+    """csv 文件使用到的"""
+    STR_SPLIT_SEP_CSV = ','
+
     """做路径分割可能需要的"""
     STR_SPLIT_SEP_ONE = '\\'
     STR_SPLIT_SEP_TWO = '/'

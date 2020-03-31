@@ -1,0 +1,336 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+import os
+from datetime import datetime
+import operator
+
+import pymysql
+import numpy as np
+import pandas
+import asyncio
+import math
+from gensim import corpora, models
+from functools import reduce
+
+from source.config.projectConfig import projectConfig
+from source.data.service.AsyncSqlHelper import AsyncSqlHelper
+from source.database.AsyncSqlExecuteHelper import getMysqlObj, AsyncSqlExecuteHelper
+from source.utils.ExcelHelper import ExcelHelper
+from source.utils.StringKeyUtils import StringKeyUtils as kt, StringKeyUtils
+from source.utils.pandas.pandasHelper import pandasHelper
+
+# pullRequest表 字段、别名、是否使用
+PULL_REQUEST_COLUMNS = [
+    {'name': kt.STR_KEY_REPO_FULL_NAME, 'alias': 'pr_repo_full_name', 'used': False},
+    {'name': 'number', 'alias': 'pr_id', 'used': True},
+    {'name': kt.STR_KEY_STATE, 'alias': 'pr_state', 'used': True},
+    {'name': kt.STR_KEY_TITLE, 'alias': 'pr_title', 'used': True},
+    {'name': 'user_login', 'alias': 'pr_author', 'used': True},
+    {'name': kt.STR_KEY_BODY, 'alias': 'pr_body', 'used': True},
+    {'name': 'created_at', 'alias': 'pr_created_at', 'used': True},
+    {'name': 'updated_at', 'alias': 'pr_updated_at', 'used': True},
+    {'name': kt.STR_KEY_CLOSED_AT, 'alias': 'pr_closed_at', 'used': True},
+    {'name': kt.STR_KEY_MERGED_AT, 'alias': 'pr_merged_at', 'used': True},
+    {'name': kt.STR_KEY_MERGE_COMMIT_SHA, 'alias': 'pr_merge_commit_sha', 'used': True},
+    {'name': kt.STR_KEY_AUTHOR_ASSOCIATION, 'alias': 'pr_author_association', 'used': True},
+    {'name': kt.STR_KEY_MERGED, 'alias': 'pr_merged', 'used': True},
+    {'name': kt.STR_KEY_COMMENTS, 'alias': 'pr_comments', 'used': True},
+    {'name': kt.STR_KEY_REVIEW_COMMENTS, 'alias': 'pr_review_comments', 'used': True},
+    {'name': kt.STR_KEY_COMMITS, 'alias': 'pr_commits', 'used': True},
+    {'name': kt.STR_KEY_ADDITIONS, 'alias': 'pr_additions', 'used': True},
+    {'name': kt.STR_KEY_DELETIONS, 'alias': 'pr_deletions', 'used': True},
+    {'name': kt.STR_KEY_CHANGED_FILES, 'alias': 'pr_changed_files', 'used': True},
+    {'name': kt.STR_KEY_HEAD_LABEL, 'alias': 'pr_head_label', 'used': True},
+    {'name': kt.STR_KEY_BASE_LABEL, 'alias': 'pr_base_label', 'used': True},
+]
+
+
+async def queryPR(loop, project):
+    """
+    获取某个project的所有pull request
+    @param loop:
+    @param project: string
+    @return: pr DataFrame
+    """
+    # 数据库连接
+    mysql = await getMysqlObj(loop)
+    # 查询维度
+    dimension = []
+    # 最终结果（DataFrame）表头
+    df_columns = []
+    # 根据PULL_REQUEST_COLUMNS的used字段构造需要查询的维度
+    for column in PULL_REQUEST_COLUMNS:
+        if not column['used']:
+            continue
+        dimension.append(column['name'] + " as " + column['alias'])
+        df_columns.append(column['alias'])
+    # 拼接查询维度
+    dimension = ','.join(dimension)
+    # 拼接SQL查询语句
+    sql = "SELECT " + dimension + " FROM pullRequest WHERE repo_full_name = %s LIMIT 20"
+    # 执行SQL语句，获得结果
+    pr = await AsyncSqlHelper.query(mysql, sql, project)
+    return pandas.DataFrame(data=list(pr), columns=df_columns)
+
+
+async def queryReviews(loop, project):
+    """
+    获取某个projectP所有review
+    @param loop:
+    @param PR:
+    @return:
+    """
+    # 数据库连接
+    mysql = await getMysqlObj(loop)
+    # 查询维度
+    dimension = []
+    # 最终结果（DataFrame）表头
+    df_columns = []
+    # 根据PULL_REQUEST_COLUMNS的used字段构造需要查询的维度
+    for column in PULL_REQUEST_COLUMNS:
+        if not column['used']:
+            continue
+        dimension.append(column['name'] + " as " + column['alias'])
+        df_columns.append(column['alias'])
+    # 拼接查询维度
+    dimension = ','.join(dimension)
+    # 拼接SQL查询语句
+    sql = "SELECT " + dimension + " FROM pullRequest WHERE repo_full_name = %s LIMIT 20"
+    # 执行SQL语句，获得结果
+    pr = await AsyncSqlHelper.query(mysql, sql, project)
+    return pandas.DataFrame(data=list(pr), columns=df_columns)
+
+
+async def queryCommitFiles(loop):
+    """
+    获取所有git_file
+    @rtype: commit_files dataframe
+    """
+    # 数据库连接
+    mysql = await getMysqlObj(loop)
+    df_columns = ['commit_sha', 'filename']
+    # 获取所有commit
+    sql = "SELECT commit_sha, filename FROM gitFile"
+    files = await AsyncSqlHelper.query(mysql, sql, None)
+    return pandas.DataFrame(data=list(files), columns=df_columns)
+
+
+def query(project=None, startYear=None, startMonth=None, endYear=None, endMonth=None):
+    loop = asyncio.get_event_loop()
+    task = [asyncio.ensure_future(queryCommitFiles(loop))]
+    tasks = asyncio.gather(*task)
+    loop.run_until_complete(tasks)
+    results = tasks.result()
+    return results
+
+
+def splitFileName(name):
+    """
+    分词函数
+    分词规则：“actionpack／lib／action_view／helpers／form_helperrb：[“actionpack”,“actionpack／lib”,“actionpack／lib／action_view”]
+    @param name: 文件路径
+    @return:
+    """
+    # 初始化结果集
+    result = set()
+    # 获取filename中所有词汇
+    vocs = name.split("/")
+    # 按照论文规则拼接词汇
+    # 如“actionpack／lib／action_view／helpers／form_helperrb可分隔为：“actionpack”,“actionpack／lib”,“actionpack／lib／action_view”)
+    tmp = ""
+    for voc in vocs:
+        tmp += "/" + voc
+        result.add(tmp)
+    return result
+
+
+def attachFileNameToOriginData(project, date):
+    """
+    在训练集中加入file信息
+    @rtype: None
+    """
+    print("-----------------start------------------")
+    start_time = datetime.now()
+
+    # 训练数据路径
+    train_data_path = projectConfig.getRootPath() + os.sep + r'data' + os.sep + 'train' + os.sep
+    # 表格文件路径
+    origin_filepath = train_data_path + f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
+    target_filepath = train_data_path + f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}_include_filepath.csv'
+    # 获取原始表格
+    origin_df = pandasHelper.readTSVFile(origin_filepath, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+
+    # 原始表格表头
+    columns = ['reviewer_reviewer', 'pr_number', 'review_id', 'commit_sha', 'author', 'pr_created_at',
+               'pr_commits', 'pr_additions', 'pr_deletions', 'pr_head_label', 'pr_base_label',
+               'review_submitted_at', 'commit_status_total', 'commit_status_additions',
+               'commit_status_deletions', 'commit_files', 'author_review_count',
+               'author_push_count', 'author_submit_gap']
+    origin_df.columns = columns
+    print("fetch origin data success!")
+
+    print("start fetching commit_file data from mysql......")
+    # 从数据库获取commitFiles DataFrame，包含了每次commit的文件信息
+    results = query(project)
+    commit_files = results[0]
+    cur_time = datetime.now()
+    print("fetch commit_file data success! cur_cost_time: ", cur_time - start_time)
+
+    # 根据commit_sha，合并原始数据和commitFile
+    new_df = pandas.merge(origin_df, commit_files, on="commit_sha", how="left")
+    new_df.to_csv(target_filepath, encoding='utf-8', index=False, header=True)
+    print("attach commit_file data to origin data success! result output to :" + target_filepath)
+    print("-----------------finish------------------")
+
+
+def processFileNameVector(filename):
+    """
+    手工计算tf-idf
+    @param filename: 要读取的文件名（文件是带"include_filepath"的数据）
+    @return: df: 添加路径权重后的dataframe，可直接用于机器学习算法
+    """
+    # 获取包含filename的df
+    df = pandasHelper.readTSVFile(fileName=filename, header=pandasHelper.INT_READ_FILE_WITH_HEAD,
+                                  sep=StringKeyUtils.STR_SPLIT_SEP_CSV)
+    # 统计包含s的pr
+    sub2pr = {}
+    # 统计每个pr中s出现的次数 数据结构：key: prNumber, value: {s:2}
+    pr2sub = {}
+    for index, row in df.iterrows():
+        subs = splitFileName(row['filename'])
+        for sub in subs:
+            if sub not in sub2pr:
+                sub2pr[sub] = set()
+            # 添加出现sub的pr
+            sub2pr[sub].add(row['pr_number'])
+            if row['pr_number'] not in pr2sub:
+                pr2sub[row['pr_number']] = {}
+            if sub not in pr2sub[row['pr_number']]:
+                pr2sub[row['pr_number']][sub] = 0
+            # sub在该pr中出现的次数+1
+            pr2sub[row['pr_number']][sub] += 1
+    # 获取所有出现过的s，添加到表头作为维度
+    path_vector = list(sub2pr.keys())
+    # 计算weight(pr,s) = （s在pr中出现的次数）* （log(所有pr的数量/出现s的PR数量) + 1）
+    pr_path_weight_df_columns = ['pr_number'].extend(path_vector)
+    pr_path_weight_df = pandas.DataFrame(columns=pr_path_weight_df_columns)
+    # 所有pr的数量
+    nt = len(pr2sub.keys())
+    for pr in pr2sub:
+        new_row = {'pr_number': pr}
+        for sub in sub2pr:
+            # 在df中添加新列，默认path权值都为0
+            df[sub] = 0
+            # s在pr中出现的次数
+            tf = 0
+            if sub in pr2sub[pr]:
+                s_cnt = pr2sub[pr][sub]
+            # 出现s的pr数量
+            pr_cnt = len(sub2pr[sub])
+            idf = math.log(nt / pr_cnt) + 1
+            # 计算s在pr中的权值
+            pr_s_weight = tf * idf
+            new_row[sub] = pr_s_weight
+        pr_path_weight_df = pr_path_weight_df.append([new_row], ignore_index=True)
+
+    # 根据pr_number关联pr_path_weight_df和pr_df
+    df = pandas.merge(df, pr_path_weight_df, on="pr_number", how="left")
+    return df
+
+
+def processFilePathVectorByGensim(filename=None, df=None):
+    """
+    用tf-idf模型计算filepath权重
+    @description: 给定文件名或df, 计算filepath的tf-idf（文件是带"include_filepath"的数据）
+    @notice: 语料是按pr_number -> [subFilepaths]定义的
+    @param df: 预先读取好的dataframe
+    @param filename: 指定文件名
+    @return: df: 添加路径权重后的dataframe，可直接用于机器学习算法
+    """
+    print("---------start calculate tf-idf----------")
+    start_time = datetime.now()
+    if df is None:
+        df = pandasHelper.readTSVFile(fileName=filename, header=pandasHelper.INT_READ_FILE_WITH_HEAD,
+                                      sep=StringKeyUtils.STR_SPLIT_SEP_CSV)
+        print("load file success! df size: (%d, %d)" % (df.shape[0], df.shape[1]))
+
+    """获取filepath -> sub_filepath映射表"""
+    file_path_list = set(df['filename'].copy(deep=True))
+    file_path_dict = {}
+    for file_path in file_path_list:
+        sub_file_path = splitFileName(file_path)
+        if file_path not in file_path_dict:
+            file_path_dict[file_path] = set()
+        file_path_dict[file_path] = file_path_dict[file_path].union(sub_file_path)
+    cur_time = datetime.now()
+    print("init dict(filepath -> sub_filepath) success! number of filepath: %d cur_cost_time: %s" % (len(file_path_dict.keys()), cur_time - start_time))
+
+    """获取pr_number -> sub_filepath语料"""
+    pr_to_file_path = df[['pr_number', 'filename']]
+    # 按照pr_number分组，获得原始语料（未经过分词的filepath）"""
+    groups = dict(list(pr_to_file_path.groupby('pr_number')))
+    # 获取目标语料（即经过自定义分词后的语料）
+    pr_file_path_corpora = []
+    for pr in groups:
+        paths = list(groups[pr]['filename'])
+        sub_paths = list(map(lambda x: splitFileName(x), paths))
+        sub_paths = reduce(set.union, sub_paths)
+        pr_file_path_corpora.append(sub_paths)
+    cur_time = datetime.now()
+    print("init pr_corpora success! cur_cost_time: ", cur_time - start_time)
+
+    """计算tf-idf"""
+    print("start tf_idf algorithm......")
+    # 建立词典
+    dictionary = corpora.Dictionary(pr_file_path_corpora)
+    # 基于词典建立新的语料库
+    corpus = [dictionary.doc2bow(text) for text in pr_file_path_corpora]
+    # 用语料库训练TF-IDF模型
+    tf_idf_model = models.TfidfModel(corpus)
+    # 得到加权矩阵
+    path_tf_tdf = list(tf_idf_model[corpus])
+    cur_time = datetime.now()
+    print("finish tf_idf algorithm! cur_cost_time: ", cur_time - start_time)
+
+    """处理path_tf_tdf，构造pr_path加权矩阵"""
+    print("start merge tf_idf to origin_df......")
+    pr_list = list(groups.keys())
+    columns = ['pr_number']
+    path_ids = list(dictionary.token2id.values())
+    path_ids = list(map(lambda x: str(x), path_ids))
+    columns.extend(path_ids)
+    pr_path_weight_df = pandas.DataFrame(columns=columns).fillna(value=0)
+    for index, row in enumerate(path_tf_tdf):
+        new_row = {'pr_number': pr_list[index]}
+        row = list(map(lambda x: (str(x[0]), x[1]), row))
+        path_weight = dict(row)
+        new_row = dict(new_row, **path_weight)
+        pr_path_weight_df = pr_path_weight_df.append(new_row, ignore_index=True)
+
+    """其它数据处理操作"""
+    # NAN填充为0
+    pr_path_weight_df = pr_path_weight_df.fillna(value=0)
+    # 去掉无用的filename列
+    df.drop(axis=1, columns=['filename'], inplace=True)
+    # 因为review和filename是一对多的关系，去掉filename后会存在重复数据，删除重复数据
+    df.drop_duplicates(subset='review_id', keep='first', inplace=True)
+
+    """根据pr_number关联pr_path_weight_df和pr_df"""
+    df = pandas.merge(df, pr_path_weight_df, on="pr_number", how="left")
+    cur_time = datetime.now()
+
+    print("finish merger tf_idf to origin_df! total_cost_time: ", cur_time - start_time)
+    print("------------------finish------------------")
+    return df
+
+
+if __name__ == '__main__':
+    # 给定项目和日期，为指定训练集添加filepath信息
+    # dates = [[2019, 4, 2019, 10], [2019, 7, 2019, 10], [2019, 9, 2019, 10]]
+    # for date in dates:
+    #     attachFileNameToOriginData("akka", date)
+    # 训练数据路径
+    train_data_path = projectConfig.getRootPath() + r'/data/train/'
+    # 表格文件路径
+    filepath = train_data_path + f'ML_rails_data_2018_4_to_2019_4_include_filepath.csv'
+    processFilePathVectorByGensim(filepath)
