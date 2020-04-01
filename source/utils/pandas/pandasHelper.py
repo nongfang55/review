@@ -10,8 +10,8 @@ class pandasHelper:
     INT_READ_FILE_WITH_HEAD = 0
 
     @staticmethod
-    def readTSVFile(fileName, header=INT_READ_FILE_WITHOUT_HEAD, sep=StringKeyUtils.STR_SPLIT_SEP_TSV):  # 负一为无表头
-        train = pandas.read_csv(fileName, sep=sep, header=header)
+    def readTSVFile(fileName, header=INT_READ_FILE_WITHOUT_HEAD, sep=StringKeyUtils.STR_SPLIT_SEP_TSV, low_memory=True):  # 负一为无表头
+        train = pandas.read_csv(fileName, sep=sep, header=header, low_memory=low_memory)
         return train
 
     @staticmethod

@@ -15,6 +15,10 @@ from functools import reduce
 from source.config.projectConfig import projectConfig
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
 from source.database.AsyncSqlExecuteHelper import getMysqlObj, AsyncSqlExecuteHelper
+from source.nlp.FleshReadableUtils import FleshReadableUtils
+from source.nlp.SplitWordHelper import SplitWordHelper
+from source.nltk import nltkFunction
+from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.utils.ExcelHelper import ExcelHelper
 from source.utils.StringKeyUtils import StringKeyUtils as kt, StringKeyUtils
 from source.utils.pandas.pandasHelper import pandasHelper
@@ -264,7 +268,7 @@ def processFilePathVectorByGensim(filename=None, df=None):
         file_path_dict[file_path] = file_path_dict[file_path].union(sub_file_path)
     cur_time = datetime.now()
     print("init dict(filepath -> sub_filepath) success! number of filepath: %d cur_cost_time: %s" % (
-    len(file_path_dict.keys()), cur_time - start_time))
+        len(file_path_dict.keys()), cur_time - start_time))
 
     """获取pr_number -> sub_filepath语料"""
     pr_to_file_path = df[['pr_number', 'filename']]
@@ -323,6 +327,152 @@ def processFilePathVectorByGensim(filename=None, df=None):
     print("finish merger tf_idf to origin_df! total_cost_time: ", cur_time - start_time)
     print("------------------finish------------------")
     return df
+
+
+def appendTextualFeatureVector(inputDf, project, date):
+    """
+    用tf-idf模型计算pr的title, body, review的message 和commit的message权重
+    @description: 给df, 在之前的dataframe的基础上面追加   pr和review的文本形成的tf-idf特征向量
+    @notice: datafrme 必须每一条就是一个单独的review，每个review值能占一条
+    @param df: 预先读取好的dataframe
+    @param project: 指定项目名
+    @param date: 开始年，开始月，结束年，结束月的四元组
+    @return: df: 添加路径权重后的dataframe，可直接用于机器学习算法
+    """
+
+    """ 注意： ALL_data 为73个项目 有列名 少了一个是来源于合并"""
+
+    print("input shape:", inputDf.shape)
+    print(date)
+
+    df = None
+    for i in range(date[0] * 12 + date[1], date[2] * 12 + date[3] + 1):
+        y = int((i - i % 12) / 12)
+        m = i % 12
+        if m == 0:
+            m = 12
+            y = y - 1
+        print(y, m)
+        filename = f'ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+        path = projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'all' + os.sep
+        temp = pandasHelper.readTSVFile(os.path.join(path, filename), pandasHelper.INT_READ_FILE_WITH_HEAD
+                                        , sep=StringKeyUtils.STR_SPLIT_SEP_TSV)
+        if df is None:
+            df = temp
+        else:
+            df = df.append(temp)
+        print(df.shape)
+    df.reset_index(drop=True, inplace=True)
+
+    """处理NAN"""
+    df.fillna(value='', inplace=True)
+
+    """过滤状态非关闭的review"""
+    df = df.loc[df['pr_state'] == 'closed'].copy(deep=True)
+    print("after fliter closed review:", df.shape)
+
+    """先对输入数据做精简 只留下感兴趣的数据"""
+    df = df[['pr_number', 'review_id', 'review_comment_id', 'pr_title', 'pr_body',
+             'commit_commit_message', 'review_comment_body']].copy(deep=True)
+
+    print("before filter:", df.shape)
+    df.drop_duplicates(['pr_number', 'review_id', 'review_comment_id'], inplace=True)
+    print("after filter:", df.shape)
+
+    """处理一个review有多个comment的场景  把comment都合并到一起"""
+    commentGroups = dict(list(df['review_comment_body'].groupby(df['review_id'])))  # 一个review的所有评论字符串连接
+
+    """留下去除comment之后的信息 去重"""
+    df = df[['pr_number', 'review_id', 'pr_title', 'pr_body', 'commit_commit_message']].copy(deep=True)
+    print(df.shape)
+    df.drop_duplicates(inplace=True)
+    print(df.shape)
+
+    def sumString(series):
+        res = ""
+        for s in series:
+            res += " " + s
+        return res
+
+    """转换comment为文本向量"""
+    df['review_comment_body'] = df['review_id'].apply(lambda x: sumString(commentGroups[x]))
+    # print(df.loc[df['review_comment_body'] != " "].shape)
+
+    """先尝试所有信息团在一起"""
+
+    """用于收集所有文本向量分词"""
+    stopwords = SplitWordHelper().getEnglishStopList()  # 获取通用英语停用词
+
+    textList = []
+    for row in df.itertuples(index=True, name='Pandas'):
+        """获取pull request的标题"""
+        pr_title = getattr(row, 'pr_title')
+        pr_title_word_list = [x for x in FleshReadableUtils.word_list(pr_title) if x not in stopwords]
+
+        """初步尝试提取词干效果反而下降了 。。。。"""
+
+        """对单词做提取词干"""
+        pr_title_word_list = nltkFunction.stemList(pr_title_word_list)
+        textList.append(pr_title_word_list)
+
+        """pull request的body"""
+        pr_body = getattr(row, 'pr_body')
+        pr_body_word_list = [x for x in FleshReadableUtils.word_list(pr_body) if x not in stopwords]
+        """对单词做提取词干"""
+        pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
+        textList.append(pr_body_word_list)
+
+        """review 的comment"""
+        review_comment = getattr(row, 'review_comment_body')
+        review_comment_word_list = [x for x in FleshReadableUtils.word_list(review_comment) if x not in stopwords]
+        """对单词做提取词干"""
+        review_comment_word_list = nltkFunction.stemList(review_comment_word_list)
+        textList.append(review_comment_word_list)
+
+        """review的commit的 message"""
+        commit_message = getattr(row, 'commit_commit_message')
+        commit_message_word_list = [x for x in FleshReadableUtils.word_list(commit_message) if x not in stopwords]
+        """对单词做提取词干"""
+        commit_message_word_list = nltkFunction.stemList(commit_message_word_list)
+        textList.append(commit_message_word_list)
+
+    print(textList.__len__())
+
+    """对分词列表建立字典 并提取特征数"""
+    dictionary = corpora.Dictionary(textList)
+    print('词典：', dictionary)
+
+    feature_cnt = len(dictionary.token2id)
+    print("词典特征数：", feature_cnt)
+
+    """根据词典建立语料库"""
+    corpus = [dictionary.doc2bow(text) for text in textList]
+    # print('语料库:', corpus)
+
+    """语料库训练TF-IDF模型"""
+    tfidf = models.TfidfModel(corpus)
+
+    """再次遍历数据，形成向量，向量是稀疏矩阵的形式"""
+    wordVectors = []
+    for i in range(0, df.shape[0]):
+        words = []
+        for j in range(0, 4):
+            words.extend(textList[4 * i + j])
+        # print(words)
+        wordVectors.append(dict(tfidf[dictionary.doc2bow(words)]))
+    print(wordVectors.__len__())
+    """代表文本特征的dataframe"""
+    wordFeatures = DataProcessUtils.convertFeatureDictToDataFrame(wordVectors, feature_cnt)
+    wordFeatures.reset_index(drop=True, inplace=True)
+    # print(inputDf.dtypes)
+    # print(wordFeatures.dtypes)
+    wordFeatures.astype('float64')
+    wordFeatures.columns = ["word_" + str(x) for x in range(1, wordFeatures.shape[1] + 1)]
+    print("word features:", wordFeatures.shape)
+    inputDf = pandas.concat([inputDf, wordFeatures], axis=1)
+    # print("input df:", inputDf.shape)
+    # print(inputDf.columns)
+    return inputDf
 
 
 if __name__ == '__main__':

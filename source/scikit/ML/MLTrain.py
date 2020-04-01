@@ -9,12 +9,13 @@ import graphviz
 import numpy
 import pandas
 from pandas import DataFrame
+from sklearn.decomposition import PCA
 from sklearn.model_selection import PredefinedSplit, GridSearchCV
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.tree import export_graphviz
 
 from source.config.projectConfig import projectConfig
-from source.data.service.DataSourceHelper import processFilePathVectorByGensim
+from source.data.service.DataSourceHelper import processFilePathVectorByGensim, appendTextualFeatureVector
 from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.scikit.service.MLGraphHelper import MLGraphHelper
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
@@ -48,15 +49,15 @@ class MLTrain:
             # filename = projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + \
             #            f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
             # df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+            # print("raw df:", df.shape)
 
             """读取带路径的文件信息"""
             filename = projectConfig.getRootPath() + os.sep + r'data' + os.sep + 'train' + os.sep + \
                        f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}_include_filepath.csv'
             df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD,
                                           sep=StringKeyUtils.STR_SPLIT_SEP_CSV)
-
             """df做预处理"""
-            train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, (date[2], date[3]), isNOR=True)
+            train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, date, project, isNOR=True)
             recommendList = None
             answerList = None
             """根据算法获得推荐列表"""
@@ -103,7 +104,7 @@ class MLTrain:
                 isNOR = True
                 if i == 1 or i == 3:
                     isNOR = False  # 对伯努利不做归一
-                train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, (date[2], date[3]),
+                train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, date, project,
                                                                                       isNOR=isNOR)
 
                 """根据算法获得推荐列表"""
@@ -184,8 +185,8 @@ class MLTrain:
         ps = PredefinedSplit(test_fold=test_fold)
 
         grid_parameters = [
-            {'kernel': ['rbf'], 'gamma': [0.00075, 0.0001, 0.0002],
-             'C': [105, 108, 110, 112, 115], 'decision_function_shape': ['ovr']}]
+            {'kernel': ['rbf'], 'gamma': [0.0005, 0.00075, 0.0001],
+             'C': [100, 105, 108, 110], 'decision_function_shape': ['ovr']}]
         # {'kernel': ['linear'], 'C': [90, 95, 100],
         #  'decision_function_shape': ['ovr', 'ovo'],
         #  'class_weight': ['balanced', None]}]  # 调节参数
@@ -198,11 +199,11 @@ class MLTrain:
           需要自定义验证集 如果使用自定义验证集   GridSearchCVA(CV=ps)
 
         """
-        clf = GridSearchCV(clf, param_grid=grid_parameters, cv=ps, n_jobs=-1)  # 网格搜索参数
-        clf.fit(X=train_data, y=train_data_y.astype('float'))
+        # clf = GridSearchCV(clf, param_grid=grid_parameters, cv=ps)  # 网格搜索参数
+        clf.fit(X=train_data, y=train_data_y)
         # clf.fit(X=train_features, y=train_label)
 
-        print(clf.best_params_)
+        # print(clf.best_params_)
 
         # clf = svm.SVC(C=100, kernel='linear', probability=True)
         # clf.fit(train_data, train_data_y)
@@ -212,7 +213,7 @@ class MLTrain:
         # print(pre)
         # print(pre_class)
         """查看算法的学习曲线"""
-        # MLGraphHelper.plot_learning_curve(clf, 'SVM', train_data, train_data_y).show()
+        MLGraphHelper.plot_learning_curve(clf, 'SVM', train_data, train_data_y).show()
 
         recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
         # print(recommendList.__len__())
@@ -221,7 +222,7 @@ class MLTrain:
         return [recommendList, answer]
 
     @staticmethod
-    def preProcess(df, testDate, isSTD=False, isNOR=False):
+    def preProcess(df, date, project, isSTD=False, isNOR=False):
         """参数说明
          df：读取的dataframe对象
          testDate:作为测试的年月 (year,month)
@@ -231,6 +232,10 @@ class MLTrain:
 
         """计算filepath的tf-idf"""
         df = processFilePathVectorByGensim(df=df)
+        print("filepath df:", df.shape)
+
+        # """在现在的dataframe的基础上面追加review相关的文本的信息特征"""
+        # df = appendTextualFeatureVector(df, project, date)
 
         # columnName = ['reviewer_reviewer', 'pr_number', 'review_id', 'commit_sha', 'author', 'pr_created_at',
         #               'pr_commits', 'pr_additions', 'pr_deletions', 'pr_head_label', 'pr_base_label',
@@ -241,8 +246,8 @@ class MLTrain:
 
         """对df添加一列标识训练集和测试集"""
         df['label'] = df['pr_created_at'].apply(
-            lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_year == testDate[0] and
-                       time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_mon == testDate[1]))
+            lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_year == date[2] and
+                       time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_mon == date[3]))
         """对人名字做数字处理"""
         MLTrain.changeStringToNumber(df, ['reviewer_reviewer', 'author'])
         print(df.shape)
@@ -270,8 +275,7 @@ class MLTrain:
             lambda x: int(time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S"))))
 
         """去除无用的 commit_sha, review_id 和 pr_number 和review_submitted_at"""
-        df.drop(axis=1, columns=['commit_sha', 'review_id', 'pr_number', 'review_submitted_at',
-                                 'author_review_count', 'author_push_count', 'author_submit_gap'], inplace=True)
+        df.drop(axis=1, columns=['commit_sha', 'review_id', 'pr_number', 'review_submitted_at'], inplace=True)
         # inplace 代表直接数据上面
 
         """参数处理缺省值"""
@@ -295,6 +299,14 @@ class MLTrain:
 
         train_data_y = train_data['reviewer_reviewer'].copy(deep=True)
         train_data.drop(axis=1, columns=['reviewer_reviewer'], inplace=True)
+
+        # """主成分分析"""
+        # pca = PCA()
+        # train_data = pca.fit_transform(train_data)
+        # print("after pca train:", train_data.shape)
+        # print(pca.explained_variance_ratio_)
+        # test_data = pca.transform(test_data)
+        # print("after pca test:", test_data.shape)
 
         """参数规范化"""
         if isSTD:
@@ -432,8 +444,11 @@ class MLTrain:
         """对决策树的参数做调参"""
         param_test2 = {'max_depth': range(3, 14, 2), 'min_samples_split': range(50, 201, 20)}
         clf = GridSearchCV(estimator=clf, param_grid=param_test2, iid=False, cv=5)
-        clf.fit(test_data, test_data_y)
+        clf.fit(train_data, train_data_y)
         # gsearch2.grid_scores_, gsearch2.best_params_, gsearch2.best_score_
+
+        """查看算法的学习曲线"""
+        MLGraphHelper.plot_learning_curve(clf, 'RF', train_data, train_data_y).show()
 
         pre = clf.predict_proba(test_data)
         pre_class = clf.classes_
@@ -448,7 +463,7 @@ class MLTrain:
 
 
 if __name__ == '__main__':
-    # dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4)]
-    dates = [(2019, 3, 2019, 4)]
-    MLTrain.testMLAlgorithms('rails', dates, StringKeyUtils.STR_ALGORITHM_SVM)
+    dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4)]
+    # dates = [(2018, 7, 2019, 4)]
+    MLTrain.testMLAlgorithms('rails', dates, StringKeyUtils.STR_ALGORITHM_RF)
     # MLTrain.testBayesAlgorithms('akka', dates)

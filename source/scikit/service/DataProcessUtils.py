@@ -224,10 +224,10 @@ class DataProcessUtils:
 
 
 if __name__ == '__main__':
-    DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_bitcoin_data.tsv',
+    DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_rails_data.tsv',
                                       projectConfig.getRootPath() + r'\data\train\all' + os.sep, hasHead=True)
     #
     # print(pandasHelper.readTSVFile(
     #     projectConfig.getRootPath() + r'\data\train\all\ALL_scala_data_2012_6_to_2012_6.tsv', ))
     #
-    # DataProcessUtils.contactReviewCommentData('bitcoin')
+    # DataProcessUtils.contactReviewCommentData('rails')
