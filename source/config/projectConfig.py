@@ -89,6 +89,24 @@ class projectConfig:
     def getChangeTriggerPRPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CHANGE_TRIGGER)
 
+    @staticmethod
+    def getPrCommitRelationPath():
+        pr_commit_relation_path = projectConfig.getRootPath() + os.sep + 'data' \
+                                  + os.sep + 'train' + os.sep + 'prCommitRelation'
+        return pr_commit_relation_path
+
+    @staticmethod
+    def getDataTrainPath():
+        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train'
+
+    @staticmethod
+    def getCommitFilePath():
+        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'commitFileData'
+
+    @staticmethod
+    def getFPSDataPath():
+        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'FPS'
+
 
 if __name__ == "__main__":
     print(projectConfig.getRootPath())

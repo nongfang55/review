@@ -70,3 +70,36 @@ class RecommendMetricUtils:
                 # print("score:", totalScore)
             MMR[i] = totalScore / recommendCase.__len__()
         return MMR
+
+    @staticmethod
+    def precisionK(recommendCase, answerCase, k=5):
+        """top k precision
+           top k recall
+           top k f-measure
+           输入参数为多个预测和实际的推荐列表的列表"""
+        precisonk = [0 for x in range(0, k)]
+        recallk = [0 for x in range(0, k)]
+        fmeasurek = [0 for x in range(0, k)]
+        if recommendCase.__len__() != answerCase.__len__():
+            raise Exception("case is not right")
+
+        for i in range(0, k):
+            totalPrecisionScore = 0
+            totalRecallScore = 0
+            casePos = 0
+            for recommendList in recommendCase:
+                answerList = answerCase[casePos]
+                recommendList = recommendList[0:i + 1]
+                casePos += 1
+
+                precision = [x for x in recommendList if x in answerList].__len__() / recommendList.__len__()
+                recall = [x for x in answerList if x in recommendList].__len__() / answerList.__len__()
+                totalPrecisionScore += precision
+                totalRecallScore += recall
+            totalPrecisionScore /= recommendCase.__len__()
+            totalRecallScore /= recommendCase.__len__()
+            fmeasure = (totalRecallScore * totalRecallScore) / (totalRecallScore + totalPrecisionScore)
+            precisonk[i] = totalPrecisionScore
+            recallk[i] = totalRecallScore
+            fmeasurek[i] = fmeasure
+        return precisonk, recallk, fmeasurek
