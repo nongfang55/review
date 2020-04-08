@@ -1,4 +1,5 @@
 # coding=gbk
+import heapq
 import os
 import time
 from datetime import datetime
@@ -229,6 +230,58 @@ class DataProcessUtils:
         ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
 
     @staticmethod
+    def saveFinallyResult(filename, sheetName, topks, mrrs, precisionks, recallks, fmeasureks):
+        """用于最后的几个月结果算平均做汇总"""
+
+        """时间和准确率"""
+        content = ['', '', "AVG_TopKAccuracy"]
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', '', 1, 2, 3, 4, 5]
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', ''] + DataProcessUtils.getAvgScore(topks)
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', '', 'AVG_MRR']
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', '', 1, 2, 3, 4, 5]
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', ''] + DataProcessUtils.getAvgScore(mrrs)
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', '', 'AVG_precisionK']
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', '', 1, 2, 3, 4, 5]
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', ''] + DataProcessUtils.getAvgScore(precisionks)
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', '', 'AVG_recallk']
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', '', 1, 2, 3, 4, 5]
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', ''] + DataProcessUtils.getAvgScore(recallks)
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', '', 'AVG_F-Measure']
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', '', 1, 2, 3, 4, 5]
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['', ''] + DataProcessUtils.getAvgScore(fmeasureks)
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        content = ['']
+        ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+
+    @staticmethod
+    def getAvgScore(scores):
+        """计算平均得分"""
+        avg = []
+        for i in range(0, scores[0].__len__()):
+            avg.append(0)
+        for score in scores:
+            for i in range(0, score.__len__()):
+                avg[i] += score[i]
+        for i in range(0, scores[0].__len__()):
+            avg[i] /= scores.__len__()
+        return avg
+
+
+    @staticmethod
     def convertFeatureDictToDataFrame(dicts, featureNum):
         """通过转换 feature的形式来让tf-idf 模型生成的数据可以转换成向量"""
         ar = numpy.zeros((dicts.__len__(), featureNum))
@@ -325,7 +378,7 @@ class DataProcessUtils:
     def contactFPSData(projectName):
         """
         通过 ALL_{projectName}_data_pr_review_commit_file
-             ALL_commit_file
+             ALL_{projectName}_commit_file
              ALL_data_review_comment 三个文件拼接出FPS所需信息量的文件
         """
 
@@ -387,6 +440,178 @@ class DataProcessUtils:
                                           targetFileName=f'FPS_{projectName}_data', dateCol='pr_created_at',
                                           dataFrame=data)
 
+    @staticmethod
+    def convertStringTimeToTimeStrip(s):
+        return int(time.mktime(time.strptime(s, "%Y-%m-%d %H:%M:%S")))
+
+    @staticmethod
+    def contactMLData(projectName):
+        """
+        通过 ALL_{projectName}_data_pr_review_commit_file
+             ALL_commit_file
+             ALL_data_review_comment 三个文件初步拼接出ML所需信息量的文件
+        """
+
+        """
+          选择特征  
+        """
+
+        time1 = datetime.now()
+        data_train_path = projectConfig.getDataTrainPath()
+        commit_file_data_path = projectConfig.getCommitFilePath()
+        pr_commit_relation_path = projectConfig.getPrCommitRelationPath()
+        prReviewData = pandasHelper.readTSVFile(
+            os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
+        prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
+        print("raw pr review :", prReviewData.shape)
+
+        print("read file cost time:", datetime.now() - time1)
+
+        """过滤状态非关闭的pr review"""
+        prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
+        print("after fliter closed pr:", prReviewData.shape)
+
+        """过滤pr 作者就是reviewer的情况"""
+        prReviewData = prReviewData.loc[prReviewData['pr_user_login']
+                                        != prReviewData['review_user_login']].copy(deep=True)
+        print("after fliter author:", prReviewData.shape)
+
+        """过滤不需要的字段"""
+        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at',
+                                     'pr_commits', 'pr_additions', 'pr_deletions',
+                                     'pr_changed_files', 'pr_head_label', 'pr_base_label', 'pr_user_login']].copy(
+            deep=True)
+        prReviewData.drop_duplicates(inplace=True)
+        prReviewData.reset_index(drop=True, inplace=True)
+        print("after fliter pr_review:", prReviewData.shape)
+
+        """尝试添加 作者总共提交次数，作者提交时间间隔，作者review次数的特征"""
+        author_push_count = []
+        author_submit_gap = []
+        author_review_count = []
+        pos = 0
+        for data in prReviewData.itertuples():
+            pullNumber = getattr(data, 'pr_number')
+            author = getattr(data, 'pr_user_login')
+            temp = prReviewData.loc[prReviewData['pr_user_login'] == author].copy(deep=True)
+            temp = temp.loc[temp['pr_number'] < pullNumber].copy(deep=True)
+            push_num = temp['pr_number'].drop_duplicates().shape[0]
+            author_push_count.append(push_num)
+
+            gap = DataProcessUtils.convertStringTimeToTimeStrip(prReviewData.loc[prReviewData.shape[0] - 1,
+                            'pr_created_at']) - DataProcessUtils.convertStringTimeToTimeStrip(
+                prReviewData.loc[0, 'pr_created_at'])
+            if push_num != 0:
+                last_num = list(temp['pr_number'])[-1]
+                this_created_time = getattr(data, 'pr_created_at')
+                last_created_time = list(prReviewData.loc[prReviewData['pr_number'] == last_num]['pr_created_at'])[0]
+                gap = int(time.mktime(time.strptime(this_created_time, "%Y-%m-%d %H:%M:%S"))) - int(time.mktime(time.strptime(last_created_time, "%Y-%m-%d %H:%M:%S")))
+            author_submit_gap.append(gap)
+
+            temp = prReviewData.loc[prReviewData['review_user_login'] == author].copy(deep=True)
+            temp = temp.loc[temp['pr_number'] < pullNumber].copy(deep=True)
+            review_num = temp.shape[0]
+            author_review_count.append(review_num)
+        prReviewData['author_push_count'] = author_push_count
+        prReviewData['author_review_count'] = author_review_count
+        prReviewData['author_submit_gap'] = author_submit_gap
+
+        data = prReviewData
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getMLDataPath(),
+                                          targetFileName=f'ML_{projectName}_data', dateCol='pr_created_at',
+                                          dataFrame=data)
+
+    @staticmethod
+    def convertLabelListToDataFrame(label_data, pull_list, maxNum):
+        # maxNum 为候选者的数量，会有答案不在名单的可能
+        ar = numpy.zeros((label_data.__len__(), maxNum), dtype=int)
+        pos = 0
+        for pull_num in pull_list:
+            labels = label_data[pull_num]
+            for label in labels:
+                if label <= maxNum:
+                    ar[pos][label - 1] = 1
+            pos += 1
+        return ar
+
+    @staticmethod
+    def convertLabelListToListArray(label_data, pull_list):
+        # maxNum 为候选者的数量，会有答案不在名单的可能
+        answerList = []
+        for pull_num in pull_list:
+            answer = []
+            labels = label_data[pull_num]
+            for label in labels:
+                answer.append(label)
+            answerList.append(answer)
+        return answerList
+
+    @staticmethod
+    def getListFromProbable(probable, classList, k):  # 推荐k个
+        recommendList = []
+        for case in probable:
+            max_index_list = list(map(lambda x: numpy.argwhere(case == x), heapq.nlargest(k, case)))
+            caseList = []
+            pos = 0
+            while pos < k:
+                item = max_index_list[pos]
+                for i in item:
+                    caseList.append(classList[i[0]])
+                pos += item.shape[0]
+            recommendList.append(caseList)
+        return recommendList
+
+    @staticmethod
+    def convertMultilabelProbaToDataArray(probable):  # 推荐k个
+        """这个格式是sklearn 多标签的可能性预测结果 转换成通用格式"""
+        result = numpy.empty((probable[0].shape[0], probable.__len__()))
+        y = 0
+        for pro in probable:
+            x = 0
+            for p in pro[:, 1]:
+                result[x][y] = p
+                x += 1
+            y += 1
+        return result
+
+    @staticmethod
+    def contactIRData(projectName):
+        """
+        通过 ALL_{projectName}_data_pr_review_commit_file
+             ALL_{projectName}_commit_file
+             ALL_data_review_comment 三个文件拼接出FPS所需信息量的文件
+        """
+
+        """读取信息  IR 只需要pr 的title和body的信息"""
+        data_train_path = projectConfig.getDataTrainPath()
+        prReviewData = pandasHelper.readTSVFile(
+            os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
+        prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
+        print("raw pr review :", prReviewData.shape)
+
+        """过滤状态非关闭的pr review"""
+        prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
+        print("after fliter closed pr:", prReviewData.shape)
+
+        """过滤pr 作者就是reviewer的情况"""
+        prReviewData = prReviewData.loc[prReviewData['pr_user_login']
+                                        != prReviewData['review_user_login']].copy(deep=True)
+        print("after fliter author:", prReviewData.shape)
+
+        """过滤不需要的字段"""
+        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_title', 'pr_body', 'pr_created_at']].copy(deep=True)
+        prReviewData.drop_duplicates(inplace=True)
+        prReviewData.reset_index(drop=True, inplace=True)
+        print("after fliter pr_review:", prReviewData.shape)
+        data = prReviewData
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getIRDataPath(),
+                                          targetFileName=f'IR_{projectName}_data', dateCol='pr_created_at',
+                                          dataFrame=data)
+
 
 if __name__ == '__main__':
     # DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_rails_data.tsv',
@@ -397,5 +622,8 @@ if __name__ == '__main__':
     #
     # DataProcessUtils.contactReviewCommentData('rails')
     #
-    # DataProcessUtils.splitProjectCommitFileData('rails')
-    DataProcessUtils.contactFPSData('rails')
+    # DataProcessUtils.splitProjectCommitFileData('akka')
+    # DataProcessUtils.contactFPSData('rails')
+
+    # DataProcessUtils.contactMLData('akka')
+    DataProcessUtils.contactIRData('bitcoin')

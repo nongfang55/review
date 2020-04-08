@@ -107,6 +107,14 @@ class projectConfig:
     def getFPSDataPath():
         return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'FPS'
 
+    @staticmethod
+    def getMLDataPath():
+        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'ML'
+
+    @staticmethod
+    def getIRDataPath():
+        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'IR'
+
 
 if __name__ == "__main__":
     print(projectConfig.getRootPath())

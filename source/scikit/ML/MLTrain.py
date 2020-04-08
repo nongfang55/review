@@ -15,7 +15,9 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.tree import export_graphviz
 
 from source.config.projectConfig import projectConfig
-from source.data.service.DataSourceHelper import processFilePathVectorByGensim, appendTextualFeatureVector
+from source.data.service.DataSourceHelper import processFilePathVectorByGensim, appendTextualFeatureVector, \
+    appendFilePathFeatureVector
+from source.scikit.ML.MultipleLabelAlgorithm import MultipleLabelAlgorithm
 from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.scikit.service.MLGraphHelper import MLGraphHelper
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
@@ -45,17 +47,18 @@ class MLTrain:
         for date in dates:
             startTime = datetime.now()
 
-            # """直接读取不带路径的信息"""
-            # filename = projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + \
-            #            f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
-            # df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
-            # print("raw df:", df.shape)
+            """直接读取不带路径的信息"""
+            filename = projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + \
+                       f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}.tsv'
+            df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+            print("raw df:", df.shape)
 
-            """读取带路径的文件信息"""
-            filename = projectConfig.getRootPath() + os.sep + r'data' + os.sep + 'train' + os.sep + \
-                       f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}_include_filepath.csv'
-            df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD,
-                                          sep=StringKeyUtils.STR_SPLIT_SEP_CSV)
+            # """读取带路径的文件信息"""
+            # filename = projectConfig.getRootPath() + os.sep + r'data' + os.sep + 'train' + os.sep + \
+            #            f'ML_{project}_data_{date[0]}_{date[1]}_to_{date[2]}_{date[3]}_include_filepath.csv'
+            # df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD,
+            #                               sep=StringKeyUtils.STR_SPLIT_SEP_CSV)
+
             """df做预处理"""
             train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, date, project, isNOR=True)
             recommendList = None
@@ -154,7 +157,7 @@ class MLTrain:
         # print(clf.classes_)
         pre_class = clf.classes_
 
-        recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
+        recommendList = DataProcessUtils.getListFromProbable(pre, pre_class, recommendNum)
         # print(recommendList)
         answer = [[x] for x in test_data_y]
         # print(answer)
@@ -215,49 +218,165 @@ class MLTrain:
         """查看算法的学习曲线"""
         MLGraphHelper.plot_learning_curve(clf, 'SVM', train_data, train_data_y).show()
 
-        recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
+        recommendList = DataProcessUtils.getListFromProbable(pre, pre_class, recommendNum)
         # print(recommendList.__len__())
         answer = [[x] for x in test_data_y]
         # print(answer.__len__())
         return [recommendList, answer]
 
+    # @staticmethod
+    # def preProcess(df, date, project, isSTD=False, isNOR=False):
+    #     """参数说明
+    #      df：读取的dataframe对象
+    #      testDate:作为测试的年月 (year,month)
+    #      isSTD:对数据是否标准化
+    #      isNOR:对数据是否归一化
+    #     """
+    #
+    #     # """计算filepath的tf-idf"""
+    #     # df = processFilePathVectorByGensim(df=df)
+    #     # print("filepath df:", df.shape)
+    #
+    #     # """在现在的dataframe的基础上面追加review相关的文本的信息特征"""
+    #     # df = appendTextualFeatureVector(df, project, date)
+    #
+    #     columnName = ['reviewer_reviewer', 'pr_number', 'review_id', 'commit_sha', 'author', 'pr_created_at',
+    #                   'pr_commits', 'pr_additions', 'pr_deletions', 'pr_head_label', 'pr_base_label',
+    #                   'review_submitted_at', 'commit_status_total', 'commit_status_additions',
+    #                   'commit_status_deletions', 'commit_files', 'author_review_count',
+    #                   'author_push_count', 'author_submit_gap']
+    #     df.columns = columnName
+    #
+    #     """对df添加一列标识训练集和测试集"""
+    #     df['label'] = df['pr_created_at'].apply(
+    #         lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_year == date[2] and
+    #                    time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_mon == date[3]))
+    #     """对人名字做数字处理"""
+    #     MLTrain.changeStringToNumber(df, ['reviewer_reviewer', 'author'])
+    #     print(df.shape)
+    #
+    #     """"去除除了时间间隔之外的NAN数据"""
+    #     df = df[~df['pr_head_label'].isna()]
+    #     df = df[~df['pr_created_at'].isna()]
+    #     df = df[~df['review_submitted_at'].isna()]
+    #     df.reset_index(drop=True, inplace=True)
+    #     print(df.shape)
+    #
+    #     """对branch做处理  舍弃base,head做拆分 并数字化"""
+    #     df.drop(axis=1, columns=['pr_base_label'], inplace=True)  # inplace 代表直接数据上面
+    #     df['pr_head_tail'] = df['pr_head_label']
+    #     df['pr_head_tail'] = df['pr_head_tail'].apply(lambda x: x.split(':')[1])
+    #     df['pr_head_label'] = df['pr_head_label'].apply(lambda x: x.split(':')[0])
+    #
+    #     MLTrain.changeStringToNumber(df, ['pr_head_tail'])
+    #     MLTrain.changeStringToNumber(df, ['pr_head_label'])
+    #
+    #     """时间转时间戳处理"""
+    #     df['pr_created_at'] = df['pr_created_at'].apply(
+    #         lambda x: int(time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S"))))
+    #     df['review_submitted_at'] = df['review_submitted_at'].apply(
+    #         lambda x: int(time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S"))))
+    #
+    #     """去除无用的 commit_sha, review_id 和 pr_number 和review_submitted_at"""
+    #     df.drop(axis=1, columns=['commit_sha', 'review_id', 'pr_number', 'review_submitted_at'], inplace=True)
+    #     # inplace 代表直接数据上面
+    #
+    #     """参数处理缺省值"""
+    #     df.fillna(value=999999999999, inplace=True)
+    #     # print(df)
+    #
+    #     """测试集和训练集分开"""
+    #     test_data = df.loc[df['label']].copy(deep=True)
+    #
+    #     print("test:", test_data.shape)
+    #     train_data = df[df['label'] == False].copy(deep=True)
+    #     print("train:", train_data.shape)
+    #
+    #     test_data.drop(axis=1, columns=['label'], inplace=True)
+    #     train_data.drop(axis=1, columns=['label'], inplace=True)
+    #
+    #     """分割 tag和feature"""
+    #
+    #     test_data_y = test_data['reviewer_reviewer'].copy(deep=True)
+    #     test_data.drop(axis=1, columns=['reviewer_reviewer'], inplace=True)
+    #
+    #     train_data_y = train_data['reviewer_reviewer'].copy(deep=True)
+    #     train_data.drop(axis=1, columns=['reviewer_reviewer'], inplace=True)
+    #
+    #     # """主成分分析"""
+    #     # pca = PCA()
+    #     # train_data = pca.fit_transform(train_data)
+    #     # print("after pca train:", train_data.shape)
+    #     # print(pca.explained_variance_ratio_)
+    #     # test_data = pca.transform(test_data)
+    #     # print("after pca test:", test_data.shape)
+    #
+    #     """参数规范化"""
+    #     if isSTD:
+    #         stdsc = StandardScaler()
+    #         train_data_std = stdsc.fit_transform(train_data)
+    #         test_data_std = stdsc.transform(test_data)
+    #         # print(train_data_std)
+    #         # print(test_data_std.shape)
+    #         return train_data_std, train_data_y, test_data_std, test_data_y
+    #     elif isNOR:
+    #         maxminsc = MinMaxScaler()
+    #         train_data_std = maxminsc.fit_transform(train_data)
+    #         test_data_std = maxminsc.transform(test_data)
+    #         return train_data_std, train_data_y, test_data_std, test_data_y
+    #     else:
+    #         return train_data, train_data_y, test_data, test_data_y
+
     @staticmethod
-    def preProcess(df, date, project, isSTD=False, isNOR=False):
+    def preProcess(df, date, project, featureType, isSTD=False, isNOR=False):
         """参数说明
          df：读取的dataframe对象
          testDate:作为测试的年月 (year,month)
          isSTD:对数据是否标准化
          isNOR:对数据是否归一化
         """
-
-        """计算filepath的tf-idf"""
-        df = processFilePathVectorByGensim(df=df)
-        print("filepath df:", df.shape)
-
-        # """在现在的dataframe的基础上面追加review相关的文本的信息特征"""
-        # df = appendTextualFeatureVector(df, project, date)
-
-        # columnName = ['reviewer_reviewer', 'pr_number', 'review_id', 'commit_sha', 'author', 'pr_created_at',
-        #               'pr_commits', 'pr_additions', 'pr_deletions', 'pr_head_label', 'pr_base_label',
-        #               'review_submitted_at', 'commit_status_total', 'commit_status_additions',
-        #               'commit_status_deletions', 'commit_files', 'author_review_count',
-        #               'author_push_count', 'author_submit_gap']
-        # df.columns = columnName
+        print("start df shape:", df.shape)
+        """过滤NA的数据"""
+        df.dropna(axis=0, how='any', inplace=True)
+        print("after fliter na:", df.shape)
 
         """对df添加一列标识训练集和测试集"""
         df['label'] = df['pr_created_at'].apply(
             lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_year == date[2] and
                        time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_mon == date[3]))
-        """对人名字做数字处理"""
-        MLTrain.changeStringToNumber(df, ['reviewer_reviewer', 'author'])
-        print(df.shape)
-
-        """"去除除了时间间隔之外的NAN数据"""
-        df = df[~df['pr_head_label'].isna()]
-        df = df[~df['pr_created_at'].isna()]
-        df = df[~df['review_submitted_at'].isna()]
         df.reset_index(drop=True, inplace=True)
+
+        # """在现有的特征中添加文本路径特征"""
+        if featureType == 1 or featureType == 3:
+            df = appendFilePathFeatureVector(df, project, dates, 'pr_number')
+        """在现有的特征中添加pr标题和内容文本特征"""
+        if featureType == 2 or featureType == 3:
+            df = appendTextualFeatureVector(df, project, dates, 'pr_number')
+
+        """频率统计每一个reviewer的次数，排除数量过少的reviewer"""
+        freq = {}
+        for data in df.itertuples():
+            name = getattr(data, 'review_user_login')
+            if freq.get(name, None) is None:
+                freq[name] = 0
+            if not getattr(data, 'label'):
+                freq[name] += 1
+            else:
+                freq[name] += 10000
+
+        num = 5
+        df['freq'] = df['review_user_login'].apply(lambda x: freq[x])
+        df = df.loc[df['freq'] > num].copy(deep=True)
+        df.drop(columns=['freq'], inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        print("after lifter unexperienced user:", df.shape)
+
+        """对人名字做数字处理"""
+        """这里reviewer_user_login 放在 第一个否则会影响candicateNum这个变量在后面的引用"""
+        MLTrain.changeStringToNumber(df, ['review_user_login', 'pr_user_login'])
         print(df.shape)
+        candicateNum = max(df.loc[df['label'] == 0]['review_user_login'])
+        print("candicate Num:", candicateNum)
 
         """对branch做处理  舍弃base,head做拆分 并数字化"""
         df.drop(axis=1, columns=['pr_base_label'], inplace=True)  # inplace 代表直接数据上面
@@ -265,48 +384,52 @@ class MLTrain:
         df['pr_head_tail'] = df['pr_head_tail'].apply(lambda x: x.split(':')[1])
         df['pr_head_label'] = df['pr_head_label'].apply(lambda x: x.split(':')[0])
 
-        MLTrain.changeStringToNumber(df, ['pr_head_tail'])
+        df.drop(axis=1, columns=['pr_head_tail'], inplace=True)
+
+        # MLTrain.changeStringToNumber(df, ['pr_head_tail'])
         MLTrain.changeStringToNumber(df, ['pr_head_label'])
 
         """时间转时间戳处理"""
         df['pr_created_at'] = df['pr_created_at'].apply(
             lambda x: int(time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S"))))
-        df['review_submitted_at'] = df['review_submitted_at'].apply(
-            lambda x: int(time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S"))))
 
-        """去除无用的 commit_sha, review_id 和 pr_number 和review_submitted_at"""
-        df.drop(axis=1, columns=['commit_sha', 'review_id', 'pr_number', 'review_submitted_at'], inplace=True)
-        # inplace 代表直接数据上面
+        """先对tag做拆分"""
+        tagDict = dict(list(df.groupby('pr_number')))
 
-        """参数处理缺省值"""
-        df.fillna(value=999999999999, inplace=True)
-        # print(df)
-
-        """测试集和训练集分开"""
+        """对已经有的特征向量和标签做训练集的拆分"""
+        train_data = df.loc[df['label'] == False].copy(deep=True)
         test_data = df.loc[df['label']].copy(deep=True)
 
-        print("test:", test_data.shape)
-        train_data = df[df['label'] == False].copy(deep=True)
-        print("train:", train_data.shape)
+        train_data.drop(columns=['label'], inplace=True)
+        test_data.drop(columns=['label'], inplace=True)
 
-        test_data.drop(axis=1, columns=['label'], inplace=True)
-        train_data.drop(axis=1, columns=['label'], inplace=True)
+        """问题转化为多标签问题
+            train_data_y   [{pull_number:[r1, r2, ...]}, ... ,{}]
+        """
+        train_data_y = {}
+        pull_number_list = train_data.drop_duplicates(['pr_number']).copy(deep=True)['pr_number']
+        for pull_number in pull_number_list:
+            reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
+            train_data_y[pull_number] = reviewers
 
-        """分割 tag和feature"""
+        train_data.drop(columns=['review_user_login'], inplace=True)
+        train_data.drop_duplicates(inplace=True)
+        train_data_y = DataProcessUtils.convertLabelListToDataFrame(train_data_y, pull_number_list, candicateNum)
 
-        test_data_y = test_data['reviewer_reviewer'].copy(deep=True)
-        test_data.drop(axis=1, columns=['reviewer_reviewer'], inplace=True)
+        test_data_y = {}
+        pull_number_list = test_data.drop_duplicates(['pr_number']).copy(deep=True)['pr_number']
+        for pull_number in test_data.drop_duplicates(['pr_number'])['pr_number']:
+            reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
+            test_data_y[pull_number] = reviewers
 
-        train_data_y = train_data['reviewer_reviewer'].copy(deep=True)
-        train_data.drop(axis=1, columns=['reviewer_reviewer'], inplace=True)
+        test_data.drop(columns=['review_user_login'], inplace=True)
+        test_data.drop_duplicates(inplace=True)
+        # test_data_y = DataProcessUtils.convertLabelListToDataFrame(test_data_y, pull_number_list, candicateNum)
+        test_data_y = DataProcessUtils.convertLabelListToListArray(test_data_y, pull_number_list)
 
-        # """主成分分析"""
-        # pca = PCA()
-        # train_data = pca.fit_transform(train_data)
-        # print("after pca train:", train_data.shape)
-        # print(pca.explained_variance_ratio_)
-        # test_data = pca.transform(test_data)
-        # print("after pca test:", test_data.shape)
+        """去除pr number"""
+        test_data.drop(columns=['pr_number'], inplace=True)
+        train_data.drop(columns=['pr_number'], inplace=True)
 
         """参数规范化"""
         if isSTD:
@@ -323,17 +446,6 @@ class MLTrain:
             return train_data_std, train_data_y, test_data_std, test_data_y
         else:
             return train_data, train_data_y, test_data, test_data_y
-
-    @staticmethod
-    def getListFromProbable(probable, classList, k):  # 推荐k个
-        recommendList = []
-        for case in probable:
-            max_index_list = list(map(lambda x: numpy.argwhere(case == x), heapq.nlargest(k, case)))
-            caseList = []
-            for item in max_index_list:
-                caseList.append(classList[item[0][0]])
-            recommendList.append(caseList)
-        return recommendList
 
     @staticmethod
     def changeStringToNumber(data, columns):  # 对dataframe的一些特征做文本转数字  input: dataFrame，需要处理的某些列
@@ -390,7 +502,7 @@ class MLTrain:
         # print(pre)
         # print(pre_class)
 
-        recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
+        recommendList = DataProcessUtils.getListFromProbable(pre, pre_class, recommendNum)
         # print(recommendList)
         answer = [[x] for x in test_data_y]
         # print(answer)
@@ -455,15 +567,101 @@ class MLTrain:
         # print(pre)
         # print(pre_class)
 
-        recommendList = MLTrain.getListFromProbable(pre, pre_class, recommendNum)
+        recommendList = DataProcessUtils.getListFromProbable(pre, pre_class, recommendNum)
         # print(recommendList)
         answer = [[x] for x in test_data_y]
         # print(answer)
         return [recommendList, answer]
 
+    @staticmethod
+    def testMLAlgorithmsByMultipleLabels(projects, dates, algorithms=None):
+        """
+           多标签测试算法接口，把流程相似的算法统一
+        """
+        startTime = datetime.now()
+
+        for algorithmType in algorithms:
+            for project in projects:
+                excelName = f'output{algorithmType}_{project}_ML.xlsx'
+                recommendNum = 5  # 推荐数量
+                sheetName = 'result'
+                """初始化excel文件"""
+                ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
+                for featureType in range(3, 4):
+                    """初始化项目抬头"""
+                    content = ["项目名称：", project]
+                    ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+                    content = ['特征类型：', str(featureType)]
+                    ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+
+                    """计算累积数据"""
+                    topks = []
+                    mrrs = []
+                    precisionks = []
+                    recallks = []
+                    fmeasureks = []
+
+                    for date in dates:
+                        df = None
+                        """对需求文件做合并 """
+                        for i in range(date[0] * 12 + date[1], date[2] * 12 + date[3] + 1):  # 拆分的数据做拼接
+                            y = int((i - i % 12) / 12)
+                            m = i % 12
+                            if m == 0:
+                                m = 12
+                                y = y - 1
+
+                            print(y, m)
+                            filename = projectConfig.getMLDataPath() + os.sep + f'ML_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+                            """数据自带head"""
+                            if df is None:
+                                df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
+                            else:
+                                temp = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
+                                df = df.append(temp)  # 合并
+
+                        df.reset_index(inplace=True, drop=True)
+                        """df做预处理"""
+                        train_data, train_data_y, test_data, test_data_y = MLTrain.preProcess(df, date, project,
+                                                                                              featureType, isNOR=True)
+                        print("train data:", train_data.shape)
+                        print("test data:", test_data.shape)
+
+                        recommendList, answerList = MultipleLabelAlgorithm. \
+                            RecommendByAlgorithm(train_data, train_data_y, test_data, test_data_y, algorithmType)
+
+                        """根据推荐列表做评价"""
+                        topk, mrr, precisionk, recallk, fmeasurek = \
+                            DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
+
+                        topks.append(topk)
+                        mrrs.append(mrr)
+                        precisionks.append(precisionk)
+                        recallks.append(recallk)
+                        fmeasureks.append(fmeasurek)
+
+                        """结果写入excel"""
+                        DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek,
+                                                    date)
+
+                        """文件分割"""
+                        content = ['']
+                        ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+                        content = ['训练集', '测试集']
+                        ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+
+                    print("cost time:", datetime.now() - startTime)
+
+                    """计算历史累积数据"""
+                    DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
+                                                       fmeasureks)
+
 
 if __name__ == '__main__':
-    dates = [(2019, 3, 2019, 4), (2019, 1, 2019, 4), (2018, 10, 2019, 4), (2018, 7, 2019, 4)]
-    # dates = [(2018, 7, 2019, 4)]
-    MLTrain.testMLAlgorithms('rails', dates, StringKeyUtils.STR_ALGORITHM_RF)
-    # MLTrain.testBayesAlgorithms('akka', dates)
+    dates = [(2018, 1, 2019, 4), (2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 7)]
+    # dates = [(2018, 1, 2019, 5), (2018, 1, 2019, 6)]
+    # MLTrain.testMLAlgorithms('rails', dates, StringKeyUtils.STR_ALGORITHM_DT)
+    # MLTrain.testBayesAlgorithms('rails', dates)
+    # projects = ['rails', 'scala', 'akka', 'bitcoin']
+    projects = ['rails']
+    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0])

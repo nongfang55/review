@@ -28,8 +28,8 @@ class FPSTrain:
 
         """初始化excel文件"""
         ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
-        df = None
         for date in dates:
+            df = None
             startTime = datetime.now()
             for i in range(date[0] * 12 + date[1], date[2] * 12 + date[3] + 1):  # 拆分的数据做拼接
                 y = int((i - i % 12) / 12)
