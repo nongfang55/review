@@ -6,6 +6,11 @@ from datetime import datetime
 import sys
 import io
 
+"""
+   爬虫早期测试类，已废弃
+   异步爬虫查看 AsyncProjectAllDataFetcher
+"""
+
 class DataFetcher:
     
     DesensitizeKeyList = [0,1,4] # 需要脱敏的列

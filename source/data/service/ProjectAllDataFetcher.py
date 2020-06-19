@@ -14,6 +14,10 @@ from source.database.SqlUtils import SqlUtils
 from source.utils.statisticsHelper import statisticsHelper
 from source.database.SqlServerInterceptor import SqlServerInterceptor
 
+"""
+ 多线程版本爬虫，已废弃。
+ 异步爬虫查看 AsyncProjectAllDataFetcher
+"""
 
 class ProjectAllDataFetcher:
     """用于获取项目所有信息的类"""

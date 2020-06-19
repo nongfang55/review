@@ -32,6 +32,7 @@ class AsyncApiHelper:
 
     @staticmethod
     def getAuthorizationHeaders(header):
+        """设置Github 的Token用于验证"""
         if header is not None and isinstance(header, dict):
             if configPraser.getAuthorizationToken():
                 header[StringKeyUtils.STR_HEADER_AUTHORIZAITON] = (StringKeyUtils.STR_HEADER_TOKEN
@@ -40,6 +41,7 @@ class AsyncApiHelper:
 
     @staticmethod
     def getUserAgentHeaders(header):
+        """爬虫策略： 随机请求的agent"""
         if header is not None and isinstance(header, dict):
             # header[self.STR_HEADER_USER_AGENT] = self.STR_HEADER_USER_AGENT_SET
             header[StringKeyUtils.STR_HEADER_USER_AGENT] = random.choice(StringKeyUtils.USER_AGENTS)
@@ -53,6 +55,7 @@ class AsyncApiHelper:
 
     @staticmethod
     async def getProxy():
+        """获取代理ip池中的ip  详细看 ProxyHelper"""
         if configPraser.getProxy():
             proxy = await ProxyHelper.getAsyncSingleProxy()
             if configPraser.getPrintMode():
@@ -74,6 +77,7 @@ class AsyncApiHelper:
 
     @staticmethod
     def judgeNotFind(json):
+        """判断404的场景，用于按照某些编号检索Github实体失败"""
         if json is not None and isinstance(json, dict):
             if json.get(StringKeyUtils.STR_KEY_MESSAGE) == StringKeyUtils.STR_NOT_FIND:
                 return True
@@ -81,6 +85,11 @@ class AsyncApiHelper:
 
     @staticmethod
     async def downloadInformation(pull_number, semaphore, mysql, statistic):
+        """获取一个项目 单个pull-request 相关的信息"""
+
+        """增加issue  需要仿写downloadInformation函数 
+           只是pull-request的获取转换为issue
+        """
         async with semaphore:
             async with aiohttp.ClientSession() as session:
                 try:
@@ -179,6 +188,7 @@ class AsyncApiHelper:
 
                         print(beanList)
 
+                    """数据库存储"""
                     await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
 
                     # 做了同步处理
@@ -262,12 +272,18 @@ class AsyncApiHelper:
 
     @staticmethod
     async def fetchBeanData(session, api, isMediaType=False):
+        """异步获取数据通用接口（重要）"""
+
+        """初始化请求头"""
         headers = {}
         headers = AsyncApiHelper.getUserAgentHeaders(headers)
         headers = AsyncApiHelper.getAuthorizationHeaders(headers)
         if isMediaType:
             headers = AsyncApiHelper.getMediaTypeHeaders(headers)
         while True:
+            """对单个请求循环判断 直到请求成功或者错误"""
+
+            """获取代理ip  ip获取需要运行代理池"""
             proxy = await AsyncApiHelper.getProxy()
             if configPraser.getProxy() and proxy is None:  # 对代理池没有ip的情况做考虑
                 print('no proxy and sleep!')
@@ -287,15 +303,18 @@ class AsyncApiHelper:
                     await ProxyHelper.judgeProxy(proxy.split('//')[1], ProxyHelper.INT_POSITIVE_POINT)
                 return await response.json()
         except Exception as e:
+            """非 403的网络请求出错  循环重试"""
             print(e)
             if proxy is not None:
                 proxy = proxy.split('//')[1]
                 await ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
             # print("judge end")
+            """循环重试"""
             return await AsyncApiHelper.fetchBeanData(session, api, isMediaType=isMediaType)
 
     @staticmethod
     async def parserReviewComment(json):
+        """解析json 获取Review Comment信息"""
         try:
             if not AsyncApiHelper.judgeNotFind(json):
                 items = []
@@ -308,6 +327,7 @@ class AsyncApiHelper:
 
     @staticmethod
     async def parserIssueComment(json, issue_number):
+        """解析json 获取Issue Comment信息"""
         try:
             if not AsyncApiHelper.judgeNotFind(json):
                 items = []
@@ -342,6 +362,7 @@ class AsyncApiHelper:
 
     @staticmethod
     async def parserCommit(json):
+        """解析json 获取Commit信息"""
         try:
             if not AsyncApiHelper.judgeNotFind(json):
                 res = Commit.parser.parser(json)

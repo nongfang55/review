@@ -36,6 +36,10 @@ from source.data.bean.Branch import Branch
 
 class ApiHelper:
 
+    """
+    同步方式请求GitHub api接口类
+    """
+
     def __init__(self, owner, repo):  # 设置对应的仓库和所属
         self.owner = owner
         self.repo = repo

@@ -18,10 +18,12 @@ from source.database.SqlUtils import SqlUtils
 
 
 class AsyncSqlHelper:
-    """用于获得不同bean类的插入表名字"""
+
+    """异步数据库操作辅助类"""
 
     @staticmethod
     def getInsertTableName(bean):
+        """用于获得不同bean类的插入表名字"""
         if isinstance(bean, Branch):
             return SqlUtils.STR_TABLE_NAME_BRANCH
         elif isinstance(bean, CommitRelation):

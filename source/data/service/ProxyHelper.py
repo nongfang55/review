@@ -4,7 +4,10 @@ import requests
 
 
 class ProxyHelper:
-    """用于使用 ip代理池 proxy_pool的api接口类"""
+    """用于使用 ip代理池 proxy_pool的api接口类
+    需要配合开源项目proxy_pool使用
+    开源项目proxy_pool地址：https://github.com/jhao104/proxy_pool
+    """
 
     STR_PROXY_GET_API = "http://127.0.0.1:5010/get/"
     STR_PROXY_GET_ALL_API = 'http://127.0.0.1:5010/get_all/'
@@ -22,6 +25,7 @@ class ProxyHelper:
 
     @staticmethod
     async def getAsyncSingleProxy():
+        """从本地代理池获得代理ip 需要代理ip池运行"""
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(ProxyHelper.STR_PROXY_GET_API) as response:
