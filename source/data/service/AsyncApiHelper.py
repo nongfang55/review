@@ -466,14 +466,13 @@ class AsyncApiHelper:
             async with aiohttp.ClientSession() as session:
                 try:
                     args = {"ids": nodeIds}
-                    """先获取pull request信息"""
+                    """从GitHub v4 API 中获取 某个pull-request的TimeLine对象"""
                     api = AsyncApiHelper.getGraphQLApi()
                     resultJson = await AsyncApiHelper.postGraphqlData(session, api, args)
                     beanList = []
-                    # pull_request = await AsyncApiHelper.parserPullRequest(json)
-                    # print(pull_request)
                     print(type(resultJson))
                     print("post json:", resultJson)
+                    """从回应结果解析 timeLineItems 和 Relations"""
                     timeLineRelations, timeLineItems = await  AsyncApiHelper.parserPRItemLine(resultJson)
 
                     usefulTimeLineItemCount = 0
@@ -481,12 +480,15 @@ class AsyncApiHelper:
 
                     beanList.extend(timeLineRelations)
                     beanList.extend(timeLineItems)
+                    """存储数据库中"""
                     await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
 
                     """完善获取关联的commit 信息"""
                     pairs = PRTimeLineUtils.splitTimeLine(timeLineRelations)
                     for pair in pairs:
                         print(pair)
+                        """依照每一对review和后面关联的commit来判断这个reivew中comment的有效性"""
+                        """completeCommitInformation 这个函数名取得不好"""
                         await AsyncApiHelper.completeCommitInformation(pair, mysql, session, statistic)
 
                     # 做了同步处理
@@ -503,24 +505,64 @@ class AsyncApiHelper:
     @staticmethod
     async def completeCommitInformation(pair, mysql, session, statistic):
         """完善 review和随后事件相关的commit"""
+        """依照commit来判断review中comment的有效性"""
         review = pair[0]
         changes = pair[1]
 
         """review 的 comments 获取一次即可"""
 
         """获得review comments"""
+        """一个review 可能会关联多个comment  
+        每个comment会指定一个文件和对应代码行"""
         comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timelineitem_node, mysql)
 
-        twoParentsBadCase = 0
-        outOfLoopCase = 0
+        twoParentsBadCase = 0  # 记录一个commit有两个根节点的情况 发现这个情况直接停止
+        outOfLoopCase = 0  # 记录寻找两个commit点的最近祖宗节点 使用上级追溯的次数超过限制情况
 
+        """changes 代指review后面关联的commit 依次就changeTrigger的情况进行判断"""
         for change in changes:  # 对后面连续改动依次遍历
+            """通过commit1和commit2 来比较两者之间的代码差异"""
+            """commit1 : review的涉及的commit
+               commit2 : reivew后面作者改动的commit
+            """
             commit1 = review.pullrequestReviewCommit
             commit2 = None
             if change.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
                 commit2 = change.pullrequestCommitCommit
             elif change.typename == StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT:
                 commit2 = change.headRefForcePushedEventAfterCommit
+
+            """后面算法就是  通过commit1和commit2 来比较两者之间的代码差异"""
+            """大体思路：  commit1和它的祖宗节点组成一个commit的集合Group1
+                          commit2同样组成了Group2
+                          
+                          在Group中每一个commit点都有以下信息：
+                          1. oid (commit-sha)
+                          2. 父节点的 oid
+                          3. 这个commit涉及的文件改动
+                          
+                          Group中包含两种类型节点，一种是信息已经获取，还有一种是信息尚未获取。
+                          信息已经获取代表了这个commit上面三个信息都知道，而未获取代表了这个commit
+                          只有oid信息。
+                          
+                          Group一次迭代是指，每次获取类型为为获取信息的commit点，点作为获取信息的节点
+                          加入Group中，而commit指向的父节点作为未获取信息节点加入Group中。
+                          
+                          两个commit作为起点不断做迭代操作，直到某个Group中未包含的点集合包含在了
+                          另外一个Group的总体节点中
+                          
+                          迭代结束之后分别找到两个Group独特的commit点集合，作为后续算法的输入
+            """
+
+            """缺点： 现在算法无法处理commit点有两个父类的情况，如merge操作出现的点
+                      现在算法感觉怪怪的，效率可能不是很高
+                      
+                      这个问题应该是LCA问题的变种
+            """
+
+            """算法限制： 1、commit点获取次数越少越好
+                         2、两个commit点版本差异过过大的时候可以检测，并妥善处理 
+            """
 
             loop = 0
             if commit2 is not None and commit1 is not None:
@@ -565,6 +607,7 @@ class AsyncApiHelper:
                         print(node.oid, node.willFetch, node.parents)
 
                 async def fetNotFetchedNodes(nodes, mysql, session):
+                    """获取commit点信息 包括数据库获取的GitHub API获取 nodes就是一个Group"""
                     fetchList = [node.oid for node in nodes if node.willFetch]
                     """先尝试从数据库中读取"""
                     localExistList, localRelationList = await AsyncApiHelper.getCommitsFromStore(fetchList, mysql)
@@ -606,6 +649,7 @@ class AsyncApiHelper:
                                 break
 
                         if not isFind:
+                            """新加入为获取的点"""
                             newNode = CommitNode()
                             newNode.willFetch = True
                             newNode.oid = relation.parent
@@ -619,6 +663,7 @@ class AsyncApiHelper:
                     return nodes
 
                 try:
+                    """两个Group的迭代过程"""
                     commit1Nodes = []
                     commit2Nodes = []
 
@@ -635,6 +680,7 @@ class AsyncApiHelper:
 
                     completeFetch = 0
                     while loop < configPraser.getCommitFetchLoop():
+                        """迭代次数有限制"""
 
                         loop += 1
 
@@ -732,19 +778,22 @@ class AsyncApiHelper:
                         file2s = await AsyncApiHelper.getFilesFromStore([x.oid for x in diff_nodes2], mysql)
 
                         for comment in comments:  # 对每一个comment统计change trigger
+                            """comment 对应的文件和文件行"""
                             commentFile = comment.path
                             commentLine = comment.original_line
 
-                            diff_patch1 = []  # 两边不同的patch patch就是不同文本
+                            diff_patch1 = []  # 两边不同的patch patch就是不同文本集合
                             diff_patch2 = []
 
                             startNode = [startNode1]  # 从commit源头找到根中每一个commit的涉及文件名的patch
                             while startNode.__len__() > 0:
+                                """类似DFS算法"""
                                 node_oid = startNode.pop(0)
                                 for node in diff_nodes1:
                                     if node.oid == node_oid:
                                         for file in file1s:
                                             if file.filename == commentFile and file.commit_sha == node.oid:
+                                                """patch是一个含有某些行数变化的文本，需要后面单独的解析"""
                                                 diff_patch1.insert(0, file.patch)
                                         startNode.extend(node.parents)
 
@@ -758,6 +807,7 @@ class AsyncApiHelper:
                                                 diff_patch2.insert(0, file.patch)
                                         startNode.extend(node.parents)
 
+                            """通过比较commit集合来计算距离comment最近的文件变化"""
                             closedChange = TextCompareUtils.getClosedFileChange(diff_patch1, diff_patch2, commentLine)
                             print("closedChange :", closedChange)
                             if comment.change_trigger is None:

@@ -67,6 +67,7 @@ class TextCompareUtils:
         maxLine = max(maxLine + 20, targetLine + 20)
         print(maxLine)
 
+        """通过一个数组来模拟文本的变化"""
         text = [x for x in range(1, maxLine)]  # 生成模拟文本
         print(text)
 
@@ -111,6 +112,8 @@ class TextCompareUtils:
         """获得某个评论最近的line   如果超过十则返回-1  patch的顺序是从根到最新"""
 
         text = TextCompareUtils.simulateTextChanges(patches1, patches2, commentLine)
+
+        """text是模拟commit操作之后的文本"""
 
         if commentLine not in text:
             """评论行不在 变化之后的文本当中，说明本行变化，返回0"""

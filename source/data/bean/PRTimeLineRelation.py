@@ -70,7 +70,10 @@ class PRTimeLineRelation(BeanBase):
                                         item_node = item.get(StringKeyUtils.STR_KEY_NODE, None)
                                         if item_node is not None:
                                             typename = item_node.get(StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
+                                            """依据每个Item的TypeName来判断Item的具体类型"""
+                                            """item的类型种类可以参考 https://developer.github.com/v4/union/pullrequesttimelineitems/"""
                                             item_id = item_node.get(StringKeyUtils.STR_KEY_ID, None)
+                                            """relation 主要记录了时间顺序"""
                                             relation = PRTimeLineRelation()
                                             relation.position = pos
                                             pos += 1
@@ -79,7 +82,8 @@ class PRTimeLineRelation(BeanBase):
                                             relation.pullrequest_node = pr_id
                                             resList.append(relation)
 
-                                            """做出解析"""
+                                            """按照感兴趣的类型 依次做出解析"""
+                                            """注：可能会有疏漏的代表commit的场景没有考虑"""
                                             if typename == StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT:
                                                 bean = HeadRefForcePushedEvent()
                                                 bean.node_id = item_id
