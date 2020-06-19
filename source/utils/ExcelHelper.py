@@ -1,4 +1,6 @@
 #coding=gbk
+import os
+
 import xlrd
 import xlwt
 from datetime import date
@@ -79,6 +81,15 @@ class ExcelHelper:
             wbook.save(fileName)
         except Exception as e:
             print(e)
+
+    def addSheet(self, filename, sheetName):
+        rb = xlrd.open_workbook(filename, formatting_info=True)
+        # make a copy of it
+        from xlutils.copy import copy as xl_copy
+        if sheetName not in rb.sheet_names():
+            wb = xl_copy(rb)
+            Sheet1 = wb.add_sheet(sheetName)
+            wb.save(filename)
             
     def appendExcelRow(self,fileName, sheetName, dataList,style):
         rbook = xlrd.open_workbook(fileName,formatting_info=True)
@@ -206,10 +217,10 @@ class ExcelHelper:
         
         
 
-    
+
 if __name__=="__main__":
-    ExcelHelper().readTestInputExcel()
-    #ExcelHelper().initExcelFile(projectConfig.getTestoutputExcelPath(), projectConfig.TEST_OUT_PUT_SHEET_NAME)
+      ExcelHelper().readTestInputExcel()
+#      ExcelHelper().initExcelFile(projectConfig.getTestoutputExcelPath(), projectConfig.TEST_OUT_PUT_SHEET_NAME)
 #     ExcelHelper().writeExcelCol(projectConfig.getTestoutputExcelPath(), projectConfig.TEST_OUT_PUT_SHEET_NAME
 #                                 , 1,1, [1,2,3,4,5,7], ExcelHelper.getNormalStyle())
 #     print(ExcelHelper().readExcelCol(projectConfig.getTestoutputExcelPath(), projectConfig.TEST_OUT_PUT_SHEET_NAME
@@ -221,3 +232,4 @@ if __name__=="__main__":
 #     ExcelHelper().appendExcelRowWithDiffStyle(projectConfig.getTestoutputExcelPath(), projectConfig.TEST_OUT_PUT_SHEET_NAME
 #                                  , [7,1], [ExcelHelper.getNormalStyle(),ExcelHelper.getNormalStyle()])
 #     ExcelHelper().desensitizationExcelCol(projectConfig.getTestoutputExcelPath(), projectConfig.TEST_OUT_PUT_SHEET_NAME,1, 1)
+#       ExcelHelper().addSheet(projectConfig.getDataPath() + os.sep + 'outputIR.xlsx', sheetName='result')

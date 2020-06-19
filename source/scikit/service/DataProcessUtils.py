@@ -1,14 +1,21 @@
 # coding=gbk
 import heapq
 import os
+import random
 import time
 from datetime import datetime
 
 import numpy
 import pandas
+import scikit_posthocs
+import scipy
+import seaborn
 from pandas import DataFrame
+from pyecharts.charts import HeatMap
+from scipy.stats import mannwhitneyu, ranksums, ttest_1samp, ttest_ind, wilcoxon
 
 from source.config.projectConfig import projectConfig
+from source.nlp.SplitWordHelper import SplitWordHelper
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
 from source.utils.ExcelHelper import ExcelHelper
 from source.utils.pandas.pandasHelper import pandasHelper
@@ -177,16 +184,26 @@ class DataProcessUtils:
                         convertDict[item] = count
                     data.at[pos, column] = convertDict[item]
                     pos += 1
+            return convertDict  # 新增返回映射字典
 
     @staticmethod
     def judgeRecommend(recommendList, answer, recommendNum):
 
         """评价推荐表现"""
         topk = RecommendMetricUtils.topKAccuracy(recommendList, answer, recommendNum)
+        print("topk")
         print(topk)
         mrr = RecommendMetricUtils.MRR(recommendList, answer, recommendNum)
+        print("mrr")
         print(mrr)
         precisionk, recallk, fmeasurek = RecommendMetricUtils.precisionK(recommendList, answer, recommendNum)
+        print("precision:")
+        print(precisionk)
+        print("recall:")
+        print(recallk)
+        print("fmeasure:")
+        print(fmeasurek)
+
 
         return topk, mrr, precisionk, recallk, fmeasurek
 
@@ -280,7 +297,6 @@ class DataProcessUtils:
             avg[i] /= scores.__len__()
         return avg
 
-
     @staticmethod
     def convertFeatureDictToDataFrame(dicts, featureNum):
         """通过转换 feature的形式来让tf-idf 模型生成的数据可以转换成向量"""
@@ -333,18 +349,19 @@ class DataProcessUtils:
 
         prReviewData = pandasHelper.readTSVFile(
             os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'),
-            pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+            pandasHelper.INT_READ_FILE_WITHOUT_HEAD, low_memory=False)
         print(prReviewData.shape)
         prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
 
         commitFileData = pandasHelper.readTSVFile(
-            os.path.join(data_train_path, 'ALL_data_commit_file.tsv'), pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+            os.path.join(data_train_path, 'ALL_data_commit_file.tsv'), pandasHelper.INT_READ_FILE_WITHOUT_HEAD
+        , low_memory=False)
         commitFileData.columns = DataProcessUtils.COLUMN_NAME_COMMIT_FILE
         print(commitFileData.shape)
 
         commitPRRelationData = pandasHelper.readTSVFile(
             os.path.join(pr_commit_relation_path, f'ALL_{projectName}_data_pr_commit_relation.tsv'),
-            pandasHelper.INT_READ_FILE_WITHOUT_HEAD
+            pandasHelper.INT_READ_FILE_WITHOUT_HEAD, low_memory=False
         )
         print(commitPRRelationData.shape)
         print("read file cost time:", datetime.now() - time1)
@@ -410,6 +427,11 @@ class DataProcessUtils:
         """过滤状态非关闭的pr review"""
         prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
         print("after fliter closed pr:", prReviewData.shape)
+
+        """过滤pr 作者就是reviewer的情况"""
+        prReviewData = prReviewData.loc[prReviewData['pr_user_login']
+                                        != prReviewData['review_user_login']].copy(deep=True)
+        print("after fliter author:", prReviewData.shape)
 
         """过滤不需要的字段"""
         prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at']].copy(deep=True)
@@ -490,7 +512,7 @@ class DataProcessUtils:
         author_submit_gap = []
         author_review_count = []
         pos = 0
-        for data in prReviewData.itertuples():
+        for data in prReviewData.itertuples(index=False):
             pullNumber = getattr(data, 'pr_number')
             author = getattr(data, 'pr_user_login')
             temp = prReviewData.loc[prReviewData['pr_user_login'] == author].copy(deep=True)
@@ -499,13 +521,14 @@ class DataProcessUtils:
             author_push_count.append(push_num)
 
             gap = DataProcessUtils.convertStringTimeToTimeStrip(prReviewData.loc[prReviewData.shape[0] - 1,
-                            'pr_created_at']) - DataProcessUtils.convertStringTimeToTimeStrip(
+                                                                                 'pr_created_at']) - DataProcessUtils.convertStringTimeToTimeStrip(
                 prReviewData.loc[0, 'pr_created_at'])
             if push_num != 0:
                 last_num = list(temp['pr_number'])[-1]
                 this_created_time = getattr(data, 'pr_created_at')
                 last_created_time = list(prReviewData.loc[prReviewData['pr_number'] == last_num]['pr_created_at'])[0]
-                gap = int(time.mktime(time.strptime(this_created_time, "%Y-%m-%d %H:%M:%S"))) - int(time.mktime(time.strptime(last_created_time, "%Y-%m-%d %H:%M:%S")))
+                gap = int(time.mktime(time.strptime(this_created_time, "%Y-%m-%d %H:%M:%S"))) - int(
+                    time.mktime(time.strptime(last_created_time, "%Y-%m-%d %H:%M:%S")))
             author_submit_gap.append(gap)
 
             temp = prReviewData.loc[prReviewData['review_user_login'] == author].copy(deep=True)
@@ -581,7 +604,7 @@ class DataProcessUtils:
         """
         通过 ALL_{projectName}_data_pr_review_commit_file
              ALL_{projectName}_commit_file
-             ALL_data_review_comment 三个文件拼接出FPS所需信息量的文件
+             ALL_data_review_comment 三个文件拼接出IR所需信息量的文件
         """
 
         """读取信息  IR 只需要pr 的title和body的信息"""
@@ -601,7 +624,8 @@ class DataProcessUtils:
         print("after fliter author:", prReviewData.shape)
 
         """过滤不需要的字段"""
-        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_title', 'pr_body', 'pr_created_at']].copy(deep=True)
+        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_title', 'pr_body', 'pr_created_at']].copy(
+            deep=True)
         prReviewData.drop_duplicates(inplace=True)
         prReviewData.reset_index(drop=True, inplace=True)
         print("after fliter pr_review:", prReviewData.shape)
@@ -611,6 +635,117 @@ class DataProcessUtils:
         DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getIRDataPath(),
                                           targetFileName=f'IR_{projectName}_data', dateCol='pr_created_at',
                                           dataFrame=data)
+
+    @staticmethod
+    def getReviewerFrequencyDict(projectName, date):
+        """获得某个项目某个时间段的reviewer
+        的review次数字典
+        用于后面reviewer推荐排序
+        date 处理时候不含最后一个月  作为兼容 [y1,m1,y2,m2)
+        通过 ALL_{projectName}_data_pr_review_commit_file
+        """
+
+        data_train_path = projectConfig.getDataTrainPath()
+        prReviewData = pandasHelper.readTSVFile(
+            os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
+        prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
+        print("raw pr review :", prReviewData.shape)
+
+        """过滤状态非关闭的pr review"""
+        prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
+        print("after fliter closed pr:", prReviewData.shape)
+
+        """过滤pr 作者就是reviewer的情况"""
+        prReviewData = prReviewData.loc[prReviewData['pr_user_login']
+                                        != prReviewData['review_user_login']].copy(deep=True)
+        print("after fliter author:", prReviewData.shape)
+
+        """只留下 pr reviewer created_time"""
+        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at']].copy(
+            deep=True)
+        prReviewData.drop_duplicates(inplace=True)
+        prReviewData.reset_index(drop=True, inplace=True)
+        print(prReviewData.shape)
+
+        minYear, minMonth, maxYear, maxMonth = date
+        """过滤不在的时间"""
+        start = minYear * 12 + minMonth
+        end = maxYear * 12 + maxMonth
+        prReviewData['label'] = prReviewData['pr_created_at'].apply(lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+        prReviewData['label_y'] = prReviewData['label'].apply(lambda x: x.tm_year)
+        prReviewData['label_m'] = prReviewData['label'].apply(lambda x: x.tm_mon)
+        data = None
+        for i in range(start, end):
+            y = int((i - i % 12) / 12)
+            m = i % 12
+            if m == 0:
+                m = 12
+                y = y - 1
+            print(y, m)
+            subDf = prReviewData.loc[(prReviewData['label_y'] == y) & (prReviewData['label_m'] == m)].copy(deep=True)
+            if data is None:
+                data = subDf
+            else:
+                data = pandas.concat([data, subDf])
+
+        # print(data)
+        reviewers = data['review_user_login'].value_counts()
+        return dict(reviewers)
+
+    @staticmethod
+    def getStopWordList():
+        stopwords = SplitWordHelper().getEnglishStopList()  # 获取通用英语停用词
+        allStr = '['
+        len = 0
+        for word in stopwords:
+            len += 1
+            allStr += '\"'
+            allStr += word
+            allStr += '\"'
+            if len != stopwords.__len__():
+                allStr += ','
+        allStr += ']'
+        print(allStr)
+
+    @staticmethod
+    def dunn():
+        # dunn 检验
+        filename = os.path.join(projectConfig.getDataPath(),"compare.xlsx")
+        data = pandas.read_excel(filename, sheet_name="Top-1_1")
+        print(data)
+        data.columns = [0, 1, 2, 3, 4]
+        data.index = [0, 1, 2, 3, 4, 5, 6, 7]
+        print(data)
+        x = [[1, 2, 3, 5, 1], [12, 31, 54, 12], [10, 12, 6, 74, 11]]
+        print(data.values.T)
+        result = scikit_posthocs.posthoc_nemenyi_friedman(data.values)
+        print(result)
+        print(data.values.T[1])
+        print(data.values.T[3])
+        data1 = []
+        for i in range(0, 5):
+            data1.append([])
+            for j in range(0, 5):
+                if i == j:
+                    data1[i].append(numpy.nan)
+                    continue
+                statistic, pvalue = wilcoxon(data.values.T[i], data.values.T[j])
+                print(pvalue)
+                data1[i].append(pvalue)
+        data1 = pandas.DataFrame(data1)
+        print(data1)
+        import matplotlib.pyplot as plt
+        name = ['FPS', 'IR', 'SVM', 'RF', 'CB']
+        # scikit_posthocs.sign_plot(result, g=name)
+        # plt.show()
+        for i in range(0, 5):
+            data1[i][i] = numpy.nan
+        ax = seaborn.heatmap(data1, annot=True, vmax=1, square=True, yticklabels=name, xticklabels=name, cmap='GnBu_r')
+        ax.set_title("Mann Whitney U test")
+        plt.show()
+
+
+
 
 
 if __name__ == '__main__':
@@ -622,8 +757,16 @@ if __name__ == '__main__':
     #
     # DataProcessUtils.contactReviewCommentData('rails')
     #
-    # DataProcessUtils.splitProjectCommitFileData('akka')
-    # DataProcessUtils.contactFPSData('rails')
 
-    # DataProcessUtils.contactMLData('akka')
-    DataProcessUtils.contactIRData('bitcoin')
+    # """从总的commit file文件中分割树独立的commit file文件"""
+    # DataProcessUtils.splitProjectCommitFileData('infinispan')
+
+    """分割不同算法的训练集"""
+    # DataProcessUtils.contactFPSData('opencv')
+
+    # DataProcessUtils.contactMLData('xbmc')
+    # DataProcessUtils.contactIRData('xbmc')
+    #
+    # DataProcessUtils.getReviewerFrequencyDict('rails', (2019, 4, 2019, 6))
+    # DataProcessUtils.getStopWordList()
+    DataProcessUtils.dunn()

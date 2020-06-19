@@ -487,6 +487,11 @@ def appendFilePathFeatureVector(inputDf, projectName, date, pull_number_name):
        @param date: 开始年，开始月，结束年，结束月的四元组
        @return: df: 添加路径权重后的dataframe，可直接用于机器学习算法
        """
+
+    """对输入df做label存在检测"""
+    if 'label' not in inputDf.columns:
+        raise Exception("label not in input dataframe!")
+
     df = inputDf[[pull_number_name]].copy(deep=True)
     df.drop_duplicates(inplace=True)
     df.columns = ['pr_number']
@@ -562,6 +567,7 @@ def appendFilePathFeatureVector(inputDf, projectName, date, pull_number_name):
     columns.extend(path_ids)
     pr_path_weight_df = pandas.DataFrame(columns=columns).fillna(value=0)
     for index, row in enumerate(path_tf_tdf):
+        """用字典的方式填充dataframe"""
         new_row = {'pr_number': pr_list[index]}
         row = list(map(lambda x: (str(x[0]), x[1]), row))
         path_weight = dict(row)
@@ -570,15 +576,32 @@ def appendFilePathFeatureVector(inputDf, projectName, date, pull_number_name):
     pr_path_weight_df = pr_path_weight_df.fillna(value=0)
     print(pr_path_weight_df.shape)
 
+    """PCA 做缩减之前需要把pr_path_weight_df 做分割 训练集和测试集分别处理"""
     tempData = pr_path_weight_df.copy(deep=True)
-    tempData.drop(columns=['pr_number'], inplace=True)
+    labelData = inputDf[['pr_number', 'label']].drop_duplicates().copy(deep=True)
+    tempData = pandas.merge(tempData, labelData, on='pr_number')
 
-    """PAC 做缩减"""
-    pca = PCA(n_components=10)
-    tempData = pca.fit_transform(tempData)
-    print("after pca :", tempData.shape)
+    tempData_train = tempData.loc[tempData['label'] == 0].copy(deep=True)
+    tempData_test = tempData.loc[tempData['label'] == 1].copy(deep=True)
+
+    tempData_train.drop(columns=['pr_number', 'label'], inplace=True)
+    tempData_test.drop(columns=['pr_number', 'label'], inplace=True)
+
+    # tempData.drop(columns=['pr_number'], inplace=True)
+
+    """PCA 做缩减"""
+    pca = PCA(n_components=0.95)
+    tempData_train = pca.fit_transform(tempData_train)
+    print("after pca :", tempData_train.shape)
     print(pca.explained_variance_ratio_)
-    tempData = pandas.DataFrame(tempData)
+    tempData_train = pandas.DataFrame(tempData_train)
+
+    tempData_test = pca.transform(tempData_test)
+    print("after pca :", tempData_train.shape)
+    tempData_test = pandas.DataFrame(tempData_test)
+
+    tempData = pandas.concat([tempData_train, tempData_test], axis=0)
+    tempData.reset_index(drop=True, inplace=True)
 
     """和提供的数据做拼接"""
     tempData['pr_number_t'] = list(pr_path_weight_df['pr_number'])
@@ -599,6 +622,10 @@ def appendTextualFeatureVector(inputDf, projectName, date, pull_number_name):
        @return: df: 添加路径权重后的dataframe，可直接用于机器学习算法
     """
 
+    """对输入df做label存在检测"""
+    if 'label' not in inputDf.columns:
+        raise Exception("label not in input dataframe!")
+
     print("input shape:", inputDf.shape)
     print(date)
 
@@ -609,7 +636,8 @@ def appendTextualFeatureVector(inputDf, projectName, date, pull_number_name):
 
     """读取commit pr relation文件"""
     data_train_path = projectConfig.getDataTrainPath()
-    pr_review_data = pandasHelper.readTSVFile(data_train_path + os.sep + f'ALL_{projectName}_data_pr_review_commit_file.tsv')
+    pr_review_data = pandasHelper.readTSVFile(
+        data_train_path + os.sep + f'ALL_{projectName}_data_pr_review_commit_file.tsv')
     pr_review_data.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
     pr_review_data = pr_review_data[['pr_number', 'pr_title', 'pr_body']].copy(deep=True)
     pr_review_data.drop_duplicates(inplace=True)
@@ -625,10 +653,10 @@ def appendTextualFeatureVector(inputDf, projectName, date, pull_number_name):
     stopwords = SplitWordHelper().getEnglishStopList()  # 获取通用英语停用词
 
     textList = []
-    for row in df.itertuples(index=True, name='Pandas'):
+    for row in df.itertuples(index=False, name='Pandas'):
         tempList = []
         """获取pull request的标题"""
-        pr_title = getattr(row, 'pr_title')
+        pr_title = row[list(df.columns).index('pr_title')]
         pr_title_word_list = [x for x in FleshReadableUtils.word_list(pr_title) if x not in stopwords]
 
         """初步尝试提取词干效果反而下降了 。。。。"""
@@ -638,7 +666,7 @@ def appendTextualFeatureVector(inputDf, projectName, date, pull_number_name):
         tempList.extend(pr_title_word_list)
 
         """pull request的body"""
-        pr_body = getattr(row, 'pr_body')
+        pr_body = row[list(df.columns).index('pr_body')]
         pr_body_word_list = [x for x in FleshReadableUtils.word_list(pr_body) if x not in stopwords]
         """对单词做提取词干"""
         pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
@@ -667,13 +695,33 @@ def appendTextualFeatureVector(inputDf, projectName, date, pull_number_name):
     """填充为向量"""
     wordVectors = DataProcessUtils.convertFeatureDictToDataFrame(wordVectors, featureNum=feature_cnt)
 
+    """PCA 做缩减之前需要把pr_path_weight_df 做分割 训练集和测试集分别处理"""
+    tempData = wordVectors.copy(deep=True)
+    tempData['pr_number'] = df['pr_number']
+    labelData = inputDf[['pr_number', 'label']].drop_duplicates().copy(deep=True)
+    tempData = pandas.merge(tempData, labelData, on='pr_number')
+
+    tempData_train = tempData.loc[tempData['label'] == 0].copy(deep=True)
+    tempData_test = tempData.loc[tempData['label'] == 1].copy(deep=True)
+
+    tempData_train.drop(columns=['pr_number', 'label'], inplace=True)
+    tempData_test.drop(columns=['pr_number', 'label'], inplace=True)
+
+
     """PAC 做缩减"""
-    pca = PCA(n_components=10)
-    tempData = pca.fit_transform(wordVectors)
-    print("after pca :", tempData.shape)
+    pca = PCA(n_components=0.95)
+    tempData_train = pca.fit_transform(tempData_train)
+    print("after pca :", tempData_train.shape)
     print(pca.explained_variance_ratio_)
-    tempData = pandas.DataFrame(tempData)
-    tempData['pr_number_t'] = df['pr_number']
+    tempData_train = pandas.DataFrame(tempData_train)
+
+    tempData_test = pca.transform(tempData_test)
+    print("after pca :", tempData_train.shape)
+    tempData_test = pandas.DataFrame(tempData_test)
+
+    tempData = pandas.concat([tempData_train, tempData_test], axis=0)
+    tempData.reset_index(drop=True, inplace=True)
+    tempData['pr_number_t'] = df['pr_number'].copy(deep=True)
 
     """和原来特征做拼接"""
     inputDf = pandas.merge(inputDf, tempData, left_on=pull_number_name, right_on='pr_number_t')

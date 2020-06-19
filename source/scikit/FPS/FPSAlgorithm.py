@@ -316,12 +316,12 @@ class FPSAlgorithm:
         print(trainData.shape)
         print(targetData.shape)
 
-        for target in targetData.itertuples():
+        for target in targetData.itertuples(index=False):
             answer = getattr(target, StringKeyUtils.STR_KEY_USER_LOGIN)
             filename1 = getattr(target, StringKeyUtils.STR_KEY_FILENAME)
             if answer not in answerList:
                 answerList.append(answer)
-            for data in trainData.itertuples():
+            for data in trainData.itertuples(index=False):
                 """对文件两两计算"""
                 reviewer = getattr(data, StringKeyUtils.STR_KEY_USER_LOGIN)
                 review_id = getattr(data, StringKeyUtils.STR_KEY_ID)
@@ -370,7 +370,7 @@ class FPSAlgorithm:
                         scores[reviewer] = 0
                     scores[reviewer] += score
             recommendList.append([x[0] for x in sorted(scores.items(),
-                                                       key=lambda d: d[1], reverse=True)[0:recommendNum - 1]])
+                                                       key=lambda d: d[1], reverse=True)[0:recommendNum]])
 
         return [recommendList, answerList]
 

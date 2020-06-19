@@ -98,7 +98,7 @@ class RecommendMetricUtils:
                 totalRecallScore += recall
             totalPrecisionScore /= recommendCase.__len__()
             totalRecallScore /= recommendCase.__len__()
-            fmeasure = (totalRecallScore * totalRecallScore) / (totalRecallScore + totalPrecisionScore)
+            fmeasure = (2 * totalPrecisionScore * totalRecallScore) / (totalRecallScore + totalPrecisionScore)
             precisonk[i] = totalPrecisionScore
             recallk[i] = totalRecallScore
             fmeasurek[i] = fmeasure

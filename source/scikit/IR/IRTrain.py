@@ -33,33 +33,11 @@ class IRTrain:
         """初始化excel文件"""
         ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
         for date in dates:
-            df = None
             startTime = datetime.now()
-            for i in range(date[0] * 12 + date[1], date[2] * 12 + date[3] + 1):  # 拆分的数据做拼接
-                y = int((i - i % 12) / 12)
-                m = i % 12
-                if m == 0:
-                    m = 12
-                    y = y - 1
-
-                print(y, m)
-
-                filename = projectConfig.getIRDataPath() + os.sep \
-                           + f'IR_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
-                if df is None:
-                    df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
-                else:
-                    temp = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
-                    df = df.append(temp)  # 合并
-
-            df.reset_index(inplace=True, drop=True)
-            """df做预处理"""
-            train_data, train_data_y, test_data, test_data_y = IRTrain.preProcess(df, date)
-
-            """根据算法获得推荐列表"""
-            recommendList, answerList = IRTrain.RecommendByIR(train_data, train_data_y, test_data,
-                                                              test_data_y, recommendNum=recommendNum)
             """根据推荐列表做评价"""
+
+            recommendList, answerList, prList, convertDict, trainSize = IRTrain.algorithmBody(date, project, recommendNum)
+
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
 
@@ -74,6 +52,44 @@ class IRTrain:
             print("cost time:", datetime.now() - startTime)
 
     @staticmethod
+    def algorithmBody(date, project, recommendNum=5):
+
+        """提供单个日期和项目名称
+           返回推荐列表和答案
+           这个接口可以被混合算法调用
+        """
+        df = None
+        for i in range(date[0] * 12 + date[1], date[2] * 12 + date[3] + 1):  # 拆分的数据做拼接
+            y = int((i - i % 12) / 12)
+            m = i % 12
+            if m == 0:
+                m = 12
+                y = y - 1
+
+            print(y, m)
+
+            filename = projectConfig.getIRDataPath() + os.sep \
+                       + f'IR_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            if df is None:
+                df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
+            else:
+                temp = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
+                df = df.append(temp)  # 合并
+
+        df.reset_index(inplace=True, drop=True)
+        """df做预处理"""
+        """预处理新增返回测试pr列表 2020.4.11"""
+        train_data, train_data_y, test_data, test_data_y, convertDict = IRTrain.preProcess(df, date)
+
+        prList = list(test_data['pr_number'])
+
+        """根据算法获得推荐列表"""
+        recommendList, answerList = IRTrain.RecommendByIR(train_data, train_data_y, test_data,
+                                                          test_data_y, recommendNum=recommendNum)
+        trainSize = (train_data.shape[0], test_data.shape[0])
+        return recommendList, answerList, prList, convertDict, trainSize
+
+    @staticmethod
     def preProcess(df, dates):
         """参数说明
          df：读取的dataframe对象
@@ -82,6 +98,8 @@ class IRTrain:
         """注意： 输入文件中已经带有列名了"""
 
         """处理NAN"""
+        df.dropna(how='any', inplace=True)
+        df.reset_index(drop=True, inplace=True)
         df.fillna(value='', inplace=True)
 
         """对df添加一列标识训练集和测试集"""
@@ -96,7 +114,7 @@ class IRTrain:
         df.drop_duplicates(inplace=True)
         print("after filter:", df.shape)
         """对人名字做数字处理"""
-        DataProcessUtils.changeStringToNumber(df, ['review_user_login'])
+        convertDict = DataProcessUtils.changeStringToNumber(df, ['review_user_login'])
         """先对tag做拆分"""
         tagDict = dict(list(df.groupby('pr_number')))
         """先尝试所有信息团在一起"""
@@ -108,7 +126,7 @@ class IRTrain:
         stopwords = SplitWordHelper().getEnglishStopList()  # 获取通用英语停用词
 
         textList = []
-        for row in df.itertuples(index=True, name='Pandas'):
+        for row in df.itertuples(index=False, name='Pandas'):
             tempList = []
             """获取pull request的标题"""
             pr_title = getattr(row, 'pr_title')
@@ -176,7 +194,8 @@ class IRTrain:
             reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
             test_data_y[pull_number] = reviewers
 
-        return train_data, train_data_y, test_data, test_data_y
+        """train_data ,test_data 最后一列是pr number test_data_y 的形式是dict"""
+        return train_data, train_data_y, test_data, test_data_y, convertDict
 
     @staticmethod
     def RecommendByIR(train_data, train_data_y, test_data, test_data_y, recommendNum=5):
@@ -187,14 +206,15 @@ class IRTrain:
         recommendList = []  # 最后多个case推荐列表
         answerList = []
 
-        for targetData in test_data.itertuples():  # 对每一个case做推荐
+        for targetData in test_data.itertuples(index=False):  # 对每一个case做推荐
             """itertuples 具有大量列的时候返回常规元组 >255"""
             targetNum = targetData[-1]
             recommendScore = {}
-            for trainData in train_data.itertuples(index=True, name='Pandas'):
+            for trainData in train_data.itertuples(index=False, name='Pandas'):
                 trainNum = trainData[-1]
                 reviewers = train_data_y[trainNum]
 
+                """计算相似度不带上最后一个pr number"""
                 score = IRTrain.cos2(targetData[0:targetData.__len__()-2], trainData[0:trainData.__len__()-2])
                 for reviewer in reviewers:
                     if recommendScore.get(reviewer, None) is None:
@@ -256,5 +276,6 @@ class IRTrain:
 if __name__ == '__main__':
     # dates = [(2018, 4, 2018, 5), (2018, 4, 2018, 7), (2018, 4, 2018, 10), (2018, 4, 2019, 1),
     #          (2018, 4, 2019, 4)]
-    dates = [(2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 8)]
+    # dates = [(2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 8)]
+    dates = [(2019, 1, 2019, 5)]
     IRTrain.testIRAlgorithm('bitcoin', dates)

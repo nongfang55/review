@@ -249,6 +249,15 @@ class StringKeyUtils:
     STR_ALGORITHM_SVM = 'svm'
     STR_ALGORITHM_DT = 'decisionTree'
     STR_ALGORITHM_RF = 'randomForest'
+    STR_ALGORITHM_IR = 'ir'
+
+    """∂‡±Í«©"""
+    STR_ALGORITHM_DT_M = 'decisionTree_m'
+    STR_ALGORITHM_RF_M = 'randomForest_m'
+    STR_ALGORITHM_ET_M = 'extraTree_m'
+    STR_ALGORITHM_ETS_M = 'extraTrees_m'
+
+
 
 
 
