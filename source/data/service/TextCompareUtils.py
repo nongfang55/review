@@ -9,6 +9,31 @@ class TextCompareUtils:
     @staticmethod
     def patchParser(text):
         """patch的文本解析"""
+
+        """ patch 文本格式示例说明
+        
+         @@ -35,9 +36,8 @@ ruby <%= \"'#{RUBY_VERSION}'\" -%>
+         # gem 'rack-cors'
+         
+         <%- end -%>
+         -# The gems below are used in development, but if they cause problems it's OK to remove them
+         -
+         <% if RUBY_ENGINE == 'ruby' -%>
+         +# The gems below are used in development, but if they cause problems it's OK to remove them
+         group :development, :test do
+         # Call 'byebug' anywhere in the code to stop execution and get a debugger console
+         gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]
+         
+         
+         说明：  -35,9,+36,8  说明这个改动在上个版本是35行开始，下面有9行是原来版本的内容
+                                           下个版本36行开始，下面8行是新版本的内容
+                                           "+" 行是新版本独有的内容
+                                           "-" 行是老版本独有的内容
+                                           
+                patch 的第一行不记内容
+        注： 这是我自己摸索的理解 @张逸凡
+        """
+
         changes = []  # 一个patch可能会有多个改动    [(开始行,共,版本二开始,共) -> [+, ,-,....]]
         print(text)
         print('-' * 50)
@@ -19,6 +44,7 @@ class TextCompareUtils:
         status = None
         lines = []
         for t in text.split('\n'):
+            """按行拆分  依次解析"""
             head = headMatch.search(t)
             if head:
                 if status is not None:
@@ -32,9 +58,11 @@ class TextCompareUtils:
                 if numbers.__len__() == 4:
                     status = tuple(numbers)
                 elif numbers.__len__() == 2:
+                    """可能有只有两个的特殊情况"""
                     numbers = (numbers[0], 1, numbers[1], 1)
-                status = numbers
+                    status = numbers
             else:
+                """收集正负符号 即每一行修改状态"""
                 lines.append(t[0])
         if status is not None:
             changes.append([status, lines])
@@ -43,7 +71,11 @@ class TextCompareUtils:
 
     @staticmethod
     def simulateTextChanges(patches1, patches2, targetLine):
-        """通过对patch做文本模拟来获得变化最后结果"""
+        """通过对patch做文本模拟来获得变化最后结果
+          对Patch1 的改动做负模拟
+          对Patch2 的改动做正模拟
+
+        """
 
         changes1 = []
         changes2 = []
@@ -56,6 +88,7 @@ class TextCompareUtils:
 
             for c in change:
                 # minLine = min(minLine, c[0])
+                """找修改本文可能会涉及的最大行数 减少文本模拟的负担"""
                 maxLine = max(maxLine, c[0][0] + c[1].__len__(), c[0][2] + c[1].__len__())
         for patch in patches2:
             change = TextCompareUtils.patchParser(patch)
@@ -71,13 +104,15 @@ class TextCompareUtils:
         text = [x for x in range(1, maxLine)]  # 生成模拟文本
         print(text)
 
-        """对于返回路径反着来"""
+        """本文模拟就是 一个数据 数组中的数字代表行号  对这个数组使用Patch做增改"""
+
+        """对于返回路径反着来  即改动中加内容为减内容   减内容为加内容"""
         for changes in changes1:
+            """计算模拟时候带来的偏移"""
             offset = 0
             for change in changes:
                 cur = change[0][2] - offset
                 print('start  offset:', change[0], offset)
-                offset = 0
                 for c in change[1]:
                     if c == ' ':
                         cur += 1
@@ -86,7 +121,10 @@ class TextCompareUtils:
                         cur += 1
                     elif c == '+':
                         text.pop(cur - 1)
-                offset = change[1].count('+') - change[1].count('-')
+                """删减行导致原来的起始行数错位  需要计算偏移补正"""
+
+                """修正偏移未累加导致的bug"""
+                offset += change[1].count('+') - change[1].count('-')
 
         """前进路径为正"""
         for changes in changes2:
@@ -94,7 +132,6 @@ class TextCompareUtils:
             for change in changes:
                 cur = change[0][0] + offset
                 print('start  offset:', change[0], offset)
-                offset = 0
                 for c in change[1]:
                     if c == ' ':
                         cur += 1
@@ -103,7 +140,7 @@ class TextCompareUtils:
                         cur += 1
                     elif c == '-':
                         text.pop(cur - 1)
-                offset = change[1].count('+') - change[1].count('-')
+                offset += change[1].count('+') - change[1].count('-')
         print(text)
         return text
 
@@ -119,12 +156,14 @@ class TextCompareUtils:
             """评论行不在 变化之后的文本当中，说明本行变化，返回0"""
             return 0
         else:
+            """寻找距离品论最近的改动距离"""
             curLine = text.index(commentLine)
 
             """分两个方向查找 先向0方向查找"""
             upChange = None
             downChange = None
             for i in range(1, min(11, curLine)):
+                """发现错位或者内容为0的文本为止"""
                 if text[curLine - i] != commentLine - i:
                     upChange = i
                     break
@@ -133,6 +172,7 @@ class TextCompareUtils:
                     downChange = i
                     break
 
+            """-1表示附近没有改动"""
             if upChange is None and downChange is None:
                 return -1
 
@@ -145,11 +185,12 @@ class TextCompareUtils:
 
 
 if __name__ == '__main__':
-    data = pandasHelper.readTSVFile(r'C:\Users\ThinkPad\Desktop\select____from_gitCommit_gitFile__where_.tsv',
-                                    pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
-    text = data.as_matrix()[0][18]
+    # data = pandasHelper.readTSVFile(r'C:\Users\ThinkPad\Desktop\select____from_gitCommit_gitFile__where_.tsv',
+    #                                 pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
+    # text = data.as_matrix()[0][18]
     # print(TextCompareUtils.patchParser(text))
     # print(text)
     # for t in text.split('\n'):
     #     print(t)
-    TextCompareUtils.simulateTextChanges([text], [text], 127)
+    text = "@@ -20,6 +20,7 @@ ruby <%= \"'#{RUBY_VERSION}'\" -%>\n <% end -%>\n <% end -%>\n \n+\n # Optional gems needed by specific Rails features:\n \n # Use bcrypt to encrypt passwords securely. Works with https://guides.rubyonrails.org/active_model_basics.html#securepassword\n@@ -35,9 +36,8 @@ ruby <%= \"'#{RUBY_VERSION}'\" -%>\n # gem 'rack-cors'\n \n <%- end -%>\n-# The gems below are used in development, but if they cause problems it's OK to remove them\n-\n <% if RUBY_ENGINE == 'ruby' -%>\n+# The gems below are used in development, but if they cause problems it's OK to remove them\n group :development, :test do\n   # Call 'byebug' anywhere in the code to stop execution and get a debugger console\n   gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]\n@@ -75,7 +75,6 @@ group :test do\n   # Easy installation and use of web drivers to run system tests with browsers\n   gem 'webdrivers'\n end\n-\n <%- end -%>\n \n <% if depend_on_bootsnap? -%>"
+    TextCompareUtils.simulateTextChanges([text], [text], 75)
