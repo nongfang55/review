@@ -119,6 +119,10 @@ class projectConfig:
     def getCADataPath():
         return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'CA'
 
+    @staticmethod
+    def getSEAADataPath():
+        return projectConfig.getDataPath() + os.sep + 'SEAA'
+
 
 if __name__ == "__main__":
     print(projectConfig.getRootPath())
