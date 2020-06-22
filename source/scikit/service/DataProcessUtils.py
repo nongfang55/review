@@ -547,6 +547,77 @@ class DataProcessUtils:
                                           dataFrame=data)
 
     @staticmethod
+    def contactCAData(projectName):
+        """
+        通过 ALL_{projectName}_data_pr_review_commit_file
+             ALL_{projectName}_commit_file
+             ALL_data_review_comment 三个文件拼接出CA需信息量的文件
+        """
+
+        """读取信息   只需要commit_file和pr_review和relation的信息"""
+        time1 = datetime.now()
+        data_train_path = projectConfig.getDataTrainPath()
+        commit_file_data_path = projectConfig.getCommitFilePath()
+        pr_commit_relation_path = projectConfig.getPrCommitRelationPath()
+        prReviewData = pandasHelper.readTSVFile(
+            os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
+        prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
+        print("raw pr review :", prReviewData.shape)
+
+        """commit file 信息是拼接出来的 所以有抬头"""
+        commitFileData = pandasHelper.readTSVFile(
+            os.path.join(commit_file_data_path, f'ALL_{projectName}_data_commit_file.tsv'), low_memory=False,
+            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        print("raw commit file :", commitFileData.shape)
+
+        commitPRRelationData = pandasHelper.readTSVFile(
+            os.path.join(pr_commit_relation_path, f'ALL_{projectName}_data_pr_commit_relation.tsv'),
+            pandasHelper.INT_READ_FILE_WITHOUT_HEAD, low_memory=False
+        )
+        commitPRRelationData.columns = DataProcessUtils.COLUMN_NAME_PR_COMMIT_RELATION
+        print("pr_commit_relation:", commitPRRelationData.shape)
+
+        print("read file cost time:", datetime.now() - time1)
+
+        """过滤状态非关闭的pr review"""
+        prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
+        print("after fliter closed pr:", prReviewData.shape)
+
+        """过滤pr 作者就是reviewer的情况"""
+        prReviewData = prReviewData.loc[prReviewData['pr_user_login']
+                                        != prReviewData['review_user_login']].copy(deep=True)
+        print("after fliter author:", prReviewData.shape)
+
+        """过滤不需要的字段"""
+        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at']].copy(deep=True)
+        prReviewData.drop_duplicates(inplace=True)
+        prReviewData.reset_index(drop=True, inplace=True)
+        print("after fliter pr_review:", prReviewData.shape)
+
+        commitFileData = commitFileData[['commit_sha', 'file_filename']].copy(deep=True)
+        commitFileData.drop_duplicates(inplace=True)
+        commitFileData.reset_index(drop=True, inplace=True)
+        print("after fliter commit_file:", commitFileData.shape)
+
+        """做三者连接"""
+        data = pandas.merge(prReviewData, commitPRRelationData, left_on='pr_number', right_on='pull_number')
+        print("merge relation:", data.shape)
+        data = pandas.merge(data, commitFileData, left_on='sha', right_on='commit_sha')
+        data.reset_index(drop=True, inplace=True)
+        data.drop(columns=['sha'], inplace=True)
+        data.drop(columns=['pr_number'], inplace=True)
+        print("交换位置")
+        order = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha', 'file_filename']
+        data = data[order]
+        # print(data.columns)
+        print("after merge:", data.shape)
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getCADataPath(),
+                                          targetFileName=f'CA_{projectName}_data', dateCol='pr_created_at',
+                                          dataFrame=data)
+
+    @staticmethod
     def convertLabelListToDataFrame(label_data, pull_list, maxNum):
         # maxNum 为候选者的数量，会有答案不在名单的可能
         ar = numpy.zeros((label_data.__len__(), maxNum), dtype=int)
@@ -762,11 +833,11 @@ if __name__ == '__main__':
     # DataProcessUtils.splitProjectCommitFileData('infinispan')
 
     """分割不同算法的训练集"""
-    # DataProcessUtils.contactFPSData('opencv')
+    DataProcessUtils.contactCAData('cakephp')
 
     # DataProcessUtils.contactMLData('xbmc')
     # DataProcessUtils.contactIRData('xbmc')
     #
     # DataProcessUtils.getReviewerFrequencyDict('rails', (2019, 4, 2019, 6))
     # DataProcessUtils.getStopWordList()
-    DataProcessUtils.dunn()
+    # DataProcessUtils.dunn()

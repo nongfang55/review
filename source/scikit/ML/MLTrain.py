@@ -609,7 +609,7 @@ class MLTrain:
                 sheetName = 'result'
                 """初始化excel文件"""
                 ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
-                for featureType in range(0, 1):
+                for featureType in range(1, 2):
                     """初始化项目抬头"""
                     content = ["项目名称：", project]
                     ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
@@ -703,4 +703,4 @@ if __name__ == '__main__':
     # projects = ['rails', 'scala', 'akka', 'bitcoin']
     dates = [(2018, 1, 2019, 1)]
     projects = ['cakephp']
-    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0])
+    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [1])

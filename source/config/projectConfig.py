@@ -115,6 +115,10 @@ class projectConfig:
     def getIRDataPath():
         return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'IR'
 
+    @staticmethod
+    def getCADataPath():
+        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'CA'
+
 
 if __name__ == "__main__":
     print(projectConfig.getRootPath())
