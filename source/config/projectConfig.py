@@ -20,6 +20,18 @@ class projectConfig:
     PATH_STOP_WORD_ENGLISH = 'data' + os.sep + 'stop-words_english_1_en.txt'
     PATH_RUBY_KEY_WORD = 'data' + os.sep + 'rubyKeyWord.txt'
     PATH_CHANGE_TRIGGER = 'data' + os.sep + 'pullrequest_rails.tsv'
+    PATH_COMMIT_RELATION = 'data' + os.sep + 'train' + os.sep + 'prCommitRelation'
+    PATH_ISSUE_COMMENT_PATH = 'data' + os.sep + 'train' + os.sep + 'issueCommentData'
+    PATH_DATA_TRAIN = 'data' + os.sep + 'train'
+    PATH_COMMIT_FILE = 'data' + os.sep + 'train' + os.sep + 'commitFileData'
+    PATH_SEAA = 'data' + os.sep + 'SEAA'
+    PATH_PULL_REQUEST = 'data' + os.sep + 'train' + os.sep + 'pullRequestData'
+
+    PATH_FPS_DATA = 'data' + os.sep + 'train' + os.sep + 'FPS'
+    PATH_ML_DATA = 'data' + os.sep + 'train' + os.sep + 'ML'
+    PATH_IR_DATA = 'data' + os.sep + 'train' + os.sep + 'IR'
+    PATH_CA_DATA = 'data' + os.sep + 'train' + os.sep + 'CA'
+
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
 
     @staticmethod
@@ -91,37 +103,43 @@ class projectConfig:
 
     @staticmethod
     def getPrCommitRelationPath():
-        pr_commit_relation_path = projectConfig.getRootPath() + os.sep + 'data' \
-                                  + os.sep + 'train' + os.sep + 'prCommitRelation'
-        return pr_commit_relation_path
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_COMMIT_RELATION)
+
+    @staticmethod
+    def getIssueCommentPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_ISSUE_COMMENT_PATH)
 
     @staticmethod
     def getDataTrainPath():
-        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train'
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_DATA_TRAIN)
 
     @staticmethod
     def getCommitFilePath():
-        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'commitFileData'
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_COMMIT_FILE)
+
+    @staticmethod
+    def getPullRequestPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_PULL_REQUEST)
 
     @staticmethod
     def getFPSDataPath():
-        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'FPS'
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_FPS_DATA)
 
     @staticmethod
     def getMLDataPath():
-        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'ML'
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_ML_DATA)
 
     @staticmethod
     def getIRDataPath():
-        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'IR'
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_IR_DATA)
 
     @staticmethod
     def getCADataPath():
-        return projectConfig.getRootPath() + os.sep + 'data' + os.sep + 'train' + os.sep + 'CA'
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CA_DATA)
 
     @staticmethod
     def getSEAADataPath():
-        return projectConfig.getDataPath() + os.sep + 'SEAA'
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_SEAA)
 
 
 if __name__ == "__main__":

@@ -257,6 +257,11 @@ class StringKeyUtils:
     STR_ALGORITHM_ET_M = 'extraTree_m'
     STR_ALGORITHM_ETS_M = 'extraTrees_m'
 
+    """issue comment 和 review comment 标签的区分"""
+    STR_LABEL_ISSUE_COMMENT = 'label_issue_comment'
+    STR_LABEL_REVIEW_COMMENT = 'label_review_comment'
+    STR_LABEL_ALL_COMMENT = 'label_all_comment'
+
 
 
 

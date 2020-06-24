@@ -18,6 +18,7 @@ from source.config.projectConfig import projectConfig
 from source.nlp.SplitWordHelper import SplitWordHelper
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
 from source.utils.ExcelHelper import ExcelHelper
+from source.utils.StringKeyUtils import StringKeyUtils
 from source.utils.pandas.pandasHelper import pandasHelper
 
 
@@ -153,6 +154,10 @@ class DataProcessUtils:
         minYear = min(df['label']).tm_year
         minMonth = min(df['label']).tm_mon
         print(maxYear, maxMonth, minYear, minMonth)
+
+        # 新增路径判断
+        if not os.path.isdir(targetPath):
+            os.makedirs(targetPath)
 
         start = minYear * 12 + minMonth
         end = maxYear * 12 + maxMonth
@@ -392,18 +397,37 @@ class DataProcessUtils:
         print(f"write over: {target_file_name}, cost time:", datetime.now() - time1)
 
     @staticmethod
-    def contactFPSData(projectName):
+    def contactFPSData(projectName, label=StringKeyUtils.STR_LABEL_REVIEW_COMMENT):
         """
+        2020.6.23
+        新增标识符label  分别区别 review comment、 issue comment 和 all的情况
+
+        dataframe 输出统一格式：
+        [repo_full_name, pull_number, pr_created_at, review_user_login, commit_sha, file_filename]
+        不含信息项置 0
+
+        对于 label = review comment
         通过 ALL_{projectName}_data_pr_review_commit_file
              ALL_{projectName}_commit_file
-             ALL_data_review_comment 三个文件拼接出FPS所需信息量的文件
+             ALL_{projectName}_data_pr_commit_relation 三个文件拼接出FPS所需信息量的文件
+
+        对于 label = issue comment
+        通过 ALL_{projectName}_data_pull_request
+             ALL_{projectName}_commit_file
+             ALL_{projectName}_data_pr_commit_relation
+             ALL_{projectName}_data_issuecomment 四个文件拼接出FPS所需信息量的文件
+
+        issue comment不能使用  ALL_{projectName}_data_pr_review_commit_file
+        这里pr已经和review做连接 导致数量减少
         """
 
-        """读取信息  fps 只需要commit_file和pr_review和relation的信息"""
         time1 = datetime.now()
         data_train_path = projectConfig.getDataTrainPath()
         commit_file_data_path = projectConfig.getCommitFilePath()
         pr_commit_relation_path = projectConfig.getPrCommitRelationPath()
+        issue_comment_path = projectConfig.getIssueCommentPath()
+        pull_request_path = projectConfig.getPullRequestPath()
+
         prReviewData = pandasHelper.readTSVFile(
             os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
         prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
@@ -422,16 +446,33 @@ class DataProcessUtils:
         commitPRRelationData.columns = DataProcessUtils.COLUMN_NAME_PR_COMMIT_RELATION
         print("pr_commit_relation:", commitPRRelationData.shape)
 
+        """issue commit 数据库输出 自带抬头"""
+        issueCommitData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
         print("read file cost time:", datetime.now() - time1)
 
         """过滤状态非关闭的pr review"""
-        prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
-        print("after fliter closed pr:", prReviewData.shape)
+        if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
+            prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
+            print("after fliter closed pr:", prReviewData.shape)
+        elif label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
+            pullRequestData = pullRequestData.loc[pullRequestData['state'] == 'closed'].copy(deep=True)
+            print("after fliter closed pr:", pullRequestData.shape)
 
-        """过滤pr 作者就是reviewer的情况"""
-        prReviewData = prReviewData.loc[prReviewData['pr_user_login']
-                                        != prReviewData['review_user_login']].copy(deep=True)
-        print("after fliter author:", prReviewData.shape)
+        if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
+            """过滤pr 作者就是reviewer的情况"""
+            prReviewData = prReviewData.loc[prReviewData['pr_user_login']
+                                            != prReviewData['review_user_login']].copy(deep=True)
+            print("after fliter author:", prReviewData.shape)
 
         """过滤不需要的字段"""
         prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at']].copy(deep=True)
@@ -444,22 +485,47 @@ class DataProcessUtils:
         commitFileData.reset_index(drop=True, inplace=True)
         print("after fliter commit_file:", commitFileData.shape)
 
-        """做三者连接"""
-        data = pandas.merge(prReviewData, commitPRRelationData, left_on='pr_number', right_on='pull_number')
-        print("merge relation:", data.shape)
-        data = pandas.merge(data, commitFileData, left_on='sha', right_on='commit_sha')
-        data.reset_index(drop=True, inplace=True)
-        data.drop(columns=['sha'], inplace=True)
-        data.drop(columns=['pr_number'], inplace=True)
-        print("交换位置")
-        order = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha', 'file_filename']
-        data = data[order]
-        # print(data.columns)
+        pullRequestData = pullRequestData[['number', 'created_at', 'user_login']].copy(deep=True)
+
+        targetFileName = f'FPS_{projectName}_data'
+        if label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
+            targetFileName = f'FPS_ISSUE_{projectName}_data'
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+            targetFileName = f'FPS_ALL_{projectName}_data'
+
+        """按照不同类型做连接"""
+        if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
+            data = pandas.merge(prReviewData, commitPRRelationData, left_on='pr_number', right_on='pull_number')
+            print("merge relation:", data.shape)
+            data = pandas.merge(data, commitFileData, left_on='sha', right_on='commit_sha')
+            data.reset_index(drop=True, inplace=True)
+            data.drop(columns=['sha'], inplace=True)
+            data.drop(columns=['pr_number'], inplace=True)
+            print("交换位置")
+            order = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha', 'file_filename']
+            data = data[order]
+        elif label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
+            data = pandas.merge(pullRequestData, commitPRRelationData, left_on='number', right_on='pull_number')
+            data = pandas.merge(data, commitFileData, left_on='sha', right_on='commit_sha')
+            data = pandas.merge(data, issueCommitData, left_on='number', right_on='pull_number')
+            """过滤作者 发issue comment的情况"""
+            data = data.loc[data['user_login_x'] != data['user_login_y']].copy(deep=True)
+            data.drop(columns=['user_login_x'], axis=1, inplace=True)
+            """过滤  多个commit包含一个文件的情况  重要 2020.6.3"""
+            data.drop_duplicates(['number', 'file_filename', 'user_login_y'], inplace=True)
+            data.reset_index(drop=True, inplace=True)
+            """只选出感兴趣的部分"""
+            data = data[['repo_full_name_x', 'pull_number_x', 'created_at_x', 'user_login_y', 'commit_sha',
+                         'file_filename']].copy(deep=True)
+            data.drop_duplicates(inplace=True)
+            data.columns = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha', 'file_filename']
+            data.reset_index(drop=True)
+
         print("after merge:", data.shape)
 
         """按照时间分成小片"""
         DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getFPSDataPath(),
-                                          targetFileName=f'FPS_{projectName}_data', dateCol='pr_created_at',
+                                          targetFileName=targetFileName, dateCol='pr_created_at',
                                           dataFrame=data)
 
     @staticmethod
@@ -833,7 +899,11 @@ if __name__ == '__main__':
     # DataProcessUtils.splitProjectCommitFileData('infinispan')
 
     """分割不同算法的训练集"""
-    DataProcessUtils.contactCAData('cakephp')
+    # DataProcessUtils.contactCAData('cakephp')
+
+    projects = ['opencv', 'rails', 'angular']
+    for p in projects:
+        DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ISSUE_COMMENT)
 
     # DataProcessUtils.contactMLData('xbmc')
     # DataProcessUtils.contactIRData('xbmc')
