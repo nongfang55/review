@@ -141,3 +141,62 @@ class ReviewComment(BeanBase):
                     res.user_login = res.user.login
 
             return res
+
+    class parserV4(BeanBase.parser):
+        @staticmethod
+        def parser(src):
+            res = None
+            if isinstance(src, dict):
+                res = ReviewComment()
+                res.id = src.get(StringKeyUtils.STR_KEY_DATABASE_ID, None)
+
+                res.body = src.get(StringKeyUtils.STR_KEY_BODY)
+                """pull_request_review_id 无法获取"""
+                res.pull_request_review_id = src.get(StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_ID)
+                res.diff_hunk = src.get(StringKeyUtils.STR_KEY_DIFF_HUNK_V4)
+                res.path = src.get(StringKeyUtils.STR_KEY_PATH)
+                """获取 commit id"""
+                commit = src.get(StringKeyUtils.STR_KEY_COMMIT, None)
+                if commit is not None and isinstance(commit, dict):
+                    res.commit_id = commit.get(StringKeyUtils.STR_KEY_OID, None)
+
+                res.position = src.get(StringKeyUtils.STR_KEY_POSITION)
+                res.original_position = src.get(StringKeyUtils.STR_KEY_ORIGINAL_POSITION_V4)
+                """获取 original commit id"""
+                originalCommit = src.get(StringKeyUtils.STR_KEY_ORIGINAL_COMMIT, None)
+                if originalCommit is not None and isinstance(originalCommit, dict):
+                    res.original_commit_id = originalCommit.get(StringKeyUtils.STR_KEY_OID)
+
+                res.created_at = src.get(StringKeyUtils.STR_KEY_CREATE_AT_V4)
+                res.updated_at = src.get(StringKeyUtils.STR_KEY_UPDATE_AT_V4)
+                res.change_trigger = src.get(StringKeyUtils.STR_KEY_CHANGE_TRIGGER)
+
+                if res.created_at is not None:
+                    res.created_at = datetime.strptime(res.created_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+                if res.updated_at is not None:
+                    res.updated_at = datetime.strptime(res.updated_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+
+                res.author_association = src.get(StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION_V4)
+
+                """关于 comment 行数的信息都无法获取"""
+                res.start_line = src.get(StringKeyUtils.STR_KEY_START_LINE)
+                res.original_start_line = src.get(StringKeyUtils.STR_KEY_ORIGINAL_START_LINE)
+                res.start_side = src.get(StringKeyUtils.STR_KEY_START_SIDE)
+                res.line = src.get(StringKeyUtils.STR_KEY_LINE)
+                res.original_line = src.get(StringKeyUtils.STR_KEY_ORIGINAL_LINE)
+                res.side = src.get(StringKeyUtils.STR_KEY_SIDE)
+
+                """获取 in_replay_to_id 信息"""
+                replyTo = src.get(StringKeyUtils.STR_KEY_IN_REPLY_TO_ID_V4)
+                if replyTo is not None and isinstance(replyTo, dict):
+                    res.in_reply_to_id = replyTo.get(StringKeyUtils.STR_KEY_DATABASE_ID)
+
+                res.node_id = src.get(StringKeyUtils.STR_KEY_ID)
+
+                """获取 user_login 信息"""
+                userData = src.get(StringKeyUtils.STR_KEY_AUTHOR, None)
+                if userData is not None and isinstance(userData, dict):
+                    res.user = None
+                    res.user_login = userData.get(StringKeyUtils.STR_KEY_LOGIN, None)
+
+            return res

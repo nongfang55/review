@@ -15,10 +15,12 @@ from source.data.bean.Commit import Commit
 from source.data.bean.CommitPRRelation import CommitPRRelation
 from source.data.bean.File import File
 from source.data.bean.IssueComment import IssueComment
+from source.data.bean.PRChangeFile import PRChangeFile
 from source.data.bean.PRTimeLineRelation import PRTimeLineRelation
 from source.data.bean.PullRequest import PullRequest
 from source.data.bean.Review import Review
 from source.data.bean.ReviewComment import ReviewComment
+from source.data.bean.User import User
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
 from source.data.service.BeanParserHelper import BeanParserHelper
 from source.data.service.GraphqlHelper import GraphqlHelper
@@ -260,7 +262,7 @@ class AsyncApiHelper:
                 try:
                     beanList = []  # 用来收集需要存储的bean类
                     """先获取pull request信息"""
-                    args = {"number": pull_number, "owner":AsyncApiHelper.owner, "name":AsyncApiHelper.repo}
+                    args = {"number": pull_number, "owner": AsyncApiHelper.owner, "name": AsyncApiHelper.repo}
                     api = AsyncApiHelper.getGraphQLApi()
                     query = GraphqlHelper.getPrInformationByNumber()
                     resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
@@ -281,125 +283,151 @@ class AsyncApiHelper:
                             usefulIssueCommentsCount = 0
                             usefulCommitsCount = 0
 
-                            if pull_request is not None:
+                            if pull_request is not None and pull_request.is_pr:
                                 usefulPullRequestsCount = 1
                                 beanList.append(pull_request)
-                            #
-                            #     if pull_request.head is not None:
-                            #         beanList.append(pull_request.head)
-                            #     if pull_request.base is not None:
-                            #         beanList.append(pull_request.base)
-                            #     if pull_request.user is not None:
-                            #         beanList.append(pull_request.user)
-                            #
-                            #     reviewCommits = []  # review中涉及的Commit的点
-                            #
-                            #     """获取review信息"""
-                            #     api = AsyncApiHelper.getReviewForPullRequestApi(pull_number)
-                            #     json = await AsyncApiHelper.fetchBeanData(session, api)
-                            #     reviews = await AsyncApiHelper.parserReview(json, pull_number)
-                            #     if configPraser.getPrintMode():
-                            #         print(reviews)
-                            #
-                            #     usefulReviewsCount = 0
-                            #     if reviews is not None:
-                            #         for review in reviews:
-                            #             usefulReviewsCount += 1
-                            #             beanList.append(review)
-                            #             if review.user is not None:
-                            #                 beanList.append(review.user)
-                            #             if review.commit_id not in reviewCommits:
-                            #                 reviewCommits.append(review.commit_id)
-                            #
-                            #     """获取review comment信息"""
-                            #     api = AsyncApiHelper.getReviewCommentForPullRequestApi(pull_number)
-                            #     json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
-                            #     reviewComments = await AsyncApiHelper.parserReviewComment(json)
-                            #
-                            #     if configPraser.getPrintMode():
-                            #         print(reviewComments)
-                            #     usefulReviewCommentsCount = 0
-                            #     if reviewComments is not None:
-                            #         for reviewComment in reviewComments:
-                            #             usefulReviewCommentsCount += 1
-                            #             beanList.append(reviewComment)
-                            #             if reviewComment.user is not None:
-                            #                 beanList.append(reviewComment.user)
-                            #
-                            #     '''获取 pull request对应的issue comment信息'''
-                            #     api = AsyncApiHelper.getIssueCommentForPullRequestApi(pull_number)
-                            #     json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
-                            #     issueComments = await  AsyncApiHelper.parserIssueComment(json, pull_number)
-                            #     usefulIssueCommentsCount = 0
-                            #     if issueComments is not None:
-                            #         for issueComment in issueComments:
-                            #             usefulIssueCommentsCount += 1
-                            #             beanList.append(issueComment)
-                            #             if issueComment.user is not None:
-                            #                 beanList.append(issueComment.user)
-                            #
-                            #     '''获取 pull request对应的commit信息'''
-                            #     api = AsyncApiHelper.getCommitForPullRequestApi(pull_number)
-                            #     json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
-                            #     Commits, Relations = await AsyncApiHelper.parserCommitAndRelation(json, pull_number)
-                            #
-                            #     for commit in Commits:
-                            #         if commit.sha in reviewCommits:
-                            #             reviewCommits.remove(commit.sha)
-                            #
-                            #     """有些review涉及的commit的点没有在PR线中收集到 这些点主要是中间存在最后
-                            #     没有的点 但是最后需要在特征提取中用到 所以也需要收集"""
-                            #
-                            #     """剩下的点需要依次获取"""
-                            #     for commit_id in reviewCommits:
-                            #         api = AsyncApiHelper.getCommitApi(commit_id)
-                            #         json = await AsyncApiHelper.fetchBeanData(session, api)
-                            #         commit = await AsyncApiHelper.parserCommit(json)
-                            #         Commits.append(commit)
-                            #
-                            #     usefulCommitsCount = 0
-                            #     for commit in Commits:
-                            #         if commit is not None:
-                            #             usefulCommitsCount += 1
-                            #             api = AsyncApiHelper.getCommitApi(commit.sha)
-                            #             json = await AsyncApiHelper.fetchBeanData(session, api)
-                            #             commit = await AsyncApiHelper.parserCommit(json)
-                            #             beanList.append(commit)
-                            #
-                            #             if commit.committer is not None:
-                            #                 beanList.append(commit.committer)
-                            #             if commit.author is not None:
-                            #                 beanList.append(commit.author)
-                            #             if commit.files is not None:
-                            #                 for file in commit.files:
-                            #                     beanList.append(file)
-                            #             if commit.parents is not None:
-                            #                 for parent in commit.parents:
-                            #                     beanList.append(parent)
-                            #             """作为资源节约   commit comment不做采集"""
-                            #
-                            #     for relation in Relations:
-                            #         beanList.append(relation)
-                            #
-                            #     print(beanList)
 
-                            # """数据库存储"""
-                            # await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+                                if pull_request.head is not None:
+                                    beanList.append(pull_request.head)
+                                if pull_request.base is not None:
+                                    beanList.append(pull_request.base)
 
-                            # 做了同步处理
-                            statistic.lock.acquire()
-                            statistic.usefulRequestNumber += usefulPullRequestsCount
-                            statistic.usefulReviewNumber += usefulReviewsCount
-                            statistic.usefulReviewCommentNumber += usefulReviewCommentsCount
-                            statistic.usefulIssueCommentNumber += usefulIssueCommentsCount
-                            statistic.usefulCommitNumber += usefulCommitsCount
-                            print("useful pull request:", statistic.usefulRequestNumber,
-                                  " useful review:", statistic.usefulReviewNumber,
-                                  " useful review comment:", statistic.usefulReviewCommentNumber,
-                                  " useful issue comment:", statistic.usefulIssueCommentNumber,
-                                  " useful commit:", statistic.usefulCommitNumber,
-                                  " cost time:", datetime.now() - statistic.startTime)
-                            statistic.lock.release()
+                                users = []
+                                """解析 user 直接从pr的participate获取"""
+                                user_list = prData.get(StringKeyUtils.STR_KEY_PARTICIPANTS, None)
+                                if user_list is not None and isinstance(user_list, dict):
+                                    user_list_nodes = user_list.get(StringKeyUtils.STR_KEY_NODES, None)
+                                    if user_list_nodes is not None and isinstance(user_list_nodes, list):
+                                        for userData in user_list_nodes:
+                                            user = User.parserV4.parser(userData)
+                                            if user is not None:
+                                                users.append(user)
+
+                                """解析 review, review comment, review 涉及的 commit 信息"""
+                                reviews = []
+                                reviewComments = []
+                                commits = []
+                                review_list = prData.get(StringKeyUtils.STR_KEY_REVIEWS, None)
+                                if review_list is not None and isinstance(review_list, dict):
+                                    review_list_nodes = review_list.get(StringKeyUtils.STR_KEY_NODES, None)
+                                    if review_list_nodes is not None and isinstance(review_list_nodes, list):
+                                        for reviewData in review_list_nodes:
+                                            review = Review.parserV4.parser(reviewData)
+                                            if review is not None:
+                                                review.repo_full_name = pull_request.repo_full_name
+                                                review.pull_number = pull_number
+                                                reviews.append(review)
+
+                                            if reviewData is not None and isinstance(reviewData, dict):
+                                                comment_list = reviewData.get(StringKeyUtils.STR_KEY_COMMENTS, None)
+                                                if comment_list is not None and isinstance(comment_list, dict):
+                                                    comment_list_nodes = comment_list.get(StringKeyUtils.STR_KEY_NODES
+                                                                                          , None)
+                                                    if comment_list_nodes is not None and isinstance(comment_list_nodes
+                                                            ,list):
+                                                        for commentData in comment_list_nodes:
+                                                            comment = ReviewComment.parserV4.parser(commentData)
+                                                            comment.pull_request_review_id = review.id
+                                                            reviewComments.append(comment)
+
+                                                commitData = reviewData.get(StringKeyUtils.STR_KEY_COMMIT, None)
+                                                if commitData is not None and isinstance(commitData, dict):
+                                                    commit = Commit.parserV4.parser(commitData)
+                                                    isFind = False
+                                                    for c in commits:
+                                                        if c.sha == commit.sha:
+                                                            isFind = True
+                                                            break
+                                                    if not isFind:
+                                                        commits.append(commit)
+
+                                if configPraser.getPrintMode():
+                                    print(reviews)
+                                    print(reviewComments)
+
+                                usefulReviewsCount += reviews.__len__()
+                                usefulReviewCommentsCount += reviewComments.__len__()
+
+                                """issue comment 信息获取"""
+                                issueComments = []
+                                issue_comment_list = prData.get(StringKeyUtils.STR_KEY_COMMENTS, None)
+                                if issue_comment_list is not None and isinstance(issue_comment_list, dict):
+                                    issue_comment_list_nodes = issue_comment_list.get(StringKeyUtils.STR_KEY_NODES, None)
+                                    if issue_comment_list_nodes is not None and isinstance(issue_comment_list_nodes,
+                                                                                           list):
+                                        for commentData in issue_comment_list_nodes:
+                                            issueComment = IssueComment.parserV4.parser(commentData)
+                                            issueComment.pull_number = pull_number
+                                            issueComment.repo_full_name = pull_request.repo_full_name
+                                            issueComments.append(issueComment)
+
+                                if configPraser.getPrintMode():
+                                    print(issueComments)
+                                usefulIssueCommentsCount += issueComments.__len__()
+
+                                """获取 pr 中直接关联的 commit 信息"""
+                                commit_list = prData.get(StringKeyUtils.STR_KEY_COMMITS, None)
+                                if commit_list is not None and isinstance(commit_list, dict):
+                                    commit_list_nodes = commit_list.get(StringKeyUtils.STR_KEY_NODES, None)
+                                    if commit_list_nodes is not None and isinstance(commit_list_nodes, list):
+                                        for commitData in commit_list_nodes:
+                                            commitData = commitData.get(StringKeyUtils.STR_KEY_COMMIT, None)
+                                            commit = Commit.parserV4.parser(commitData)
+                                            isFind = False
+                                            for c in commits:
+                                                if c.sha == commit.sha:
+                                                    isFind = True
+                                                    break
+                                            if not isFind:
+                                                commits.append(commit)
+
+                                """整合 commitPrRelation 和 commitRelation"""
+                                CommitPrRelations = []
+                                CommitRelations = []
+                                for commit in commits:
+                                    relation = CommitPRRelation()
+                                    relation.repo_full_name = pull_request.repo_full_name
+                                    relation.pull_number = pull_number
+                                    relation.sha = commit.sha
+                                    CommitPrRelations.append(relation)
+                                    CommitRelations.extend(commit.parents)
+
+                                usefulCommitsCount += commits.__len__()
+
+                                """新增 pull request 涉及的文件变动，而不是commit文件变动的累加"""
+                                files = []
+                                files_list = prData.get(StringKeyUtils.STR_KEY_FILES, None)
+                                if files_list is not None and isinstance(files_list, dict):
+                                    files_list_nodes = files_list.get(StringKeyUtils.STR_KEY_NODES, None)
+                                    if files_list_nodes is not None and isinstance(files_list_nodes, list):
+                                        for fileData in files_list_nodes:
+                                            file = PRChangeFile.parserV4.parser(fileData)
+                                            file.pull_number = pull_number
+                                            file.repo_full_name = pull_request.repo_full_name
+                                            files.append(file)
+
+                                if configPraser.getPrintMode():
+                                    print(files)
+
+                                """beanList 添加各个数据项"""
+
+                                # """数据库存储"""
+                                # await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+
+                                # 做了同步处理
+                                statistic.lock.acquire()
+                                statistic.usefulRequestNumber += usefulPullRequestsCount
+                                statistic.usefulReviewNumber += usefulReviewsCount
+                                statistic.usefulReviewCommentNumber += usefulReviewCommentsCount
+                                statistic.usefulIssueCommentNumber += usefulIssueCommentsCount
+                                statistic.usefulCommitNumber += usefulCommitsCount
+                                print("useful pull request:", statistic.usefulRequestNumber,
+                                      " useful review:", statistic.usefulReviewNumber,
+                                      " useful review comment:", statistic.usefulReviewCommentNumber,
+                                      " useful issue comment:", statistic.usefulIssueCommentNumber,
+                                      " useful commit:", statistic.usefulCommitNumber,
+                                      " cost time:", datetime.now() - statistic.startTime)
+                                statistic.lock.release()
                 except Exception as e:
                     print(e)
 

@@ -90,3 +90,39 @@ class Review(BeanBase):
                     res.user = user
                     res.user_login = user.login
             return res
+
+    class parserV4(BeanBase.parser):
+
+        @staticmethod
+        def parser(src):
+            res = None
+            if isinstance(src, dict):
+                res = Review()
+                """repo_full_name, pull_number 无法获取"""
+                res.repo_full_name = src.get(StringKeyUtils.STR_KEY_REPO_FULL_NAME, None)
+                res.pull_number = src.get(StringKeyUtils.STR_KEY_PULL_NUMBER, None)
+
+                res.id = src.get(StringKeyUtils.STR_KEY_DATABASE_ID, None)
+
+                res.body = src.get(StringKeyUtils.STR_KEY_BODY, None)
+                res.state = src.get(StringKeyUtils.STR_KEY_STATE, None)
+                res.author_association = src.get(StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION_V4, None)
+                res.submitted_at = src.get(StringKeyUtils.STR_KEY_SUBMITTED_AT_V4, None)
+
+                if res.submitted_at is not None:
+                    res.submitted_at = datetime.strptime(res.submitted_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+
+                """获取 review的commit sha"""
+                commit = src.get(StringKeyUtils.STR_KEY_COMMIT, None)
+                if commit is not None and isinstance(commit, dict):
+                    res.commit_id = commit.get(StringKeyUtils.STR_KEY_OID, None)
+
+                res.node_id = src.get(StringKeyUtils.STR_KEY_ID, None)
+
+                """获取 user_login"""
+                userData = src.get(StringKeyUtils.STR_KEY_AUTHOR, None)
+                if userData is not None and isinstance(userData, dict):
+                    res.user = None
+                    res.user_login = userData.get(StringKeyUtils.STR_KEY_LOGIN, None)
+
+            return res

@@ -152,3 +152,55 @@ class User(BeanBase):
                     res.updated_at = datetime.strptime(res.updated_at, StringKeyUtils.STR_STYLE_DATA_DATE)
 
             return res
+
+    class parserV4(BeanBase.parser):
+
+            @staticmethod
+            def parser(src):
+                res = None
+                if isinstance(src, dict):
+                    res = User()
+                    res.login = src.get(StringKeyUtils.STR_KEY_LOGIN, None)
+                    res.site_admin = src.get(StringKeyUtils.STR_KEY_SITE_ADMIN_V4, None)
+                    """type 获取不到  
+                       v4的id 对应v3 node id
+                       v4的databaseid 对应v3 id
+                    """
+                    res.type = src.get(StringKeyUtils.STR_KEY_TYPE, None)
+                    res.id = src.get(StringKeyUtils.STR_KEY_DATABASE_ID, None)
+                    res.email = src.get(StringKeyUtils.STR_KEY_EMAIL, None)
+                    res.node_id = src.get(StringKeyUtils.STR_KEY_ID, None)
+
+                    """url 系列都无法获取"""
+                    res.followers_url = src.get(StringKeyUtils.STR_KEY_FOLLOWERS_URL, None)
+                    res.following_url = src.get(StringKeyUtils.STR_KEY_FOLLOWING_URL, None)
+                    res.starred_url = src.get(StringKeyUtils.STR_KEY_STARRED_URL, None)
+                    res.subscriptions_url = src.get(StringKeyUtils.STR_KEY_SUBSCRIPTIONS_URL, None)
+                    res.organizations_url = src.get(StringKeyUtils.STR_KEY_ORGANIZATIONS_URL, None)
+                    res.repos_url = src.get(StringKeyUtils.STR_KEY_REPOS_URL, None)
+                    res.events_url = src.get(StringKeyUtils.STR_KEY_EVENTS_URL, None)
+                    res.received_events_url = src.get(StringKeyUtils.STR_KEY_RECEVIED_EVENTS_URL, None)
+                    res.name = src.get(StringKeyUtils.STR_KEY_NAME, None)
+                    res.company = src.get(StringKeyUtils.STR_KEY_COMPANY, None)
+
+                    """blog 无法获取"""
+                    res.blog = src.get(StringKeyUtils.STR_KEY_BLOG, None)
+                    res.location = src.get(StringKeyUtils.STR_KEY_LOCATION, None)
+                    res.hireable = src.get(StringKeyUtils.STR_KEY_HIREABLE_V4, None)
+                    res.bio = src.get(StringKeyUtils.STR_KEY_BIO, None)
+
+                    """repos, gists, followers, following 无法获取"""
+                    res.public_repos = src.get(StringKeyUtils.STR_KEY_PUBLIC_REPOS, None)
+                    res.public_gists = src.get(StringKeyUtils.STR_KEY_PUBLIC_GISTS, None)
+                    res.followers = src.get(StringKeyUtils.STR_KEY_FOLLOWERS, None)
+                    res.following = src.get(StringKeyUtils.STR_KEY_FOLLOWING, None)
+
+                    res.created_at = src.get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None)
+                    res.updated_at = src.get(StringKeyUtils.STR_KEY_UPDATE_AT_V4, None)
+
+                    if res.created_at is not None:
+                        res.created_at = datetime.strptime(res.created_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+                    if res.updated_at is not None:
+                        res.updated_at = datetime.strptime(res.updated_at, StringKeyUtils.STR_STYLE_DATA_DATE)
+
+                return res

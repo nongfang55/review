@@ -48,6 +48,9 @@ class StringKeyUtils:
     STR_KEY_PUBLIC_GISTS = 'public_gists'
     STR_KEY_FOLLOWERS = 'followers'
     STR_KEY_FOLLOWING = 'following'
+    STR_KEY_PARTICIPANTS = 'participants'
+    STR_KEY_SITE_ADMIN_V4 = 'isSiteAdmin'
+    STR_KEY_HIREABLE_V4 = 'isHireable'
 
     '''pull request可能会使用到的信息'''
     STR_KEY_STATE = 'state'
@@ -108,6 +111,7 @@ class StringKeyUtils:
     STR_KEY_PULL_NUMBER = 'pull_number'
     STR_KEY_SUBMITTED_AT = 'submitted_at'
     STR_KEY_COMMIT_ID = 'commit_id'
+    STR_KEY_SUBMITTED_AT_V4 = 'submittedAt'
 
     '''review comment 可能会用到的数据'''
     STR_KEY_PULL_REQUEST_REVIEW_ID = 'pull_request_review_id'
@@ -124,6 +128,10 @@ class StringKeyUtils:
     STR_KEY_SIDE = 'side'
     STR_KEY_IN_REPLY_TO_ID = 'in_reply_to_id'
     STR_KEY_CHANGE_TRIGGER = 'change_trigger'
+    STR_KEY_DIFF_HUNK_V4 = 'diffHunk'
+    STR_KEY_ORIGINAL_POSITION_V4 = 'originalPosition'
+    STR_KEY_ORIGINAL_COMMIT = 'originalCommit'
+    STR_KEY_IN_REPLY_TO_ID_V4 = 'replyTo'
 
     '''issue comment 可能会使用的数据'''
 
@@ -148,6 +156,7 @@ class StringKeyUtils:
     STR_KEY_STATUS_DELETIONS = 'status_deletions'
     STR_KEY_PARENTS = 'parents'
     STR_KEY_FILES = 'files'
+    STR_KEY_MESSAGE_BODY_V4 = 'messageBody'
 
     '''file 可能会使用的数据'''
     STR_KEY_COMMIT_SHA = 'commit_sha'

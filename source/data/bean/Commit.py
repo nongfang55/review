@@ -137,3 +137,44 @@ class Commit(BeanBase):
                         res.parents.append(relation)
 
             return res
+
+    class parserV4(BeanBase.parser):
+
+        @staticmethod
+        def parser(src):
+            res = None
+            if isinstance(src, dict):
+                res = Commit()
+                res.sha = src.get(StringKeyUtils.STR_KEY_OID, None)
+                res.node_id = src.get(StringKeyUtils.STR_KEY_ID, None)
+
+                """ªÒ»° author_login ∫Õ committer_login"""
+                authorData = src.get(StringKeyUtils.STR_KEY_AUTHOR, None)
+                if authorData is not None and isinstance(authorData, dict):
+                    res.author = None
+                    res.author_login = authorData.get(StringKeyUtils.STR_KEY_NAME, None)
+                    res.commit_author_date = None
+                committerData = src.get(StringKeyUtils.STR_KEY_COMMITTER, None)
+                if committerData is not None and isinstance(committerData, dict):
+                    res.committer = None
+                    res.committer_login = committerData.get(StringKeyUtils.STR_KEY_NAME, None)
+                    res.commit_committer_date = None
+
+                res.commit_message = src.get(StringKeyUtils.STR_KEY_MESSAGE_BODY_V4, None)
+                res.status_additions = src.get(StringKeyUtils.STR_KEY_ADDITIONS, None)
+                res.status_deletions = src.get(StringKeyUtils.STR_KEY_DELETIONS, None)
+                if res.status_deletions is not None and res.status_additions is not None:
+                    res.status_total = res.status_additions + res.status_deletions
+
+                res.parents = []
+                parent_list = src.get(StringKeyUtils.STR_KEY_PARENTS, None)
+                if parent_list is not None and isinstance(parent_list, dict):
+                    parent_list_nodes = parent_list.get(StringKeyUtils.STR_KEY_NODES, None)
+                    if parent_list_nodes is not None and isinstance(parent_list_nodes, list):
+                        for parentData in parent_list_nodes:
+                            relation = CommitRelation()
+                            relation.child = res.sha
+                            relation.parent = parentData.get(StringKeyUtils.STR_KEY_OID, None)
+                            res.parents.append(relation)
+
+            return res

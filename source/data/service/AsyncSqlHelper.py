@@ -9,6 +9,7 @@ from source.data.bean.CommitPRRelation import CommitPRRelation
 from source.data.bean.File import File
 from source.data.bean.HeadRefForcePushedEvent import HeadRefForcePushedEvent
 from source.data.bean.IssueComment import IssueComment
+from source.data.bean.PRChangeFile import PRChangeFile
 from source.data.bean.PRTimeLineRelation import PRTimeLineRelation
 from source.data.bean.PullRequest import PullRequest
 from source.data.bean.PullRequestCommit import PullRequestCommit
@@ -57,6 +58,8 @@ class AsyncSqlHelper:
             return SqlUtils.STR_TABLE_NAME_HEAD_REF_FORCE_PUSHED_EVENT
         elif isinstance(bean, PullRequestCommit):
             return SqlUtils.STR_TABLE_NAME_PULL_REQUEST_COMMIT
+        elif isinstance(bean, PRChangeFile):
+            return SqlUtils.STR_TABLE_NAME_PR_CHANGE_FILE
         else:
             return None
 
