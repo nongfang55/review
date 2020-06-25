@@ -77,7 +77,10 @@ class AsyncApiHelper:
     async def parserPullRequest(resultJson):
         try:
             if not AsyncApiHelper.judgeNotFind(resultJson):
-                res = PullRequest.parser.parser(resultJson)
+                if configPraser.getApiVersion() == StringKeyUtils.API_VERSION_RESET:
+                    res = PullRequest.parser.parser(resultJson)
+                elif configPraser.getApiVersion() == StringKeyUtils.API_VERSION_GRAPHQL:
+                    res = PullRequest.parserV4.parser(resultJson)
                 if res is not None and res.base is not None:
                     res.repo_full_name = res.base.repo_full_name  # 对pull_request的repo_full_name 做一个补全
                 return res
@@ -86,12 +89,18 @@ class AsyncApiHelper:
 
     @staticmethod
     def judgeNotFind(resultJson):
-        if resultJson is not None and isinstance(json, dict):
-            if resultJson.get(StringKeyUtils.STR_KEY_MESSAGE) == StringKeyUtils.STR_NOT_FIND:
-                return True
-            if resultJson.get(StringKeyUtils.STR_KEY_MESSAGE) == StringKeyUtils.STR_FAILED_FETCH:
-                return True
-        return False
+        if configPraser.getApiVersion() == StringKeyUtils.API_VERSION_RESET:
+            if resultJson is not None and isinstance(json, dict):
+                if resultJson.get(StringKeyUtils.STR_KEY_MESSAGE) == StringKeyUtils.STR_NOT_FIND:
+                    return True
+                if resultJson.get(StringKeyUtils.STR_KEY_MESSAGE) == StringKeyUtils.STR_FAILED_FETCH:
+                    return True
+            return False
+        elif configPraser.getApiVersion() == StringKeyUtils.API_VERSION_GRAPHQL:
+            if resultJson is not None and isinstance(json, dict):
+                if resultJson.get(StringKeyUtils.STR_KEY_ERRORS) is not None:
+                    return True
+            return False
 
     @staticmethod
     async def downloadInformation(pull_number, semaphore, mysql, statistic):
@@ -238,6 +247,163 @@ class AsyncApiHelper:
                     print(e)
 
     @staticmethod
+    async def downloadInformationByV4(pull_number, semaphore, mysql, statistic):
+        """获取一个项目 单个pull-request 相关的信息
+           主要接口请求迁移到GraphQl的v4接口上   这样可以一次性获取pr信息
+           保证了pr信息的完整性
+           但是commit的具体信息无法获取  这个准备单独开函数获取
+
+           即gitFile的信息和其他信息获取分离
+        """
+        async with semaphore:
+            async with aiohttp.ClientSession() as session:
+                try:
+                    beanList = []  # 用来收集需要存储的bean类
+                    """先获取pull request信息"""
+                    args = {"number": pull_number, "owner":AsyncApiHelper.owner, "name":AsyncApiHelper.repo}
+                    api = AsyncApiHelper.getGraphQLApi()
+                    query = GraphqlHelper.getPrInformationByNumber()
+                    resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
+                    print(resultJson)
+
+                    """解析pull request"""
+                    allData = resultJson.get(StringKeyUtils.STR_KEY_DATA, None)
+                    if allData is not None and isinstance(allData, dict):
+                        repoData = allData.get(StringKeyUtils.STR_KEY_REPOSITORY, None)
+                        if repoData is not None and isinstance(repoData, dict):
+                            prData = repoData.get(StringKeyUtils.STR_KEY_ISSUE_OR_PULL_REQUEST, None)
+
+                            pull_request = await AsyncApiHelper.parserPullRequest(prData)
+
+                            usefulPullRequestsCount = 0
+                            usefulReviewsCount = 0
+                            usefulReviewCommentsCount = 0
+                            usefulIssueCommentsCount = 0
+                            usefulCommitsCount = 0
+
+                            if pull_request is not None:
+                                usefulPullRequestsCount = 1
+                                beanList.append(pull_request)
+                            #
+                            #     if pull_request.head is not None:
+                            #         beanList.append(pull_request.head)
+                            #     if pull_request.base is not None:
+                            #         beanList.append(pull_request.base)
+                            #     if pull_request.user is not None:
+                            #         beanList.append(pull_request.user)
+                            #
+                            #     reviewCommits = []  # review中涉及的Commit的点
+                            #
+                            #     """获取review信息"""
+                            #     api = AsyncApiHelper.getReviewForPullRequestApi(pull_number)
+                            #     json = await AsyncApiHelper.fetchBeanData(session, api)
+                            #     reviews = await AsyncApiHelper.parserReview(json, pull_number)
+                            #     if configPraser.getPrintMode():
+                            #         print(reviews)
+                            #
+                            #     usefulReviewsCount = 0
+                            #     if reviews is not None:
+                            #         for review in reviews:
+                            #             usefulReviewsCount += 1
+                            #             beanList.append(review)
+                            #             if review.user is not None:
+                            #                 beanList.append(review.user)
+                            #             if review.commit_id not in reviewCommits:
+                            #                 reviewCommits.append(review.commit_id)
+                            #
+                            #     """获取review comment信息"""
+                            #     api = AsyncApiHelper.getReviewCommentForPullRequestApi(pull_number)
+                            #     json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
+                            #     reviewComments = await AsyncApiHelper.parserReviewComment(json)
+                            #
+                            #     if configPraser.getPrintMode():
+                            #         print(reviewComments)
+                            #     usefulReviewCommentsCount = 0
+                            #     if reviewComments is not None:
+                            #         for reviewComment in reviewComments:
+                            #             usefulReviewCommentsCount += 1
+                            #             beanList.append(reviewComment)
+                            #             if reviewComment.user is not None:
+                            #                 beanList.append(reviewComment.user)
+                            #
+                            #     '''获取 pull request对应的issue comment信息'''
+                            #     api = AsyncApiHelper.getIssueCommentForPullRequestApi(pull_number)
+                            #     json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
+                            #     issueComments = await  AsyncApiHelper.parserIssueComment(json, pull_number)
+                            #     usefulIssueCommentsCount = 0
+                            #     if issueComments is not None:
+                            #         for issueComment in issueComments:
+                            #             usefulIssueCommentsCount += 1
+                            #             beanList.append(issueComment)
+                            #             if issueComment.user is not None:
+                            #                 beanList.append(issueComment.user)
+                            #
+                            #     '''获取 pull request对应的commit信息'''
+                            #     api = AsyncApiHelper.getCommitForPullRequestApi(pull_number)
+                            #     json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
+                            #     Commits, Relations = await AsyncApiHelper.parserCommitAndRelation(json, pull_number)
+                            #
+                            #     for commit in Commits:
+                            #         if commit.sha in reviewCommits:
+                            #             reviewCommits.remove(commit.sha)
+                            #
+                            #     """有些review涉及的commit的点没有在PR线中收集到 这些点主要是中间存在最后
+                            #     没有的点 但是最后需要在特征提取中用到 所以也需要收集"""
+                            #
+                            #     """剩下的点需要依次获取"""
+                            #     for commit_id in reviewCommits:
+                            #         api = AsyncApiHelper.getCommitApi(commit_id)
+                            #         json = await AsyncApiHelper.fetchBeanData(session, api)
+                            #         commit = await AsyncApiHelper.parserCommit(json)
+                            #         Commits.append(commit)
+                            #
+                            #     usefulCommitsCount = 0
+                            #     for commit in Commits:
+                            #         if commit is not None:
+                            #             usefulCommitsCount += 1
+                            #             api = AsyncApiHelper.getCommitApi(commit.sha)
+                            #             json = await AsyncApiHelper.fetchBeanData(session, api)
+                            #             commit = await AsyncApiHelper.parserCommit(json)
+                            #             beanList.append(commit)
+                            #
+                            #             if commit.committer is not None:
+                            #                 beanList.append(commit.committer)
+                            #             if commit.author is not None:
+                            #                 beanList.append(commit.author)
+                            #             if commit.files is not None:
+                            #                 for file in commit.files:
+                            #                     beanList.append(file)
+                            #             if commit.parents is not None:
+                            #                 for parent in commit.parents:
+                            #                     beanList.append(parent)
+                            #             """作为资源节约   commit comment不做采集"""
+                            #
+                            #     for relation in Relations:
+                            #         beanList.append(relation)
+                            #
+                            #     print(beanList)
+
+                            # """数据库存储"""
+                            # await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+
+                            # 做了同步处理
+                            statistic.lock.acquire()
+                            statistic.usefulRequestNumber += usefulPullRequestsCount
+                            statistic.usefulReviewNumber += usefulReviewsCount
+                            statistic.usefulReviewCommentNumber += usefulReviewCommentsCount
+                            statistic.usefulIssueCommentNumber += usefulIssueCommentsCount
+                            statistic.usefulCommitNumber += usefulCommitsCount
+                            print("useful pull request:", statistic.usefulRequestNumber,
+                                  " useful review:", statistic.usefulReviewNumber,
+                                  " useful review comment:", statistic.usefulReviewCommentNumber,
+                                  " useful issue comment:", statistic.usefulIssueCommentNumber,
+                                  " useful commit:", statistic.usefulCommitNumber,
+                                  " cost time:", datetime.now() - statistic.startTime)
+                            statistic.lock.release()
+                except Exception as e:
+                    print(e)
+
+    @staticmethod
     async def parserReview(resultJson, pull_number):
         try:
             if not AsyncApiHelper.judgeNotFind(resultJson):
@@ -356,14 +522,14 @@ class AsyncApiHelper:
             return await AsyncApiHelper.fetchBeanData(session, api, isMediaType=isMediaType)
 
     @staticmethod
-    async def postGraphqlData(session, api, args=None):
+    async def postGraphqlData(session, api, query=None, args=None):
         """通过 github graphhql接口 通过post请求"""
         headers = {}
         headers = AsyncApiHelper.getUserAgentHeaders(headers)
         headers = AsyncApiHelper.getAuthorizationHeaders(headers)
 
         body = {}
-        body = GraphqlHelper.getTimeLineQueryByNodes(body)
+        body = GraphqlHelper.getGraphlQuery(body, query)
         body = GraphqlHelper.getGraphqlVariables(body, args)
         bodyJson = json.dumps(body)
         # print("bodyjson:", bodyJson)
@@ -394,7 +560,7 @@ class AsyncApiHelper:
                 proxy = proxy.split('//')[1]
                 await ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
             # print("judge end")
-            return await AsyncApiHelper.postGraphqlData(session, api, args)
+            return await AsyncApiHelper.postGraphqlData(session, api, query, args)
 
     @staticmethod
     async def parserReviewComment(resultJson):
@@ -468,7 +634,8 @@ class AsyncApiHelper:
                     args = {"ids": nodeIds}
                     """从GitHub v4 API 中获取 某个pull-request的TimeLine对象"""
                     api = AsyncApiHelper.getGraphQLApi()
-                    resultJson = await AsyncApiHelper.postGraphqlData(session, api, args)
+                    query = GraphqlHelper.getTimeLineQueryByNodes()
+                    resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
                     beanList = []
                     print(type(resultJson))
                     print("post json:", resultJson)

@@ -29,6 +29,7 @@ class configPraser:  # 用于解析config。ini文件
     STR_START = 'start'
     STR_TIMEOUT = 'timeout'
     STR_SEMAPHORE = 'semaphore'
+    STR_API = 'api'
     STR_TOPK = 'topk'
     STR_TEST_NUMBER = 'testNumber'
     STR_REVIEWER_NUMBER = 'reviewerNumber'
@@ -194,6 +195,12 @@ class configPraser:  # 用于解析config。ini文件
         cp.read(projectConfig.getConfigPath())
         return int(cp.get(configPraser.STR_PROJECT, configPraser.STR_COMMIT_FETCH_LOOP))
 
+    @staticmethod
+    def getApiVersion():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return int(cp.get(configPraser.STR_NETWORK, configPraser.STR_API))
+
 
 if __name__ == '__main__':
-    print(configPraser.getCommitFetchLoop())
+    print(configPraser.getApiVersion())

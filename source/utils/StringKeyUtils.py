@@ -71,6 +71,23 @@ class StringKeyUtils:
     STR_KEY_BASE_LABEL = 'base_label'
     STR_KEY_HEAD_LABEL = 'head_label'
     STR_KEY_REPO_FULL_NAME = 'repo_full_name'
+    STR_KEY_IS_PR = 'is_pr'
+    STR_KEY_PULL_REQUEST = 'PullRequest'
+    STR_KEY_ISSUE = 'Issue'
+    STR_KEY_CREATE_AT_V4 = 'createdAt'
+    STR_KEY_UPDATE_AT_V4 = 'updatedAt'
+    STR_KEY_CLOSED_AT_V4 = 'closedAt'
+    STR_KEY_MERGED_AT_V4 = 'mergedAt'
+    STR_KEY_MERGE_COMMIT = 'mergeCommit'
+    STR_KEY_AUTHOR_ASSOCIATION_V4 = 'authorAssociation'
+    STR_KEY_REVIEWS = 'reviews'
+    STR_KEY_CHANGED_FILES_V4 = 'changedFiles'
+    STR_KEY_ISSUE_OR_PULL_REQUEST = 'issueOrPullRequest'
+    STR_KEY_OPEN_V4 = 'OPEN'
+    STR_KEY_CLOSED_V4 = 'CLOSED'
+    STR_KEY_MERGED_V4 = 'MERGED'
+    STR_KEY_OPEN_V3 = 'open'
+    STR_KEY_CLOSED_V3 = 'closed'
 
     '''Branch 可能会使用的数据'''
     STR_KEY_LABEL = 'label'
@@ -78,6 +95,14 @@ class StringKeyUtils:
     STR_KEY_REPO = 'repo'
     STR_KEY_SHA = 'sha'
     STR_KEY_USER_LOGIN = 'user_login'
+    STR_KEY_REPOSITORY = 'repository'
+    STR_KEY_NAME_WITH_OWNER = 'nameWithOwner'
+    STR_KEY_HEAD_REPOSITORY = 'headRepository'
+    STR_KEY_BASE_REPOSITORY = 'baseRepository'
+    STR_KEY_HEAD_REF_NAME = 'headRefName'
+    STR_KEY_BASE_REF_NAME = 'baseRefName'
+    STR_KEY_HEAD_REF_OID = 'headRefOid'
+    STR_KEY_BASE_REF_OID = 'baseRefOid'
 
     '''review可能会使用放日数据'''
     STR_KEY_PULL_NUMBER = 'pull_number'
@@ -143,16 +168,20 @@ class StringKeyUtils:
     '''pr timelineItem 可能会使用到的'''
     STR_KEY_PULL_REQUEST_NODE = 'pullrequest_node'
     STR_KEY_TIME_LINE_ITEM_NODE = 'timelineitem_node'
+    STR_KEY_TIME_LINE_ITEMS = 'timelineItems'
+    STR_KEY_EDGES = 'edges'
+    STR_KEY_OID = 'oid'
+    STR_FAILED_FETCH = 'Failed to fetch'
+
+    '''v4 接口可能会用到的'''
+    STR_KEY_ERRORS = 'errors'
     STR_KEY_TYPE_NAME_JSON = '__typename'
     STR_KEY_EDGE = 'edge'
     STR_KEY_TYPE_NAME = 'typename'
     STR_KEY_DATA = 'data'
     STR_KEY_NODES = 'nodes'
     STR_KEY_NODE = 'node'
-    STR_KEY_TIME_LINE_ITEMS = 'timelineItems'
-    STR_KEY_EDGES = 'edges'
-    STR_KEY_OID = 'oid'
-    STR_FAILED_FETCH = 'Failed to fetch'
+    STR_KEY_DATABASE_ID = 'databaseId'
 
 
 
@@ -221,6 +250,8 @@ class StringKeyUtils:
     STR_PARM_CLOSED = 'closed'
 
     RATE_LIMIT = 5
+    API_VERSION_RESET = 3
+    API_VERSION_GRAPHQL = 4
 
     """json 404处理用到的"""
     STR_NOT_FIND = 'Not Found'

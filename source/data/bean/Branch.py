@@ -69,3 +69,30 @@ class Branch(BeanBase):
 
             return res
 
+    class parserV4(BeanBase.parser):
+
+        @staticmethod
+        def parser(src):
+            res = None
+            if isinstance(src, dict):
+                """部分信息不在解析json中  需要在上级补全"""
+                res = Branch()
+                res.ref = src.get(StringKeyUtils.STR_KEY_NAME, None)
+                """sha 需要在上级补全"""
+                res.sha = None
+                res.repo = None
+
+                repoData = src.get(StringKeyUtils.STR_KEY_REPOSITORY, None)
+                if repoData is not None and isinstance(repoData, dict):
+                    res.repo_full_name = repoData.get(StringKeyUtils.STR_KEY_NAME_WITH_OWNER, None)
+                    """user 字段不解析"""
+                    res.user = None
+                    if res.repo_full_name is not None:
+                        res.user_login = res.repo_full_name.split('/')[0]
+
+                """label 需要后期由user_login和ref拼接出来"""
+                if res.user_login is not None and res.ref is not None:
+                    res.label = res.user_login + ':' + res.ref
+
+            return res
+

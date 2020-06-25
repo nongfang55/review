@@ -10,6 +10,7 @@ from source.data.service.AsyncApiHelper import AsyncApiHelper
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
 from source.database.AsyncSqlExecuteHelper import getMysqlObj
 from source.database.SqlUtils import SqlUtils
+from source.utils.StringKeyUtils import StringKeyUtils
 from source.utils.pandas.pandasHelper import pandasHelper
 from source.utils.statisticsHelper import statisticsHelper
 
@@ -94,8 +95,12 @@ class AsyncProjectAllDataFetcher:
             print("mysql init success")
 
         """∂‡–≠≥Ã"""
-        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadInformation(pull_number, semaphore, mysql, statistic))
-                 for pull_number in range(start, max(start - limit, 0), -1)]
+        if configPraser.getApiVersion() == StringKeyUtils.API_VERSION_RESET:
+            tasks = [asyncio.ensure_future(AsyncApiHelper.downloadInformation(pull_number, semaphore, mysql, statistic))
+                     for pull_number in range(start, max(start - limit, 0), -1)]
+        elif configPraser.getApiVersion() == StringKeyUtils.API_VERSION_GRAPHQL:
+            tasks = [asyncio.ensure_future(AsyncApiHelper.downloadInformationByV4(pull_number, semaphore, mysql, statistic))
+                     for pull_number in range(start, max(start - limit, 0), -1)]
         await asyncio.wait(tasks)
 
     @staticmethod
@@ -131,8 +136,8 @@ class AsyncProjectAllDataFetcher:
 
 
 if __name__ == '__main__':
-    # AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
-    #                                                 , start=configPraser.getStart(), limit=configPraser.getLimit())
+    AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
+                                                    , start=configPraser.getStart(), limit=configPraser.getLimit())
 
     # data = pandasHelper.readTSVFile(projectConfig.getChangeTriggerPRPath(), pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
     # print(data.as_matrix().shape)
@@ -144,4 +149,4 @@ if __name__ == '__main__':
     # AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo(),
     #                                                   nodes=[[x] for x in pr_nodes])
 
-    AsyncProjectAllDataFetcher.getUnmatchedCommits()
+    # AsyncProjectAllDataFetcher.getUnmatchedCommits()

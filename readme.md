@@ -18,6 +18,7 @@
 * ***retry*** 单个网络请求最多重试次数
 * ***proxy*** 是否使用代理ip池   使用时必须配合*proxy_pool*,否则False
 * ***semaphore*** 异步同步信号量
+* ***api*** 爬虫api选择，3为reset，4为graphql
 
 ###代理ip池说明
 配置文件 ***proxy*** 字段True时候，必须本地运行开源项目*proxy_pool*使用，
