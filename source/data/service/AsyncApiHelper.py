@@ -373,7 +373,7 @@ class AsyncApiHelper:
                                         for itemLineItem_list_edge_node in itemLineItem_list_edges:
                                             if itemLineItem_list_edge_node is not None and \
                                                     isinstance(itemLineItem_list_edge_node, dict):
-                                                itemLineItem_list_edge_node = itemLineItem_list_edge_node.\
+                                                itemLineItem_list_edge_node = itemLineItem_list_edge_node. \
                                                     get(StringKeyUtils.STR_KEY_NODE, None)
                                                 typename = itemLineItem_list_edge_node.get(
                                                     StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
@@ -382,11 +382,13 @@ class AsyncApiHelper:
                                                     review = Review()
                                                     review.pull_number = pull_request
                                                     review.repo_full_name = pull_request.repo_full_name
-                                                    review.node_id = itemLineItem_list_edge_node.get(StringKeyUtils.STR_KEY_ID, None)
+                                                    review.node_id = itemLineItem_list_edge_node.get(
+                                                        StringKeyUtils.STR_KEY_ID, None)
                                                     reviews.append(review)
 
                                                     """解析 review 涉及的review comment"""
-                                                    comment_list = itemLineItem_list_edge_node.get(StringKeyUtils.STR_KEY_COMMENTS, None)
+                                                    comment_list = itemLineItem_list_edge_node.get(
+                                                        StringKeyUtils.STR_KEY_COMMENTS, None)
                                                     if comment_list is not None and isinstance(comment_list, dict):
                                                         comment_list_nodes = comment_list.get(
                                                             StringKeyUtils.STR_KEY_NODES
@@ -794,6 +796,27 @@ class AsyncApiHelper:
         """一个review 可能会关联多个comment  
         每个comment会指定一个文件和对应代码行"""
         comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timelineitem_node, mysql)
+        """通过comment的 position、originalPosition信息补全line, originalLine
+           需要对应commit的file的patch
+        """
+        oids = [comment.original_commit_id for comment in comments]
+        """获取这些的changes files"""
+        files = await AsyncApiHelper.getFilesFromStore(oids, mysql)
+        """依次补全"""
+        for comment in comments:
+            for file in files:
+                if file.commit_sha == comment.original_commit_id and file.filename == comment.path:
+                    """计算 line 和 origin line"""
+                    line, original_line = TextCompareUtils.getStartLine(file.patch, comment.position,
+                                                                        comment.original_position)
+                    comment.line = line
+                    comment.original_line = original_line
+
+                    """line 是改动后文本评论指向的行数， original line 是改动前的文本评论指向行数
+                       有 line 就别用 original line
+                    """
+
+
 
         twoParentsBadCase = 0  # 记录一个commit有两个根节点的情况 发现这个情况直接停止
         outOfLoopCase = 0  # 记录寻找两个commit点的最近祖宗节点 使用上级追溯的次数超过限制情况
