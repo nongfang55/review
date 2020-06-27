@@ -76,16 +76,27 @@ class AsyncApiHelper:
         return None
 
     @staticmethod
-    async def parserPullRequest(resultJson):
+    async def parserPullRequest(resultJson, pull_number=None, rawData=None):
         try:
-            if not AsyncApiHelper.judgeNotFind(resultJson):
-                if configPraser.getApiVersion() == StringKeyUtils.API_VERSION_RESET:
+            res = None
+            if configPraser.getApiVersion() == StringKeyUtils.API_VERSION_RESET:
+                if not AsyncApiHelper.judgeNotFind(resultJson):
                     res = PullRequest.parser.parser(resultJson)
-                elif configPraser.getApiVersion() == StringKeyUtils.API_VERSION_GRAPHQL:
-                    res = PullRequest.parserV4.parser(resultJson)
-                if res is not None and res.base is not None:
-                    res.repo_full_name = res.base.repo_full_name  # 对pull_request的repo_full_name 做一个补全
-                return res
+            elif configPraser.getApiVersion() == StringKeyUtils.API_VERSION_GRAPHQL:
+                res = PullRequest.parserV4.parser(resultJson)
+                """对于v4接口 pr获取不到的情况，如果确认不存在，则是视为等issue的情况"""
+                """读取errors 信息"""
+                if res is None:
+                    errorMessage = rawData.get(StringKeyUtils.STR_KEY_ERRORS)[0]. \
+                        get(StringKeyUtils.STR_KEY_MESSAGE)
+                    if errorMessage.find(StringKeyUtils.STR_KEY_ERRORS_PR_NOT_FOUND) != -1:
+                        res = PullRequest()
+                        res.repo_full_name = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo
+                        res.number = pull_number
+                        res.is_pr = False
+            if res is not None and res.base is not None:
+                res.repo_full_name = res.base.repo_full_name  # 对pull_request的repo_full_name 做一个补全
+            return res
         except Exception as e:
             print(e)
 
@@ -275,7 +286,7 @@ class AsyncApiHelper:
                         if repoData is not None and isinstance(repoData, dict):
                             prData = repoData.get(StringKeyUtils.STR_KEY_ISSUE_OR_PULL_REQUEST, None)
 
-                            pull_request = await AsyncApiHelper.parserPullRequest(prData)
+                            pull_request = await AsyncApiHelper.parserPullRequest(prData, pull_number, resultJson)
 
                             usefulPullRequestsCount = 0
                             usefulReviewsCount = 0
@@ -283,15 +294,16 @@ class AsyncApiHelper:
                             usefulIssueCommentsCount = 0
                             usefulCommitsCount = 0
 
-                            if pull_request is not None and pull_request.is_pr:
+                            """添加pul request 和 branch"""
+                            if pull_request is not None:
                                 usefulPullRequestsCount = 1
                                 beanList.append(pull_request)
-
                                 if pull_request.head is not None:
                                     beanList.append(pull_request.head)
                                 if pull_request.base is not None:
                                     beanList.append(pull_request.base)
 
+                            if pull_request is not None and pull_request.is_pr:
                                 users = []
                                 """解析 user 直接从pr的participate获取"""
                                 user_list = prData.get(StringKeyUtils.STR_KEY_PARTICIPANTS, None)
@@ -302,6 +314,8 @@ class AsyncApiHelper:
                                             user = User.parserV4.parser(userData)
                                             if user is not None:
                                                 users.append(user)
+                                """添加用户"""
+                                beanList.extend(users)
 
                                 """解析 review, review comment, review 涉及的 commit 信息"""
                                 reviews = []
@@ -324,7 +338,7 @@ class AsyncApiHelper:
                                                     comment_list_nodes = comment_list.get(StringKeyUtils.STR_KEY_NODES
                                                                                           , None)
                                                     if comment_list_nodes is not None and isinstance(comment_list_nodes
-                                                            ,list):
+                                                            , list):
                                                         for commentData in comment_list_nodes:
                                                             comment = ReviewComment.parserV4.parser(commentData)
                                                             comment.pull_request_review_id = review.id
@@ -348,11 +362,16 @@ class AsyncApiHelper:
                                 usefulReviewsCount += reviews.__len__()
                                 usefulReviewCommentsCount += reviewComments.__len__()
 
+                                """添加review reviewComments"""
+                                beanList.extend(reviews)
+                                beanList.extend(reviewComments)
+
                                 """issue comment 信息获取"""
                                 issueComments = []
                                 issue_comment_list = prData.get(StringKeyUtils.STR_KEY_COMMENTS, None)
                                 if issue_comment_list is not None and isinstance(issue_comment_list, dict):
-                                    issue_comment_list_nodes = issue_comment_list.get(StringKeyUtils.STR_KEY_NODES, None)
+                                    issue_comment_list_nodes = issue_comment_list.get(StringKeyUtils.STR_KEY_NODES,
+                                                                                      None)
                                     if issue_comment_list_nodes is not None and isinstance(issue_comment_list_nodes,
                                                                                            list):
                                         for commentData in issue_comment_list_nodes:
@@ -364,6 +383,7 @@ class AsyncApiHelper:
                                 if configPraser.getPrintMode():
                                     print(issueComments)
                                 usefulIssueCommentsCount += issueComments.__len__()
+                                beanList.extend(issueComments)
 
                                 """获取 pr 中直接关联的 commit 信息"""
                                 commit_list = prData.get(StringKeyUtils.STR_KEY_COMMITS, None)
@@ -393,6 +413,9 @@ class AsyncApiHelper:
                                     CommitRelations.extend(commit.parents)
 
                                 usefulCommitsCount += commits.__len__()
+                                beanList.extend(CommitPrRelations)
+                                beanList.extend(CommitRelations)
+                                beanList.extend(commits)
 
                                 """新增 pull request 涉及的文件变动，而不是commit文件变动的累加"""
                                 files = []
@@ -409,25 +432,29 @@ class AsyncApiHelper:
                                 if configPraser.getPrintMode():
                                     print(files)
 
-                                """beanList 添加各个数据项"""
+                                beanList.extend(files)
 
-                                # """数据库存储"""
-                                # await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+                            """beanList 添加各个数据项"""
 
-                                # 做了同步处理
-                                statistic.lock.acquire()
-                                statistic.usefulRequestNumber += usefulPullRequestsCount
-                                statistic.usefulReviewNumber += usefulReviewsCount
-                                statistic.usefulReviewCommentNumber += usefulReviewCommentsCount
-                                statistic.usefulIssueCommentNumber += usefulIssueCommentsCount
-                                statistic.usefulCommitNumber += usefulCommitsCount
-                                print("useful pull request:", statistic.usefulRequestNumber,
-                                      " useful review:", statistic.usefulReviewNumber,
-                                      " useful review comment:", statistic.usefulReviewCommentNumber,
-                                      " useful issue comment:", statistic.usefulIssueCommentNumber,
-                                      " useful commit:", statistic.usefulCommitNumber,
-                                      " cost time:", datetime.now() - statistic.startTime)
-                                statistic.lock.release()
+                            """数据库存储"""
+                            if beanList.__len__() > 0:
+                                await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+
+
+                            # 做了同步处理
+                            statistic.lock.acquire()
+                            statistic.usefulRequestNumber += usefulPullRequestsCount
+                            statistic.usefulReviewNumber += usefulReviewsCount
+                            statistic.usefulReviewCommentNumber += usefulReviewCommentsCount
+                            statistic.usefulIssueCommentNumber += usefulIssueCommentsCount
+                            statistic.usefulCommitNumber += usefulCommitsCount
+                            print("useful pull request:", statistic.usefulRequestNumber,
+                                  " useful review:", statistic.usefulReviewNumber,
+                                  " useful review comment:", statistic.usefulReviewCommentNumber,
+                                  " useful issue comment:", statistic.usefulIssueCommentNumber,
+                                  " useful commit:", statistic.usefulCommitNumber,
+                                  " cost time:", datetime.now() - statistic.startTime)
+                            statistic.lock.release()
                 except Exception as e:
                     print(e)
 
@@ -505,7 +532,6 @@ class AsyncApiHelper:
         api = api.replace(StringKeyUtils.STR_REPO, repo)
         api = api.replace(StringKeyUtils.STR_COMMIT_SHA, str(commit_sha))
         return api
-
 
     @staticmethod
     async def fetchBeanData(session, api, isMediaType=False):

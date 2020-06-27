@@ -183,6 +183,40 @@ class TextCompareUtils:
             else:
                 return min(upChange, downChange)
 
+    @staticmethod
+    def getStartLine(text, position, originalPosition):
+        """通过文本,position,originalPosition来推断出
+           review comment的start_line 和 original_StartLine
+        """
+
+        """patch 解析"""
+        """虽然 patch 可能会解析多个 但是数据库14万comment 只有37个疑似情况
+           加上try catch忽略特殊情况
+        """
+        startLine = None
+        original_startLine = None
+        try:
+            [[numbers, status]] = TextCompareUtils.patchParser(text)
+            startLine = None
+            original_startLine = None
+            start, _, original_start, _ = numbers
+            if position is not None:
+                offset = 0
+                for i in range(0, max(position - 1, 0)):
+                    if status[i] != '+':
+                        offset += 1
+                startLine = start + offset
+            if originalPosition is not None:
+                offset = 0
+                for i in range(0, max(originalPosition - 1, 0)):
+                    if status[i] != '-':
+                        offset += 1
+                original_startLine = original_start + offset
+        except Exception as e:
+            print(e)
+
+        return startLine, original_startLine
+
 
 if __name__ == '__main__':
     # data = pandasHelper.readTSVFile(r'C:\Users\ThinkPad\Desktop\select____from_gitCommit_gitFile__where_.tsv',

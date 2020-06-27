@@ -192,6 +192,8 @@ class StringKeyUtils:
     STR_KEY_NODE = 'node'
     STR_KEY_DATABASE_ID = 'databaseId'
 
+    STR_KEY_ERRORS_PR_NOT_FOUND = 'Could not resolve to an issue or pull request with the number of'
+
 
 
     '''HeadRefForcePushedEvent 可能会使用到的'''

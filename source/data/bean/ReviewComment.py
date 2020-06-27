@@ -2,6 +2,7 @@
 from datetime import datetime
 
 from source.data.bean.Beanbase import BeanBase
+from source.data.service.TextCompareUtils import TextCompareUtils
 from source.utils.StringKeyUtils import StringKeyUtils
 from source.data.bean.User import User
 
@@ -179,12 +180,18 @@ class ReviewComment(BeanBase):
                 res.author_association = src.get(StringKeyUtils.STR_KEY_AUTHOR_ASSOCIATION_V4)
 
                 """关于 comment 行数的信息都无法获取"""
+
+                """尝试拼接出 line 和 origin_line 两个属性"""
                 res.start_line = src.get(StringKeyUtils.STR_KEY_START_LINE)
                 res.original_start_line = src.get(StringKeyUtils.STR_KEY_ORIGINAL_START_LINE)
                 res.start_side = src.get(StringKeyUtils.STR_KEY_START_SIDE)
-                res.line = src.get(StringKeyUtils.STR_KEY_LINE)
-                res.original_line = src.get(StringKeyUtils.STR_KEY_ORIGINAL_LINE)
                 res.side = src.get(StringKeyUtils.STR_KEY_SIDE)
+
+                # line, original_line = TextCompareUtils.getStartLine(res.diff_hunk, res.position,
+                # res.original_position) res.line = line res.original_line = original_line
+                """上面信息拼接需要review comment对应original_commit的patch 信息，这个地方无法获取"""
+                res.line = None
+                res.original_line = None
 
                 """获取 in_replay_to_id 信息"""
                 replyTo = src.get(StringKeyUtils.STR_KEY_IN_REPLY_TO_ID_V4)

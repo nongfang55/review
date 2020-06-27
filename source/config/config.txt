@@ -1,5 +1,5 @@
 [authorization]
-token=d7ec1eba9d4b0b5cb6df4ea11ad1a636b37f0dd6
+token=0ae9a2d99126c1a4b29296aaf651552ebf2bd819
 [database]
 host=101.133.220.93
 username=review
@@ -8,10 +8,10 @@ database=REVIEW
 [debug]
 print=False
 [project]
-owner=rails
-repo=rails
+owner=django
+repo=django
 limit=1
-start=39594
+start=13097
 commitFetchLoop=10
 [network]
 timeout=5
