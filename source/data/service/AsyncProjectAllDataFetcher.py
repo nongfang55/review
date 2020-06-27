@@ -119,6 +119,21 @@ class AsyncProjectAllDataFetcher:
         print('cost time:', datetime.now() - t1)
 
     @staticmethod
+    def getUnmatchedCommitFile():
+        # 获取 数据库中没有获得file的 commit点，一次最多2000个
+        t1 = datetime.now()
+
+        statistic = statisticsHelper()
+        statistic.startTime = t1
+
+        loop = asyncio.get_event_loop()
+        task = [asyncio.ensure_future(AsyncProjectAllDataFetcher.preProcessUnmatchCommitFile(loop, statistic))]
+        tasks = asyncio.gather(*task)
+        loop.run_until_complete(tasks)
+
+        print('cost time:', datetime.now() - t1)
+
+    @staticmethod
     async def preProcessUnmatchCommits(loop, statistic):
 
         semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
@@ -128,6 +143,23 @@ class AsyncProjectAllDataFetcher:
             print("mysql init success")
 
         res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMITS, None)
+        print(res)
+
+        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadCommits(item[0], item[1], semaphore, mysql, statistic))
+                 for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
+        await asyncio.wait(tasks)
+
+    @staticmethod
+    async def preProcessUnmatchCommitFile(loop, statistic):
+
+        semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
+        mysql = await getMysqlObj(loop)
+
+        if configPraser.getPrintMode():
+            print("mysql init success")
+        print("mysql init success")
+
+        res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE, None)
         print(res)
 
         tasks = [asyncio.ensure_future(AsyncApiHelper.downloadCommits(item[0], item[1], semaphore, mysql, statistic))
@@ -150,3 +182,4 @@ if __name__ == '__main__':
     #                                                   nodes=[[x] for x in pr_nodes])
 
     # AsyncProjectAllDataFetcher.getUnmatchedCommits()
+    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()

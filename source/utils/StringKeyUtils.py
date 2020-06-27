@@ -181,6 +181,7 @@ class StringKeyUtils:
     STR_KEY_EDGES = 'edges'
     STR_KEY_OID = 'oid'
     STR_FAILED_FETCH = 'Failed to fetch'
+    STR_KEY_PULL_REQUEST_REVIEW_THREAD = 'PullRequestReviewThread'
 
     '''v4 接口可能会用到的'''
     STR_KEY_ERRORS = 'errors'

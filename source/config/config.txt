@@ -8,10 +8,10 @@ database=REVIEW
 [debug]
 print=False
 [project]
-owner=django
-repo=django
+owner=adobe
+repo=brackets
 limit=1
-start=13097
+start=11263
 commitFetchLoop=10
 [network]
 timeout=5

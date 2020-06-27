@@ -355,6 +355,57 @@ class AsyncApiHelper:
                                                     if not isFind:
                                                         commits.append(commit)
 
+                                """对于2016年的数据  没有review数据项，而PullRequestReviewThread
+                                   可以获取对应 review、review comment和 commit
+                                """
+                                itemLineItem_list = prData.get(StringKeyUtils.STR_KEY_TIME_LINE_ITEMS, None)
+                                if itemLineItem_list is not None and isinstance(itemLineItem_list, dict):
+                                    itemLineItem_list_edges = itemLineItem_list.get(StringKeyUtils.STR_KEY_EDGES, None)
+                                    if itemLineItem_list_edges is not None and isinstance(itemLineItem_list_edges,
+                                                                                          list):
+                                        for itemLineItem_list_edge_node in itemLineItem_list_edges:
+                                            if itemLineItem_list_edge_node is not None and \
+                                                    isinstance(itemLineItem_list_edge_node, dict):
+                                                itemLineItem_list_edge_node = itemLineItem_list_edge_node.\
+                                                    get(StringKeyUtils.STR_KEY_NODE, None)
+                                                typename = itemLineItem_list_edge_node.get(
+                                                    StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
+                                                if typename == StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_THREAD:
+                                                    """ReviewThread 作为Review 存储到数据库中  但是只有node_id 信息"""
+                                                    review = Review()
+                                                    review.pull_number = pull_request
+                                                    review.repo_full_name = pull_request.repo_full_name
+                                                    review.node_id = itemLineItem_list_edge_node.get(StringKeyUtils.STR_KEY_ID, None)
+                                                    reviews.append(review)
+
+                                                    """解析 review 涉及的review comment"""
+                                                    comment_list = itemLineItem_list_edge_node.get(StringKeyUtils.STR_KEY_COMMENTS, None)
+                                                    if comment_list is not None and isinstance(comment_list, dict):
+                                                        comment_list_nodes = comment_list.get(
+                                                            StringKeyUtils.STR_KEY_NODES
+                                                            , None)
+                                                        if comment_list_nodes is not None and isinstance(
+                                                                comment_list_nodes
+                                                                , list):
+                                                            for commentData in comment_list_nodes:
+                                                                comment = ReviewComment.parserV4.parser(commentData)
+                                                                comment.pull_request_review_id = review.id
+                                                                reviewComments.append(comment)
+
+                                                                """"从commentData 解析 original commit"""
+                                                                commitData = commentData.get(
+                                                                    StringKeyUtils.STR_KEY_ORIGINAL_COMMIT, None)
+                                                                if commitData is not None and isinstance(commitData,
+                                                                                                         dict):
+                                                                    commit = Commit.parserV4.parser(commitData)
+                                                                    isFind = False
+                                                                    for c in commits:
+                                                                        if c.sha == commit.sha:
+                                                                            isFind = True
+                                                                            break
+                                                                    if not isFind:
+                                                                        commits.append(commit)
+
                                 if configPraser.getPrintMode():
                                     print(reviews)
                                     print(reviewComments)
@@ -439,7 +490,6 @@ class AsyncApiHelper:
                             """数据库存储"""
                             if beanList.__len__() > 0:
                                 await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
-
 
                             # 做了同步处理
                             statistic.lock.acquire()

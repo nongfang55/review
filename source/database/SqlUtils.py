@@ -46,6 +46,13 @@ class SqlUtils:
     STR_SQL_QUERY_UNMATCH_COMMITS = 'select distinct review.repo_full_name, review.commit_id from review ' + \
                                     'where  review.commit_id not in  (select sha from gitCommit) LIMIT 2000'
 
+    '''查询数据库中没有匹配 gitfile 的commit'''
+    STR_SQL_QUERY_UNMATCH_COMMIT_FILE = """select distinct commitPRRelation.repo_full_name, gitCommit.sha
+                                        from gitCommit, commitPRRelation
+                                        where gitCommit.sha not in (select gitFile.commit_sha from gitFile)
+                                        and gitCommit.sha = commitPRRelation.sha LIMIT 2000"""
+
+
     @staticmethod
     def getInsertTableFormatString(tableName, items):
 
