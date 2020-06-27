@@ -207,11 +207,14 @@ class StringKeyUtils:
     STR_KEY_PULL_REQUEST_COMMIT = 'PullRequestCommit'
 
     '''time line item 可能会碰到的其他类型'''
-    STR_KEY_ISSUE_COMMIT = 'IssueComment'
-    STR_KEY_MENTIONED_EVENT = 'MentionedEvent'
+    STR_KEY_ISSUE_COMMENT = 'IssueComment'
+    STR_KEY_MENTIONED_EVENT = 'MentionedEvent'  # 被提及
+    STR_KEY_SUBSCRIBED_EVENT = 'SubscribedEvent'  # 订阅事件
     STR_KEY_PULL_REQUEST_REVIEW = 'PullRequestReview'
-
-
+    STR_KEY_PULL_REQUEST_REVIEW_THREAD = 'PullRequestReviewThread'  # 相当于review
+    STR_KEY_PULL_REQUEST_REVISION_MARKER = 'PullRequestRevisionMarker'
+    STR_KEY_MERGED_EVENT = 'MergedEvent'
+    STR_KEY_REFERENCED_EVENT = 'ReferencedEvent'    # commit引用，一般在最后merge到主干前做这个动作
 
     API_GITHUB = 'https://api.github.com'
     API_REVIEWS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/reviews'

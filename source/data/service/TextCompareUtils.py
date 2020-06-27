@@ -168,7 +168,7 @@ class TextCompareUtils:
                     upChange = i
                     break
             for i in range(1, min(11, text.__len__() - curLine)):
-                if text[curLine + i] != curLine + i:
+                if text[curLine + i] != commentLine + i:
                     downChange = i
                     break
 

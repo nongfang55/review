@@ -1,24 +1,31 @@
 # coding=gbk
 from source.data.bean.Beanbase import BeanBase
 from source.data.bean.HeadRefForcePushedEvent import HeadRefForcePushedEvent
+from source.data.bean.IssueComment import IssueComment
 from source.data.bean.PullRequestCommit import PullRequestCommit
 from source.utils.StringKeyUtils import StringKeyUtils
+import json
 
 
 class PRTimeLineRelation(BeanBase):
     """github中pull request的timeline 关系"""
 
     def __init__(self):
-        self.pullrequest_node = None
-        self.timelineitem_node = None
+        self.pull_request_node = None
+        self.timeline_item_node = None
         self.typename = None
         self.position = None
+        self.origin = None
 
         """可选属性 做简化使用的 实际不进入存储"""
         self.headRefForcePushedEventAfterCommit = None
         self.headRefForcePushedEventBeforeCommit = None
-        self.pullrequestReviewCommit = None
-        self.pullrequestCommitCommit = None
+        self.pull_request_review_commit = None
+        self.pull_request_review_original_commit = None
+        self.pull_request_commit = None
+        self.merge_commit = None
+        self.user_login = None
+        self.comments = []
 
     @staticmethod
     def getIdentifyKeys():
@@ -26,8 +33,8 @@ class PRTimeLineRelation(BeanBase):
 
     @staticmethod
     def getItemKeyList():
-        items = [StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE
-            , StringKeyUtils.STR_KEY_TYPE_NAME, StringKeyUtils.STR_KEY_POSITION]
+        items = [StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE,
+                 StringKeyUtils.STR_KEY_TYPE_NAME, StringKeyUtils.STR_KEY_POSITION, StringKeyUtils.STR_KEY_ORIGIN]
 
         return items
 
@@ -36,78 +43,79 @@ class PRTimeLineRelation(BeanBase):
         items = [(StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, BeanBase.DATA_TYPE_STRING),
                  (StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE, BeanBase.DATA_TYPE_STRING),
                  (StringKeyUtils.STR_KEY_TYPE_NAME, BeanBase.DATA_TYPE_STRING),
-                 (StringKeyUtils.STR_KEY_POSITION, BeanBase.DATA_TYPE_INT)]
+                 (StringKeyUtils.STR_KEY_POSITION, BeanBase.DATA_TYPE_INT),
+                 (StringKeyUtils.STR_KEY_ORIGIN, BeanBase.DATA_TYPE_STRING)]
 
         return items
 
     def getValueDict(self):
-        items = {StringKeyUtils.STR_KEY_PULL_REQUEST_NODE: self.pullrequest_node,
-                 StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE: self.timelineitem_node,
+        items = {StringKeyUtils.STR_KEY_PULL_REQUEST_NODE: self.pull_request_node,
+                 StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE: self.timeline_item_node,
                  StringKeyUtils.STR_KEY_TYPE_NAME: self.typename,
-                 StringKeyUtils.STR_KEY_POSITION: self.position}
+                 StringKeyUtils.STR_KEY_POSITION: self.position,
+                 StringKeyUtils.STR_KEY_ORIGIN: self.origin}
 
         return items
 
-    class parser(BeanBase.parser):
+    class Parser(BeanBase.parser):
 
         @staticmethod
-        def parser(src):
-            resList = []  # 返回结果为一系列关系
-            resItems = []  # 从时间线中提取有意义的信息
-            if isinstance(src, dict):
-                data = src.get(StringKeyUtils.STR_KEY_DATA, None)
-                if data is not None and isinstance(data, dict):
-                    nodes = data.get(StringKeyUtils.STR_KEY_NODES, None)
-                    if nodes is not None:
-                        for pr in nodes:
-                            pr_id = pr.get(StringKeyUtils.STR_KEY_ID)
-                            pos = 0
-                            timelineitems = pr.get(StringKeyUtils.STR_KEY_TIME_LINE_ITEMS, None)
-                            if timelineitems is not None:
-                                edges = timelineitems.get(StringKeyUtils.STR_KEY_EDGES, None)
-                                if edges is not None:
-                                    for item in edges:  # 对各个item做出解析
-                                        item_node = item.get(StringKeyUtils.STR_KEY_NODE, None)
-                                        if item_node is not None:
-                                            typename = item_node.get(StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
-                                            """依据每个Item的TypeName来判断Item的具体类型"""
-                                            """item的类型种类可以参考 https://developer.github.com/v4/union/pullrequesttimelineitems/"""
-                                            item_id = item_node.get(StringKeyUtils.STR_KEY_ID, None)
-                                            """relation 主要记录了时间顺序"""
-                                            relation = PRTimeLineRelation()
-                                            relation.position = pos
-                                            pos += 1
-                                            relation.typename = typename
-                                            relation.timelineitem_node = item_id
-                                            relation.pullrequest_node = pr_id
-                                            resList.append(relation)
+        def parser(item):
+            relation = PRTimeLineRelation()  # 返回结果为一系列关系
 
-                                            """按照感兴趣的类型 依次做出解析"""
-                                            """注：可能会有疏漏的代表commit的场景没有考虑"""
-                                            if typename == StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT:
-                                                bean = HeadRefForcePushedEvent()
-                                                bean.node_id = item_id
-                                                bean.afterCommit = item_node.get(StringKeyUtils.STR_KEY_AFTER_COMMIT
-                                                                                 , None).get(StringKeyUtils.STR_KEY_OID
-                                                                                             , None)
-                                                relation.headRefForcePushedEventAfterCommit = bean.afterCommit
-                                                bean.beforeCommit = item_node.get(StringKeyUtils.STR_KEY_BEFORE_COMMIT,
-                                                                                  None).get(StringKeyUtils.STR_KEY_OID,
-                                                                                            None)
-                                                relation.headRefForcePushedEventBeforeCommit = bean.beforeCommit
-                                                resItems.append(bean)
-                                            elif typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
-                                                bean = PullRequestCommit()
-                                                bean.node_id = item_id
-                                                commit = item_node.get(StringKeyUtils.STR_KEY_COMMIT)
-                                                if commit is not None and isinstance(commit, dict):
-                                                    bean.oid = commit.get(StringKeyUtils.STR_KEY_OID, None)
-                                                    relation.pullrequestCommitCommit = commit.get(StringKeyUtils.STR_KEY_OID, None)
-                                                resItems.append(bean)
-                                            elif typename == StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW:
-                                                commit = item_node.get(StringKeyUtils.STR_KEY_COMMIT)
-                                                if commit is not None and isinstance(commit, dict):
-                                                    relation.pullrequestReviewCommit = \
-                                                        commit.get(StringKeyUtils.STR_KEY_OID, None)
+            """依据每个Item的TypeName来判断Item的具体类型"""
+            """item的类型种类可以参考 https://developer.github.com/v4/union/pullrequesttimelineitems/"""
+            relation.typename = item.get(StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
+            relation.timeline_item_node = item.get(StringKeyUtils.STR_KEY_ID, None)
+            relation.origin = json.dumps(item)
 
-            return resList, resItems
+            """按照感兴趣的类型 依次做出解析"""
+            # 注：可能会有疏漏的代表commit的场景没有考虑
+            if relation.typename == StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT:
+                """force push"""
+                afterCommit = item.get(StringKeyUtils.STR_KEY_AFTER_COMMIT)
+                if afterCommit is not None:
+                    relation.headRefForcePushedEventAfterCommit = afterCommit.get(StringKeyUtils.STR_KEY_OID, None)
+                beforeCommit = item.get(StringKeyUtils.STR_KEY_BEFORE_COMMIT)
+                if beforeCommit is not None:
+                    relation.headRefForcePushedEventBeforeCommit = beforeCommit.get(StringKeyUtils.STR_KEY_OID, None)
+                return relation
+            elif relation.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
+                """commit"""
+                commit = item.get(StringKeyUtils.STR_KEY_COMMIT)
+                if commit is not None and isinstance(commit, dict):
+                    relation.pull_request_commit = commit.get(StringKeyUtils.STR_KEY_OID, None)
+                return relation
+            elif relation.typename == StringKeyUtils.STR_KEY_MERGED_EVENT:
+                """merge"""
+                commit = item.get(StringKeyUtils.STR_KEY_COMMIT)
+                if commit is not None and isinstance(commit, dict):
+                    relation.merge_commit = commit.get(StringKeyUtils.STR_KEY_OID, None)
+                return relation
+            elif relation.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW:
+                """review 需要获取comments, commit和original_commit"""
+                comments = item.get(StringKeyUtils.STR_KEY_COMMENTS).get(StringKeyUtils.STR_KEY_NODES)
+                relation.comments = comments
+                commit = item.get(StringKeyUtils.STR_KEY_COMMIT)
+                if commit is not None and isinstance(commit, dict):
+                    relation.pull_request_review_commit = commit.get(StringKeyUtils.STR_KEY_OID, None)
+                author = item.get(StringKeyUtils.STR_KEY_AUTHOR)
+                if author is not None and isinstance(author, dict):
+                    relation.user_login = author.get(StringKeyUtils.STR_KEY_LOGIN)
+                return relation
+            elif relation.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_THREAD:
+                comments = item.get(StringKeyUtils.STR_KEY_COMMENTS).get(StringKeyUtils.STR_KEY_NODES)
+                relation.comments = comments
+                if comments is not None and len(comments) > 0 and isinstance(comments, list):
+                    original_commit = comments[0].get(StringKeyUtils.STR_KEY_ORIGINAL_COMMIT)
+                    relation.user_login = comments[0].get(StringKeyUtils.STR_KEY_AUTHOR).get(
+                        StringKeyUtils.STR_KEY_LOGIN)
+                    if original_commit is not None and isinstance(original_commit, dict):
+                        relation.pull_request_review_commit = original_commit.get(StringKeyUtils.STR_KEY_OID, None)
+                return relation
+            elif relation.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT:
+                """issueComment（也算做review的一种）"""
+                relation.user_login = item.get(StringKeyUtils.STR_KEY_AUTHOR).get(StringKeyUtils.STR_KEY_LOGIN)
+                return relation
+            else:
+                return None

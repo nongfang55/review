@@ -153,6 +153,10 @@ class projectConfig:
 
 
 
+    @staticmethod
+    def getLogPath():
+        return projectConfig.getRootPath() + os.sep + 'log'
+
 
 if __name__ == "__main__":
     print(projectConfig.getRootPath())
