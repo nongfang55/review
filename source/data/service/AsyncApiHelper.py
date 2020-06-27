@@ -84,6 +84,7 @@ class AsyncApiHelper:
                     res = PullRequest.parser.parser(resultJson)
             elif configPraser.getApiVersion() == StringKeyUtils.API_VERSION_GRAPHQL:
                 res = PullRequest.parserV4.parser(resultJson)
+                res.repo_full_name = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo
                 """对于v4接口 pr获取不到的情况，如果确认不存在，则是视为等issue的情况"""
                 """读取errors 信息"""
                 if res is None:
@@ -177,6 +178,11 @@ class AsyncApiHelper:
                         usefulReviewCommentsCount = 0
                         if reviewComments is not None:
                             for reviewComment in reviewComments:
+                                """补全 reivew comment 的 pull_request_review_node_id"""
+                                for r in reviews:
+                                    if r.id == reviewComment.pull_request_review_id:
+                                        reviewComment.pull_request_review_node_id = r.node_id
+
                                 usefulReviewCommentsCount += 1
                                 beanList.append(reviewComment)
                                 if reviewComment.user is not None:
@@ -342,6 +348,7 @@ class AsyncApiHelper:
                                                         for commentData in comment_list_nodes:
                                                             comment = ReviewComment.parserV4.parser(commentData)
                                                             comment.pull_request_review_id = review.id
+                                                            comment.pull_request_review_node_id = review.node_id
                                                             reviewComments.append(comment)
 
                                                 commitData = reviewData.get(StringKeyUtils.STR_KEY_COMMIT, None)
@@ -355,7 +362,7 @@ class AsyncApiHelper:
                                                     if not isFind:
                                                         commits.append(commit)
 
-                                """对于2016年的数据  没有review数据项，而PullRequestReviewThread
+                                """对于2016年之前的数据  没有review数据项，而PullRequestReviewThread
                                    可以获取对应 review、review comment和 commit
                                 """
                                 itemLineItem_list = prData.get(StringKeyUtils.STR_KEY_TIME_LINE_ITEMS, None)
@@ -390,6 +397,7 @@ class AsyncApiHelper:
                                                             for commentData in comment_list_nodes:
                                                                 comment = ReviewComment.parserV4.parser(commentData)
                                                                 comment.pull_request_review_id = review.id
+                                                                comment.pull_request_review_node_id = review.node_id
                                                                 reviewComments.append(comment)
 
                                                                 """"从commentData 解析 original commit"""

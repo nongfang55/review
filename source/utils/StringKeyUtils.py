@@ -132,6 +132,7 @@ class StringKeyUtils:
     STR_KEY_ORIGINAL_POSITION_V4 = 'originalPosition'
     STR_KEY_ORIGINAL_COMMIT = 'originalCommit'
     STR_KEY_IN_REPLY_TO_ID_V4 = 'replyTo'
+    STR_KEY_PULL_REQUEST_REVIEW_NODE_ID = 'pull_request_review_node_id'
 
     '''issue comment 可能会使用的数据'''
 

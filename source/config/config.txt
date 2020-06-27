@@ -1,5 +1,5 @@
 [authorization]
-token=0ae9a2d99126c1a4b29296aaf651552ebf2bd819
+token=d91c0c7926245bf1095ff9c3b22cba7110abcceb
 [database]
 host=101.133.220.93
 username=review
@@ -8,10 +8,10 @@ database=REVIEW
 [debug]
 print=False
 [project]
-owner=adobe
-repo=brackets
+owner=django
+repo=django
 limit=1
-start=11263
+start=13089
 commitFetchLoop=10
 [network]
 timeout=5
