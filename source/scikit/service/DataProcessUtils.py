@@ -209,7 +209,6 @@ class DataProcessUtils:
         print("fmeasure:")
         print(fmeasurek)
 
-
         return topk, mrr, precisionk, recallk, fmeasurek
 
     @staticmethod
@@ -360,7 +359,7 @@ class DataProcessUtils:
 
         commitFileData = pandasHelper.readTSVFile(
             os.path.join(data_train_path, 'ALL_data_commit_file.tsv'), pandasHelper.INT_READ_FILE_WITHOUT_HEAD
-        , low_memory=False)
+            , low_memory=False)
         commitFileData.columns = DataProcessUtils.COLUMN_NAME_COMMIT_FILE
         print(commitFileData.shape)
 
@@ -413,11 +412,18 @@ class DataProcessUtils:
 
         对于 label = issue comment
         通过 ALL_{projectName}_data_pull_request
-             ALL_{projectName}_commit_file
-             ALL_{projectName}_data_pr_commit_relation
+             # ALL_{projectName}_commit_file
+             # ALL_{projectName}_data_pr_commit_relation
              ALL_{projectName}_data_issuecomment 四个文件拼接出FPS所需信息量的文件
+             ALL_{projectName}_data_pr_change_file
 
-        issue comment不能使用  ALL_{projectName}_data_pr_review_commit_file
+        对于 label = issue and review comment
+        通过  ALL_{projectName}_data_pull_request
+              ALL_{projectName}_data_issuecomment
+              ALL_{projectName}_data_pr_change_file
+              ALL_{proejctName}_data_review
+
+        注 ：issue comment不能使用  ALL_{projectName}_data_pr_review_commit_file
         这里pr已经和review做连接 导致数量减少
         """
 
@@ -427,6 +433,8 @@ class DataProcessUtils:
         pr_commit_relation_path = projectConfig.getPrCommitRelationPath()
         issue_comment_path = projectConfig.getIssueCommentPath()
         pull_request_path = projectConfig.getPullRequestPath()
+        pr_change_file_path = projectConfig.getPRChangeFilePath()
+        review_path = projectConfig.getReviewDataPath()
 
         prReviewData = pandasHelper.readTSVFile(
             os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
@@ -458,13 +466,25 @@ class DataProcessUtils:
             pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
         )
 
+        """pr_change_file 数据库输出 自带抬头"""
+        prChangeFileData = pandasHelper.readTSVFile(
+            os.path.join(pr_change_file_path, f'ALL_{projectName}_data_pr_change_file.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review 数据库输出 自带抬头"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
         print("read file cost time:", datetime.now() - time1)
 
         """过滤状态非关闭的pr review"""
         if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
             prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
             print("after fliter closed pr:", prReviewData.shape)
-        elif label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
+        elif label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT or label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
             pullRequestData = pullRequestData.loc[pullRequestData['state'] == 'closed'].copy(deep=True)
             print("after fliter closed pr:", pullRequestData.shape)
 
@@ -485,7 +505,9 @@ class DataProcessUtils:
         commitFileData.reset_index(drop=True, inplace=True)
         print("after fliter commit_file:", commitFileData.shape)
 
-        pullRequestData = pullRequestData[['number', 'created_at', 'user_login']].copy(deep=True)
+        pullRequestData = pullRequestData[['number', 'created_at', 'closed_at', 'user_login']].copy(deep=True)
+
+        reviewData = reviewData[["pull_number", "id", "user_login", 'submitted_at']].copy(deep=True)
 
         targetFileName = f'FPS_{projectName}_data'
         if label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
@@ -502,23 +524,61 @@ class DataProcessUtils:
             data.drop(columns=['sha'], inplace=True)
             data.drop(columns=['pr_number'], inplace=True)
             print("交换位置")
-            order = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha', 'file_filename']
+            order = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha',
+                     'file_filename']
             data = data[order]
         elif label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
-            data = pandas.merge(pullRequestData, commitPRRelationData, left_on='number', right_on='pull_number')
-            data = pandas.merge(data, commitFileData, left_on='sha', right_on='commit_sha')
+            # data = pandas.merge(pullRequestData, commitPRRelationData, left_on='number', right_on='pull_number')
+            # data = pandas.merge(data, commitFileData, left_on='sha', right_on='commit_sha')
+            data = pandas.merge(pullRequestData, prChangeFileData, left_on='number', right_on='pull_number')
             data = pandas.merge(data, issueCommitData, left_on='number', right_on='pull_number')
             """过滤作者 发issue comment的情况"""
             data = data.loc[data['user_login_x'] != data['user_login_y']].copy(deep=True)
             data.drop(columns=['user_login_x'], axis=1, inplace=True)
             """过滤  多个commit包含一个文件的情况  重要 2020.6.3"""
-            data.drop_duplicates(['number', 'file_filename', 'user_login_y'], inplace=True)
+            data.drop_duplicates(['number', 'filename', 'user_login_y'], inplace=True)
             data.reset_index(drop=True, inplace=True)
+            data['commit_sha'] = None
             """只选出感兴趣的部分"""
             data = data[['repo_full_name_x', 'pull_number_x', 'created_at_x', 'user_login_y', 'commit_sha',
-                         'file_filename']].copy(deep=True)
+                         'filename']].copy(deep=True)
             data.drop_duplicates(inplace=True)
-            data.columns = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha', 'file_filename']
+            data.columns = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha',
+                            'file_filename']
+            data.reset_index(drop=True)
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+            """思路  上面两部分依次做凭借， 最后加上文件"""
+            data_issue = pandas.merge(pullRequestData, issueCommitData, left_on='number', right_on='pull_number')
+            """过滤 comment 在closed 后面的场景 2020.6.28"""
+            data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
+            data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)
+            data_issue = data_issue[['number', 'created_at_x', 'user_login_y']].copy(deep=True)
+            data_issue.columns = ['number', 'created_at', 'user_login']
+            data_issue.drop_duplicates(inplace=True)
+
+            data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
+            data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
+            """过滤 comment 在closed 后面的场景 2020.6.28"""
+            data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
+            data_review = data_review[['number', 'created_at', 'user_login_y']].copy(deep=True)
+            data_review.columns = ['number', 'created_at', 'user_login']
+            data_review.drop_duplicates(inplace=True)
+
+            data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
+            data.drop_duplicates(inplace=True)
+            data.reset_index(drop=True)
+            print(data.shape)
+
+            """拼接 文件改动"""
+            data = pandas.merge(data, prChangeFileData, left_on='number', right_on='pull_number')
+            """只选出感兴趣的部分"""
+            data['commit_sha'] = None
+            data = data[['repo_full_name', 'number', 'created_at', 'user_login', 'commit_sha', 'filename']].copy(
+                deep=True)
+            data.drop_duplicates(inplace=True)
+            data.columns = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha',
+                            'file_filename']
+            data.sort_values(by='pull_number', ascending=False, inplace=True)
             data.reset_index(drop=True)
 
         print("after merge:", data.shape)
@@ -847,7 +907,7 @@ class DataProcessUtils:
     @staticmethod
     def dunn():
         # dunn 检验
-        filename = os.path.join(projectConfig.getDataPath(),"compare.xlsx")
+        filename = os.path.join(projectConfig.getDataPath(), "compare.xlsx")
         data = pandas.read_excel(filename, sheet_name="Top-1_1")
         print(data)
         data.columns = [0, 1, 2, 3, 4]
@@ -881,8 +941,22 @@ class DataProcessUtils:
         ax.set_title("Mann Whitney U test")
         plt.show()
 
+    @staticmethod
+    def compareDataFrameByPullNumber():
+        """计算 两个 dataframe 的差异"""
+        file2 = 'FPS_ALL_opencv_data_2017_10_to_2017_10.tsv'
+        file1 = 'FPS_SEAA_opencv_data_2017_10_to_2017_10.tsv'
+        df1 = pandasHelper.readTSVFile(projectConfig.getFPSDataPath() + os.sep + file1,
+                                       header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        df1.drop(columns=['pr_created_at'], inplace=True)
+        df2 = pandasHelper.readTSVFile(projectConfig.getFPSDataPath() + os.sep + file2,
+                                       header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        df2.drop(columns=['pr_created_at'], inplace=True)
 
-
+        df1 = pandas.concat([df1, df2])
+        df1 = pandas.concat([df1, df2])
+        df1.drop_duplicates(inplace=True, keep=False)
+        print(df1)
 
 
 if __name__ == '__main__':
@@ -901,9 +975,9 @@ if __name__ == '__main__':
     """分割不同算法的训练集"""
     # DataProcessUtils.contactCAData('cakephp')
 
-    projects = ['opencv', 'rails', 'angular']
-    for p in projects:
-        DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ISSUE_COMMENT)
+    # projects = ['opencv']
+    # for p in projects:
+    #     DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
 
     # DataProcessUtils.contactMLData('xbmc')
     # DataProcessUtils.contactIRData('xbmc')
@@ -911,3 +985,5 @@ if __name__ == '__main__':
     # DataProcessUtils.getReviewerFrequencyDict('rails', (2019, 4, 2019, 6))
     # DataProcessUtils.getStopWordList()
     # DataProcessUtils.dunn()
+    #
+    # DataProcessUtils.compareDataFrameByPullNumber()

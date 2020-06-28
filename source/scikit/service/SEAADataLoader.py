@@ -38,7 +38,7 @@ class SEAADataLoader:
         dictList = []
         for data in dataJson:
             new_row = {'repo_full_name': projectName + '/' + projectName, 'pull_number': data['changeNumber'],
-                       'pr_created_at': convertTimeStampToTime(data['timestamp']), 'commit_sha':0}
+                       'pr_created_at': convertTimeStampToTime(data['timestamp']), 'commit_sha': None}
             for reviewer in data['reviewers']:
                 reviewer = reviewer['name']
                 for path in data['filePaths']:
@@ -67,7 +67,7 @@ class SEAADataLoader:
         dictList = []
         for data in dataJson:
             new_row = {'repo_full_name': projectName + '/' + projectName, 'pull_number': data['changeNumber'],
-                       'pr_created_at': convertTimeStampToTime(data['timestamp']), 'commit_sha':0}
+                       'pr_created_at': convertTimeStampToTime(data['timestamp']), 'commit_sha': None}
             for reviewer in data['reviewers']:
                 reviewer = reviewer['name']
                 for path in data['filePaths']:
@@ -85,4 +85,4 @@ class SEAADataLoader:
 
 
 if __name__ == '__main__':
-    SEAADataLoader.contactCAData('opencv')
+    SEAADataLoader.contactFPSData('opencv')

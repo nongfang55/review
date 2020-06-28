@@ -168,8 +168,8 @@ class AsyncProjectAllDataFetcher:
 
 
 if __name__ == '__main__':
-    AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
-                                                    , start=configPraser.getStart(), limit=configPraser.getLimit())
+    # AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
+    #                                                 , start=configPraser.getStart(), limit=configPraser.getLimit())
 
     # data = pandasHelper.readTSVFile(projectConfig.getChangeTriggerPRPath(), pandasHelper.INT_READ_FILE_WITHOUT_HEAD)
     # print(data.as_matrix().shape)
@@ -182,4 +182,4 @@ if __name__ == '__main__':
     #                                                   nodes=[[x] for x in pr_nodes])
 
     # AsyncProjectAllDataFetcher.getUnmatchedCommits()
-    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
+    AsyncProjectAllDataFetcher.getUnmatchedCommitFile()

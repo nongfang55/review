@@ -26,6 +26,8 @@ class projectConfig:
     PATH_COMMIT_FILE = 'data' + os.sep + 'train' + os.sep + 'commitFileData'
     PATH_SEAA = 'data' + os.sep + 'SEAA'
     PATH_PULL_REQUEST = 'data' + os.sep + 'train' + os.sep + 'pullRequestData'
+    PATH_PR_CHANGE_FILE = 'data' + os.sep + 'train' + os.sep + 'prChangeFile'
+    PATH_REVIEW = 'data' + os.sep + 'train' + os.sep + 'reviewData'
 
     PATH_FPS_DATA = 'data' + os.sep + 'train' + os.sep + 'FPS'
     PATH_ML_DATA = 'data' + os.sep + 'train' + os.sep + 'ML'
@@ -140,6 +142,16 @@ class projectConfig:
     @staticmethod
     def getSEAADataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_SEAA)
+
+    @staticmethod
+    def getPRChangeFilePath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_PR_CHANGE_FILE)
+
+    @staticmethod
+    def getReviewDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_REVIEW)
+
+
 
 
 if __name__ == "__main__":

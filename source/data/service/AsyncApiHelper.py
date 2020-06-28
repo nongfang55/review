@@ -84,7 +84,8 @@ class AsyncApiHelper:
                     res = PullRequest.parser.parser(resultJson)
             elif configPraser.getApiVersion() == StringKeyUtils.API_VERSION_GRAPHQL:
                 res = PullRequest.parserV4.parser(resultJson)
-                res.repo_full_name = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo
+                if res is not None:
+                    res.repo_full_name = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo
                 """对于v4接口 pr获取不到的情况，如果确认不存在，则是视为等issue的情况"""
                 """读取errors 信息"""
                 if res is None:
@@ -452,6 +453,8 @@ class AsyncApiHelper:
                                     commit_list_nodes = commit_list.get(StringKeyUtils.STR_KEY_NODES, None)
                                     if commit_list_nodes is not None and isinstance(commit_list_nodes, list):
                                         for commitData in commit_list_nodes:
+                                            if commitData is None:
+                                                continue
                                             commitData = commitData.get(StringKeyUtils.STR_KEY_COMMIT, None)
                                             commit = Commit.parserV4.parser(commitData)
                                             isFind = False
