@@ -455,60 +455,57 @@ class AsyncApiHelper:
             print(e)
 
     @staticmethod
-    async def parserPRItemLine(resultJson):
-        try:
-            if AsyncApiHelper.judgeNotFind(resultJson):
-                raise Exception("not found")
-
-            """处理异常情况"""
-            if not isinstance(resultJson, dict):
-                return None
-            data = resultJson.get(StringKeyUtils.STR_KEY_DATA, None)
-            if data is None or not isinstance(data, dict):
-                return None
-            nodes = data.get(StringKeyUtils.STR_KEY_NODE, None)
-            if nodes is None:
-                return None
-
-            """开始解析"""
-            pr_timeline = PRTimeLine.Parser.parser(resultJson)
-            return pr_timeline
-        except Exception as e:
-            print(e)
-
-    @staticmethod
-    async def downloadRPTimeLine(node_id, semaphore, mysql, statistic):
+    async def downloadRPTimeLine(node_ids, semaphore, mysql, statistic):
         async with semaphore:
             async with aiohttp.ClientSession() as session:
                 try:
-                    args = {"id": node_id}
-                    """从GitHub v4 API 中获取某个pull-request的TimeLine对象"""
+                    args = {"ids": node_ids}
+                    """从GitHub v4 API 中获取多个pull-request的TimeLine对象"""
                     api = AsyncApiHelper.getGraphQLApi()
                     resultJson = await AsyncApiHelper.postGraphqlData(session, api, args)
-                    print("timeline json:", resultJson)
-                    """从回应结果解析出pr时间线对象"""
-                    prTimeLine = await AsyncApiHelper.parserPRItemLine(resultJson)
-                    prTimeLineItems = prTimeLine.timeline_items
-                    """存储数据库中"""
-                    try:
-                        await AsyncSqlHelper.storeBeanDateList(prTimeLineItems, mysql)
-                    except Exception as e:
-                        Logger.loge(e)
-                        Logger.loge("this pr's timeline: {0} fail to insert".format(node_id))
-                    # 做了同步处理
-                    statistic.lock.acquire()
-                    statistic.usefulTimeLineCount += 1
-                    print(f" usefulTimeLineCount:{statistic.usefulTimeLineCount}",
-                          f" change trigger count:{statistic.usefulChangeTrigger}",
-                          f" twoParents case:{statistic.twoParentsNodeCase}",
-                          f" outOfLoop case:{statistic.outOfLoopCase}")
-                    statistic.lock.release()
-                    return prTimeLine
+                    print("successfully fetched Json! nodeIDS: {0}".format(json.dumps(node_ids)))
+
+                    if AsyncApiHelper.judgeNotFind(resultJson):
+                        Logger.loge("not found")
+                        raise Exception("not found")
+
+                    """处理异常情况"""
+                    if not isinstance(resultJson, dict):
+                        return None
+                    data = resultJson.get(StringKeyUtils.STR_KEY_DATA, None)
+                    if data is None or not isinstance(data, dict):
+                        return None
+                    nodes = data.get(StringKeyUtils.STR_KEY_NODES, None)
+                    if nodes is None:
+                        return None
+
+                    prTimeLines = []
+                    for node in nodes:
+                        """从回应结果解析出pr时间线对象"""
+                        prTimeLine = PRTimeLine.Parser.parser(node)
+                        if prTimeLine is None:
+                            continue
+                        prTimeLineItems = prTimeLine.timeline_items
+                        """存储数据库中"""
+                        try:
+                            await AsyncSqlHelper.storeBeanDateList(prTimeLineItems, mysql)
+                        except Exception as e:
+                            Logger.loge(json.dumps(e.args))
+                            Logger.loge("this pr's timeline: {0} fail to insert".format(node.get(StringKeyUtils.STR_KEY_ID)))
+                        # 做同步处理
+                        statistic.lock.acquire()
+                        statistic.usefulTimeLineCount += 1
+                        print(f" usefulTimeLineCount:{statistic.usefulTimeLineCount}",
+                              f" change trigger count:{statistic.usefulChangeTrigger}",
+                              f" twoParents case:{statistic.twoParentsNodeCase}",
+                              f" outOfLoop case:{statistic.outOfLoopCase}")
+                        statistic.lock.release()
+                        prTimeLines.append(prTimeLine)
+                    return prTimeLines
                 except Exception as e:
                     print(e)
-
     @staticmethod
-    async def analyzeReviewChangeTrigger(pair, mysql, statistic):
+    async def analyzeReviewChangeTrigger(pr_node_id, pair, mysql, statistic):
         """分析review和随后的changes是否有trigger关系"""
         """目前算法暂时先不考虑comment的change_trigger，只考虑文件层面"""
         """算法说明：  通过reviewCommit和changeCommit来比较两者之间的代码差异"""
@@ -592,8 +589,8 @@ class AsyncApiHelper:
                 """获取commit点信息 包括数据库获取的GitHub API获取 nodes就是一个Group"""
                 needFetchList = [node.oid for node in nodes if node.willFetch]
                 """先尝试从数据库中读取"""
-                localExistList, localRelationList = await AsyncApiHelper.getCommitsFromStore(needFetchList, mysql)
-                needFetchList = [oid for oid in needFetchList if oid not in localExistList]
+                # localExistList, localRelationList = await AsyncApiHelper.getCommitsFromStore(needFetchList, mysql)
+                # needFetchList = [oid for oid in needFetchList if oid not in localExistList]
                 print("need fetch list:", needFetchList)
                 webRelationList = await AsyncApiHelper.getCommitsFromApi(needFetchList, mysql, session)
 
@@ -601,7 +598,7 @@ class AsyncApiHelper:
                     node.willFetch = False
 
                 relationList = []
-                relationList.extend(localRelationList)
+                # relationList.extend(localRelationList)
                 relationList.extend(webRelationList)
 
                 """原有的node 补全parents"""
@@ -635,22 +632,38 @@ class AsyncApiHelper:
         review = pair[0]
         changes = pair[1]
 
-        isUsefulReview = False
-
         """从数据库获取review comments(注：一个review 可能会关联多个comment，每个comment会指定一个文件和对应代码行)"""
         comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timeline_item_node, mysql)
         if comments is None:
-            return isUsefulReview
+            return None
+        """通过comment的 position、originalPosition信息补全line, originalLine 需要对应commit的file的patch"""
+        oids = [comment.original_commit_id for comment in comments]
+        """获取这些的changes files"""
+        files = await AsyncApiHelper.getFilesFromStore(oids, mysql)
+        """依次补全"""
+        for comment in comments:
+            for file in files:
+                if file.commit_sha == comment.original_commit_id and file.filename == comment.path:
+                    """计算 line 和 origin line"""
+                    line, original_line = TextCompareUtils.getStartLine(file.patch, comment.position,
+                                                                        comment.original_position)
+                    comment.line = line
+                    comment.original_line = original_line
+
+                    """line 是改动后文本评论指向的行数， original line 是改动前的文本评论指向行数
+                       有 line 就别用 original line
+                    """
 
         twoParentsBadCase = 0  # 记录一个commit有两个根节点的情况 发现这个情况直接停止
         outOfLoopCase = 0  # 记录寻找两个commit点的最近祖宗节点 使用上级追溯的次数超过限制情况
 
         """遍历review之后的changes，判断是否有comment引起change的情况"""
+        change_trigger_comments = []
         for change in changes:  # 对后面连续改动依次遍历
-            reviewCommit = review.pullrequestReviewCommit
+            reviewCommit = review.pull_request_review_commit
             changeCommit = None
             if change.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
-                changeCommit = change.pullrequestCommitCommit
+                changeCommit = change.pull_request_commit
             elif change.typename == StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT:
                 changeCommit = change.headRefForcePushedEventAfterCommit
 
@@ -764,6 +777,8 @@ class AsyncApiHelper:
                 for comment in comments:  # 对每一个comment统计change trigger
                     """comment 对应的文件"""
                     commentFile = comment.path
+                    """comment默认未触发change_trigger"""
+                    comment.change_trigger = -1
                     # TODO 目前暂不考虑comment细化到行的change_trigger
                     # """comment 对应的文件行"""
                     # commentLine = comment.original_line
@@ -780,7 +795,7 @@ class AsyncApiHelper:
                             if node.oid == node_oid:
                                 for file in file1s:
                                     if file.filename == commentFile and file.commit_sha == node.oid:
-                                        comment.change_trigger = True
+                                        comment.change_trigger = 1
                                         # TODO 目前暂不考虑comment细化到行的change_trigger
                                         # """patch是一个含有某些行数变化的文本，需要后面单独的解析"""
                                         # diff_patch1.insert(0, file.patch)
@@ -793,11 +808,19 @@ class AsyncApiHelper:
                             if node.oid == node_oid:
                                 for file in file2s:
                                     if file.filename == commentFile and file.commit_sha == node.oid:
-                                        comment.change_trigger = True
+                                        comment.change_trigger = 1
                                         # TODO 目前暂不考虑comment细化到行的change_trigger
                                         # diff_patch2.insert(0, file.patch)
                                 startNode.extend(node.parents)
-
+                    if comment.change_trigger > 0:
+                        change_trigger_comments = change_trigger_comments.append(tuple({
+                            "pullrequest_node": pr_node_id,
+                            "user_login": comment.user_login,
+                            "comment_node": comment.node_id,
+                            "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                            "change_trigger": comment.change_trigger,
+                            "filepath": comment.path
+                        }.values()))
                     # TODO 目前暂不考虑comment细化到行的change_trigger
                     # """通过比较commit集合来计算距离comment最近的文件变化"""
                     # closedChange = TextCompareUtils.getClosedFileChange(diff_patch1, diff_patch2, commentLine)
@@ -806,26 +829,18 @@ class AsyncApiHelper:
                     #     comment.change_trigger = closedChange
                     # else:
                     #     comment.change_trigger = min(comment.change_trigger, closedChange)
-                    """找到一个comment有change_trigger，则认定该review有效, 不再继续分析后面的comment"""
-                    if comment.change_trigger:
-                        isUsefulReview = True
-                        break
             except Exception as e:
                 print(e)
                 continue
-
-            """若找到一个和comment关联的change，认定该review有效，不再继续找后面的change"""
-            if isUsefulReview:
-                break
 
         statistic.lock.acquire()
         statistic.outOfLoopCase += outOfLoopCase
         statistic.usefulChangeTrigger += [x for x in comments if x.change_trigger is not None].__len__()
         statistic.lock.release()
 
-        # TODO 手动计算comment的original_line和line，和change_trigger一起写到数据库中"""
-        # await AsyncSqlHelper.updateBeanDateList(comments, mysql)
-        return isUsefulReview
+        # 更新comments的change_trigger, line, original_line信息"""
+        await AsyncSqlHelper.updateBeanDateList(comments, mysql)
+        return change_trigger_comments
 
     @staticmethod
     async def getReviewCommentsByNodeFromStore(node_id, mysql):

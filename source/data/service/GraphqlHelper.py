@@ -20,9 +20,10 @@ class GraphqlHelper:
         return body
 
     @staticmethod
-    def getTimeLineQueryByNodes():
-        return GraphqlHelper.STR_KEY_QUERY_PR_TIMELINE
-
+    def getTimeLineQueryByNodes(body):
+        """返回查询timeline需要的语句"""
+        body[StringKeyUtils.STR_KEY_QUERY] = GraphqlHelper.STR_KEY_QUERY_PR_TIMELINE
+        return body
     @staticmethod
     def getPrInformationByNumber():
         return GraphqlHelper.STR_KEY_QUERY_PR_ALL
@@ -46,8 +47,8 @@ class GraphqlHelper:
     STR_KEY_NONE = "{}"
 
     STR_KEY_QUERY_PR_TIMELINE = '''
- query($id:ID!) { 
-  node(id:$id) {
+query($ids:[ID!]!) { 
+  nodes(ids:$ids) {
     ... on PullRequest {
       id
       author {

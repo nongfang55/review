@@ -61,12 +61,14 @@ class PRTimeLineRelation(BeanBase):
 
         @staticmethod
         def parser(item):
+            item = json.loads(item)
             relation = PRTimeLineRelation()  # 返回结果为一系列关系
 
             """依据每个Item的TypeName来判断Item的具体类型"""
             """item的类型种类可以参考 https://developer.github.com/v4/union/pullrequesttimelineitems/"""
             relation.typename = item.get(StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
             relation.timeline_item_node = item.get(StringKeyUtils.STR_KEY_ID, None)
+            relation.position = item.get(StringKeyUtils.STR_KEY_POSITION, None)
             relation.origin = json.dumps(item)
 
             """按照感兴趣的类型 依次做出解析"""
@@ -115,7 +117,9 @@ class PRTimeLineRelation(BeanBase):
                 return relation
             elif relation.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT:
                 """issueComment（也算做review的一种）"""
-                relation.user_login = item.get(StringKeyUtils.STR_KEY_AUTHOR).get(StringKeyUtils.STR_KEY_LOGIN)
+                author = item.get(StringKeyUtils.STR_KEY_AUTHOR)
+                if author is not None:
+                    relation.user_login = author.get(StringKeyUtils.STR_KEY_LOGIN)
                 return relation
             else:
                 return None

@@ -7,7 +7,7 @@ class PRTimeLineUtils:
     """针对pull request的timeline做一些处理的工具类"""
 
     @staticmethod
-    def splitTimeLine(prTimeLine):
+    def splitTimeLine(prTimeLineItems):
         """把一条完整的时间线分割  返回为一系列的review和相关的commit等event"""
 
         reviewPair = []  # review -> [{reviewNode: changeNodes}, {}, ...]
@@ -15,9 +15,8 @@ class PRTimeLineUtils:
         pair_review_node = None
         pair_change_nodes = None
 
-        timeLineItemRelations = prTimeLine.timeline_items
-        for item in timeLineItemRelations:
-            if item.typename in PRTimeLineUtils.getReviewType() and item.user_login != prTimeLine.user_login:
+        for item in prTimeLineItems:
+            if item.typename in PRTimeLineUtils.getReviewType():
                 if pair_review_node is not None and pair_change_nodes.__len__() > 0:
                     reviewPair.append((pair_review_node, pair_change_nodes))
                 pair_review_node = item

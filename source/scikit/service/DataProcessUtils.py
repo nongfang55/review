@@ -455,7 +455,7 @@ class DataProcessUtils:
         print("pr_commit_relation:", commitPRRelationData.shape)
 
         """issue commit 数据库输出 自带抬头"""
-        issueCommitData = pandasHelper.readTSVFile(
+        issueCommentData = pandasHelper.readTSVFile(
             os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
             pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
         )
@@ -531,7 +531,7 @@ class DataProcessUtils:
             # data = pandas.merge(pullRequestData, commitPRRelationData, left_on='number', right_on='pull_number')
             # data = pandas.merge(data, commitFileData, left_on='sha', right_on='commit_sha')
             data = pandas.merge(pullRequestData, prChangeFileData, left_on='number', right_on='pull_number')
-            data = pandas.merge(data, issueCommitData, left_on='number', right_on='pull_number')
+            data = pandas.merge(data, issueCommentData, left_on='number', right_on='pull_number')
             """过滤作者 发issue comment的情况"""
             data = data.loc[data['user_login_x'] != data['user_login_y']].copy(deep=True)
             data.drop(columns=['user_login_x'], axis=1, inplace=True)
@@ -548,7 +548,7 @@ class DataProcessUtils:
             data.reset_index(drop=True)
         elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
             """思路  上面两部分依次做凭借， 最后加上文件"""
-            data_issue = pandas.merge(pullRequestData, issueCommitData, left_on='number', right_on='pull_number')
+            data_issue = pandas.merge(pullRequestData, issueCommentData, left_on='number', right_on='pull_number')
             """过滤 comment 在closed 后面的场景 2020.6.28"""
             data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
             data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)

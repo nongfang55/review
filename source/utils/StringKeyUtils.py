@@ -181,6 +181,7 @@ class StringKeyUtils:
     STR_KEY_TIME_LINE_ITEMS = 'timelineItems'
     STR_KEY_EDGES = 'edges'
     STR_KEY_OID = 'oid'
+    STR_KEY_ORIGIN = 'origin'
     STR_FAILED_FETCH = 'Failed to fetch'
     STR_KEY_PULL_REQUEST_REVIEW_THREAD = 'PullRequestReviewThread'
 

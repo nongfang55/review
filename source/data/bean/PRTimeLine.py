@@ -11,18 +11,23 @@ class PRTimeLine(BeanBase):
         self.pull_request_id = None
         self.user_login = None
 
+    def toTSVFormat(self):
+        res = []
+        for item in self.timeline_items:
+            res.append({
+                "pullrequest_node": item.pull_request_node,
+                "timelineitem_node": item.timeline_item_node,
+                "typename": item.typename,
+                "position": item.position,
+                "origin": item.origin
+            })
+        return res
+
+
     class Parser(BeanBase.parser):
 
         @staticmethod
-        def parser(src):
-
-            """处理异常情况"""
-            if not isinstance(src, dict):
-                return None
-            data = src.get(StringKeyUtils.STR_KEY_DATA, None)
-            if data is None or not isinstance(data, dict):
-                return None
-            node = data.get(StringKeyUtils.STR_KEY_NODE, None)
+        def parser(node):
             if node is None:
                 return None
 
@@ -32,7 +37,7 @@ class PRTimeLine(BeanBase):
             author = node.get(StringKeyUtils.STR_KEY_AUTHOR)
             if author is not None and isinstance(author, dict):
                 pr_timeline.user_login = author.get(StringKeyUtils.STR_KEY_LOGIN)
-            pr_timeline.author = node.get(StringKeyUtils.STR_KEY_ID)
+            # pr_timeline.author = node.get(StringKeyUtils.STR_KEY_ID)
 
             """获取TimeLineItems"""
             timeline_items = node.get(StringKeyUtils.STR_KEY_TIME_LINE_ITEMS, None)
