@@ -985,7 +985,7 @@ class AsyncApiHelper:
                         break
                     await fetNotFetchedNodes(changeGroup, mysql)
 
-                    """判断包含关系，再拉取changeGroup"""
+                    """判断包含关系，再拉取reviewGroup"""
                     printNodes(reviewGroup, changeGroup)
                     if isNodesContains(reviewGroup, changeGroup):
                         completeFetch = 'CHANGE_GROUP'
@@ -1061,11 +1061,17 @@ class AsyncApiHelper:
                 file1s = await AsyncApiHelper.getFilesFromStore([x.oid for x in diff_nodes1], mysql)
                 file2s = await AsyncApiHelper.getFilesFromStore([x.oid for x in diff_nodes2], mysql)
 
+                """文件差异"""
+                changed_files = file1s.copy()
+                changed_files.extend(file2s)
                 for comment in comments:  # 对每一个comment统计change trigger
                     """comment 对应的文件"""
                     commentFile = comment.path
                     """comment默认未触发change_trigger"""
                     comment.change_trigger = -1
+                    for file in changed_files:
+                        if file.filename == commentFile:
+                            comment.change_trigger = 1
                     # TODO 目前暂不考虑comment细化到行的change_trigger
                     # """comment 对应的文件行"""
                     # commentLine = comment.original_line
@@ -1073,41 +1079,41 @@ class AsyncApiHelper:
                     # diff_patch1 = []  # 两边不同的patch patch就是不同文本集合
                     # diff_patch2 = []
 
-                    """只要在改动路径上出现过和commentFile相同的文件，就认定该条comment是有效的"""
-                    startNode = [groupIncludeStartNode]  # 从commit源头找到根中每一个commit的涉及文件名的patch
-                    while startNode.__len__() > 0:
-                        """类似DFS算法"""
-                        node_oid = startNode.pop(0)
-                        for node in diff_nodes1:
-                            if node.oid == node_oid:
-                                for file in file1s:
-                                    if file.filename == commentFile and file.commit_sha == node.oid:
-                                        comment.change_trigger = 1
-                                        # TODO 目前暂不考虑comment细化到行的change_trigger
-                                        # """patch是一个含有某些行数变化的文本，需要后面单独的解析"""
-                                        # diff_patch1.insert(0, file.patch)
-                                startNode.extend(node.parents)
-
-                    startNode = [groupIncludedStartNode]
-                    while startNode.__len__() > 0:
-                        node_oid = startNode.pop(0)
-                        for node in diff_nodes2:
-                            if node.oid == node_oid:
-                                for file in file2s:
-                                    if file.filename == commentFile and file.commit_sha == node.oid:
-                                        comment.change_trigger = 1
-                                        # TODO 目前暂不考虑comment细化到行的change_trigger
-                                        # diff_patch2.insert(0, file.patch)
-                                startNode.extend(node.parents)
+                    # """只要在改动路径上出现过和commentFile相同的文件，就认定该条comment是有效的"""
+                    # startNode = [groupIncludeStartNode]  # 从commit源头找到根中每一个commit的涉及文件名的patch
+                    # while startNode.__len__() > 0:
+                    #     """类似DFS算法"""
+                    #     node_oid = startNode.pop(0)
+                    #     for node in diff_nodes1:
+                    #         if node.oid == node_oid:
+                    #             for file in file1s:
+                    #                 if file.filename == commentFile and file.commit_sha == node.oid:
+                    #                     comment.change_trigger = 1
+                    #                     # TODO 目前暂不考虑comment细化到行的change_trigger
+                    #                     # """patch是一个含有某些行数变化的文本，需要后面单独的解析"""
+                    #                     # diff_patch1.insert(0, file.patch)
+                    #             startNode.extend(node.parents)
+                    #
+                    # startNode = [groupIncludedStartNode]
+                    # while startNode.__len__() > 0:
+                    #     node_oid = startNode.pop(0)
+                    #     for node in diff_nodes2:
+                    #         if node.oid == node_oid:
+                    #             for file in file2s:
+                    #                 if file.filename == commentFile and file.commit_sha == node.oid:
+                    #                     comment.change_trigger = 1
+                    #                     # TODO 目前暂不考虑comment细化到行的change_trigger
+                    #                     # diff_patch2.insert(0, file.patch)
+                    #             startNode.extend(node.parents)
                     if comment.change_trigger > 0:
-                        change_trigger_comments = change_trigger_comments.append(tuple({
+                        change_trigger_comments.append({
                             "pullrequest_node": pr_node_id,
                             "user_login": comment.user_login,
                             "comment_node": comment.node_id,
                             "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
                             "change_trigger": comment.change_trigger,
                             "filepath": comment.path
-                        }.values()))
+                        })
                     # TODO 目前暂不考虑comment细化到行的change_trigger
                     # """通过比较commit集合来计算距离comment最近的文件变化"""
                     # closedChange = TextCompareUtils.getClosedFileChange(diff_patch1, diff_patch2, commentLine)

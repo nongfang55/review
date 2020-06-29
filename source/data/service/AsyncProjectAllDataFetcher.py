@@ -88,31 +88,48 @@ class AsyncProjectAllDataFetcher:
         return results
 
     @staticmethod
-    def analyzePullRequestReview(pr, pr_timeline_items):
+    def analyzePullRequestReview(pr_timeline_item_groups):
+        """一次解析多个pr的change_trigger信息"""
+        t1 = datetime.now()
+
         statistic = statisticsHelper()
-        statistic.startTime = datetime.now()
+        statistic.startTime = t1
 
         loop = asyncio.get_event_loop()
-        coro = AsyncProjectAllDataFetcher.analyzePRTimeline(pr, pr_timeline_items, loop, statistic)
+        coro = getMysqlObj(loop)
         task = loop.create_task(coro)
         loop.run_until_complete(task)
-        return task.result()
+        mysql = task.result()
+
+        loop = asyncio.get_event_loop()
+        tasks = [asyncio.ensure_future(AsyncProjectAllDataFetcher.analyzePRTimeline(mysql, pr_timeline_item_group, statistic))
+        for pr_timeline_item_group in pr_timeline_item_groups]
+        tasks = asyncio.gather(*tasks)
+        loop.run_until_complete(tasks)
+        print('cost time:', datetime.now() - t1)
+        return tasks.result()
 
     @staticmethod
-    async def analyzePRTimeline(pr_node_id, prOriginTimeLineItems, loop, statistic):
+    async def analyzePRTimeline(mysql, prOriginTimeLineItems, statistic):
         """分析pr时间线，找出触发过change_trigger的comment
            返回五元组（reviewer, comment_node, comment_type, file, change_trigger）
            对于issue_comment，无需返回file，默认会trigger该pr的所有文件
         """
 
-        """初始化数据库"""
-        mysql = await getMysqlObj(loop)
+        """将原始数据转化为prTimeLineItem列表"""
+        if prOriginTimeLineItems is None:
+            return None
+        pr_node_id = None
         prTimeLineItems = []
         for item in prOriginTimeLineItems:
+            """从某一条item里获取pr_node_id"""
+            if pr_node_id is None:
+                pr_node_id = item.get(StringKeyUtils.STR_KEY_PULL_REQUEST_NODE)
             origin = item.get(StringKeyUtils.STR_KEY_ORIGIN)
             prTimeLineRelation = PRTimeLineRelation.Parser.parser(origin)
             prTimeLineItems.append(prTimeLineRelation)
-        """解析review->changes，找出触发过change_trigger的comment"""
+
+        """解析pr时间线，找出触发过change_trigger的comment"""
         changeTriggerComments = []
         pairs = PRTimeLineUtils.splitTimeLine(prTimeLineItems)
         for pair in pairs:
@@ -123,18 +140,26 @@ class AsyncProjectAllDataFetcher:
                 change_trigger_issue_comment = {
                     "pullrequest_node": pr_node_id,
                     "user_login": review.user_login,
-                    "comment_id": review.timeline_item_node,
+                    "comment_node": review.timeline_item_node,
                     "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
                     "change_trigger": 1,
                     "filepath": None
                 }
-                changeTriggerComments.append(tuple(change_trigger_issue_comment.values()))
+                changeTriggerComments.append(change_trigger_issue_comment)
                 continue
             """若为普通review，则看后面紧跟着的commit是否和reviewCommit有文件重合的改动"""
             change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTrigger(pr_node_id, pair, mysql,
                                                                                              statistic)
             if change_trigger_review_comments is not None:
-                changeTriggerComments.extend(review.user_login)
+                changeTriggerComments.extend(change_trigger_review_comments)
+
+        """计数"""
+        statistic.lock.acquire()
+        statistic.usefulRequestNumber += 1
+        print("analyzed pull request:", statistic.usefulRequestNumber,
+              " cost time:", datetime.now() - statistic.startTime)
+        statistic.lock.release()
+
         return changeTriggerComments
 
     @staticmethod
@@ -321,71 +346,70 @@ class AsyncProjectAllDataFetcher:
     @staticmethod
     def getPRChangeTriggerData(owner, repo):
         """ 根据
-            ALL_{repo}_data_pullrequest.tsv
             ALL_{repo}_data_prtimeline.tsv
             获取pr change_trigger数据
         """
         AsyncApiHelper.setRepo(owner, repo)
         """PRTimeLine表头"""
         PR_CHANGE_TRIGGER_COLUMNS = ["pullrequest_node", "user_login",
-                                     "comment_id", "comment_type", "filepath", "change_trigger"]
+                              "comment_node", "comment_type", "filepath", "change_trigger"]
 
         """初始化目标文件"""
         target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
-        # target_content = DataFrame(columns=PR_CHANGE_TRIGGER_COLUMNS)
-        # pandasHelper.writeTSVFile(target_filename, target_content)
-        """读取PRTimeline"""
+        target_content = DataFrame(columns=PR_CHANGE_TRIGGER_COLUMNS)
+        pandasHelper.writeTSVFile(target_filename, target_content)
+
+        """读取PRTimeline，获取需要分析change_trigger的pr列表"""
         pr_timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
         pr_timeline_df = pandasHelper.readTSVFile(fileName=pr_timeline_filename, header=0)
-        prs = list(set(list(pr_timeline_df['pullrequest_node'])))
+        pr_nodes = list(set(list(pr_timeline_df['pullrequest_node'])))
+        pr_nodes.sort()
+
+        """设置fetch参数"""
         pos = 0
-        size = prs.__len__()
-        Logger.logi("there are {0} prs need to analyze".format(prs.__len__()))
-        """一条一条解析"""
+        fetchLimit = 5
+        size = pr_nodes.__len__()
+        Logger.logi("there are {0} prs need to analyze".format(pr_nodes.__len__()))
+
         while pos < size:
-            # pr = prs[pos]
-            pr = "MDExOlB1bGxSZXF1ZXN0MjE3Mzc2MDk0"
-            Logger.logi("start to analyze pos: {0} pr: {1}".format(pos, pr))
-            pr_timeline_items = pr_timeline_df[pr_timeline_df['pullrequest_node'] == pr].to_dict(orient='index')
-            if pr_timeline_items is None or pr_timeline_items.__len__() == 0:
-                Logger.loge("{0}'s timeline_items is none ".format(pr))
-                pos += 1
-                continue
-            pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(pr,
-                                                                                             pr_timeline_items.values())
+            Logger.logi("start: {0}, end: {1}, all: {2}".format(pos, pos + fetchLimit, size))
+
+            """按照爬取限制取子集"""
+            sub_prs = pr_nodes[pos:pos + fetchLimit]
+            pr_timeline_items = pr_timeline_df[pr_timeline_df['pullrequest_node'].isin(sub_prs)]
+            """对子集按照pull_request_node分组"""
+            grouped_timeline = pr_timeline_items.groupby((['pullrequest_node']))
+            """将分组结果保存为字典{pr->pr_timeline_items}"""
+            formated_data = []
+            for pr, group in grouped_timeline:
+                formated_data.append(group.to_dict(orient='records'))
+
+            """分析这些pr的timeline"""
+            pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(formated_data)
+            pr_change_trigger_comments = [x for y in pr_change_trigger_comments for x in y]
+
+            """将分析结果去重并追加到change_trigger表中"""
             target_content = DataFrame()
             target_content = target_content.append(pr_change_trigger_comments, ignore_index=True)
+            target_content.drop_duplicates(subset=['pullrequest_node', 'comment_node'], inplace=True, keep='first')
             if not target_content.empty:
                 pandasHelper.writeTSVFile(target_filename, target_content)
-            Logger.logi("successfully analyzed pos: {0} pr: {1}".format(pos, pr))
-            pos += 1
-
-    @staticmethod
-    async def preProcessUnmatchCommitFile(loop, statistic):
-
-        semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
-        mysql = await getMysqlObj(loop)
-
-        if configPraser.getPrintMode():
-            print("mysql init success")
-        print("mysql init success")
-
-        res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE, None)
-        print(res)
-
-        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadCommits(item[0], item[1], semaphore, mysql, statistic))
-                 for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
-        await asyncio.wait(tasks)
+            Logger.logi("successfully analyzed {0} prs".format(pos))
+            pos += fetchLimit
 
 
 if __name__ == '__main__':
-    # # 全量爬取pr时间线信息，写入prTimeData文件夹
-    # AsyncProjectAllDataFetcher.getPRTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    # AsyncProjectAllDataFetcher.checkPRTimeLineResult();
+    # 全量爬取pr时间线信息，写入prTimeData文件夹
+    AsyncProjectAllDataFetcher.getPRTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+
+    # # 全量获取pr change_trigger信息，写入prTimeData文件夹
+    # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    # source_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_opencv_data_prtimeline.tsv'
+    # target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_opencv_data_prtimeline_drop.tsv'
+    # df = pandasHelper.readTSVFile(fileName=source_filename, header=0)
+    # df.drop_duplicates(inplace=True, keep='first')
+    # pandasHelper.writeTSVFile(target_filename, df)
 
     # 全量获取pr change_trigger信息，写入prTimeData文件夹
     AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
-
-    # AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
-    #                                                 , start=configPraser.getStart(), limit=configPraser.getLimit())
-
-    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
