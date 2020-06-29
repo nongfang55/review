@@ -20,6 +20,6 @@ class pandasHelper:
 
     @staticmethod
     def writeTSVFile(fileName, dataFrame):  # Ð´ÈëtsvÎÄ¼þ
-        with open(fileName, 'w', encoding='utf-8') as write_tsv:
+        with open(fileName, 'a+', encoding='utf-8') as write_tsv:
             print(fileName)
             write_tsv.write(dataFrame.to_csv(sep=StringKeyUtils.STR_SPLIT_SEP_TSV, index=False))

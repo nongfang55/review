@@ -20,10 +20,10 @@ class GraphqlHelper:
         return body
 
     @staticmethod
-    def getTimeLineQueryByNodes(body):
+    def getTimeLineQueryByNodes():
         """返回查询timeline需要的语句"""
-        body[StringKeyUtils.STR_KEY_QUERY] = GraphqlHelper.STR_KEY_QUERY_PR_TIMELINE
-        return body
+        return GraphqlHelper.STR_KEY_QUERY_PR_TIMELINE
+
     @staticmethod
     def getPrInformationByNumber():
         return GraphqlHelper.STR_KEY_QUERY_PR_ALL

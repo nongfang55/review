@@ -1,5 +1,5 @@
 [authorization]
-token=bb4ae25743b6539990e68b6a62a4edb0c55cd7a9
+token=0dd75965578ed321653109fbc3c7a78a4b05b412
 [database]
 host=101.133.220.93
 username=review
@@ -10,8 +10,8 @@ print=False
 [project]
 owner=opencv
 repo=opencv
-limit=1
-start=13825
+limit=100
+start=13803
 commitFetchLoop=10
 [network]
 timeout=60

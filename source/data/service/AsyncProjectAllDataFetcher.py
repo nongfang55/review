@@ -27,8 +27,6 @@ from source.utils.statisticsHelper import statisticsHelper
 class AsyncProjectAllDataFetcher:
     # 获取项目的所有信息 主题信息采用异步获取
 
-
-
     @staticmethod
     def getPullRequestNodes(repo_full_name):
         loop = asyncio.get_event_loop()
@@ -42,9 +40,7 @@ class AsyncProjectAllDataFetcher:
         mysql = await getMysqlObj(loop)
         print("mysql init success")
 
-        sql = "select distinct node_id " \
-              "from pullRequest " \
-              "where state = 'closed' and repo_full_name = %s"
+        sql = SqlUtils.STR_SQL_QUERY_PR_FOR_TIME_LINE
         results = await AsyncSqlHelper.query(mysql, sql, [repo_full_name])
 
         return results
@@ -65,10 +61,20 @@ class AsyncProjectAllDataFetcher:
         loop.run_until_complete(task)
         mysql = task.result()
 
-        nodes = np.array(nodes).reshape(10, -1)
+        # nodes = np.array(nodes).reshape(10, -1)
+        nodesGroup = []
+        if nodes.__len__() % 10 == 0:
+            nodesGroup = np.array(nodes).reshape(10, -1)
+        else:
+            for index in range(0, nodes.__len__(), 10):
+                if index + 10 < nodes.__len__():
+                    nodesGroup.append(nodes[index:index + 10])
+                else:
+                    nodesGroup.append(nodes[index:nodes.__len__()])
 
-        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadRPTimeLine(nodegroup.tolist(), semaphore, mysql, statistic))
-                 for nodegroup in nodes]  # 可以通过nodes 过多次嵌套节省请求数量
+        tasks = [
+            asyncio.ensure_future(AsyncApiHelper.downloadRPTimeLine(nodegroup.tolist(), semaphore, mysql, statistic))
+            for nodegroup in nodesGroup]  # 可以通过nodes 过多次嵌套节省请求数量
         tasks = asyncio.gather(*tasks)
         loop.run_until_complete(tasks)
         print('cost time:', datetime.now() - t1)
@@ -125,7 +131,8 @@ class AsyncProjectAllDataFetcher:
                 changeTriggerComments.append(tuple(change_trigger_issue_comment.values()))
                 continue
             """若为普通review，则看后面紧跟着的commit是否和reviewCommit有文件重合的改动"""
-            change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTrigger(pr_node_id, pair, mysql, statistic)
+            change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTrigger(pr_node_id, pair, mysql,
+                                                                                             statistic)
             if change_trigger_review_comments is not None:
                 changeTriggerComments.extend(review.user_login)
         return changeTriggerComments
@@ -182,8 +189,9 @@ class AsyncProjectAllDataFetcher:
             tasks = [asyncio.ensure_future(AsyncApiHelper.downloadInformation(pull_number, semaphore, mysql, statistic))
                      for pull_number in range(start, max(start - limit, 0), -1)]
         elif configPraser.getApiVersion() == StringKeyUtils.API_VERSION_GRAPHQL:
-            tasks = [asyncio.ensure_future(AsyncApiHelper.downloadInformationByV4(pull_number, semaphore, mysql, statistic))
-                     for pull_number in range(start, max(start - limit, 0), -1)]
+            tasks = [
+                asyncio.ensure_future(AsyncApiHelper.downloadInformationByV4(pull_number, semaphore, mysql, statistic))
+                for pull_number in range(start, max(start - limit, 0), -1)]
         await asyncio.wait(tasks)
 
     @staticmethod
@@ -235,7 +243,7 @@ class AsyncProjectAllDataFetcher:
     @staticmethod
     def getPRTimeLine(owner, repo):
         """1. 获取该仓库所有的pr_node"""
-        repo_fullname = configPraser.getOwner() + "/" + configPraser.getRepo()
+        repo_fullname = owner + "/" + repo
         pr_nodes = AsyncProjectAllDataFetcher.getPullRequestNodes(repo_fullname)
         pr_nodes = list(pr_nodes)
         pr_nodes = [node[0] for node in pr_nodes]
@@ -244,9 +252,9 @@ class AsyncProjectAllDataFetcher:
         # 每次获取的数量限制
         fetchLimit = 200
         size = pr_nodes.__len__()
-        """PRTimeLine表头"""
-        PRTIMELINE_COLUMNS = ["pullrequest_node", "timelineitem_node",
-                              "typename", "position", "origin"]
+        # """PRTimeLine表头"""
+        # PRTIMELINE_COLUMNS = ["pullrequest_node", "timelineitem_node",
+        #                       "typename", "position", "origin"]
         """初始化文件"""
         target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
         # target_content = DataFrame(columns=PRTIMELINE_COLUMNS)
@@ -257,7 +265,8 @@ class AsyncProjectAllDataFetcher:
             loop_begin_time = datetime.now()
             Logger.logi("start: {0}, end: {1}, all: {2}".format(pos, pos + fetchLimit, size))
             pr_sub_nodes = pr_nodes[pos:pos + fetchLimit]
-            results = AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo(), nodes=pr_sub_nodes)
+            results = AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(),
+                                                                        repo=configPraser.getRepo(), nodes=pr_sub_nodes)
             if results is None:
                 Logger.loge("start: {0}, end: {1} meet error".format(pos, pos + fetchLimit))
                 pos += fetchLimit
@@ -269,14 +278,13 @@ class AsyncProjectAllDataFetcher:
                     continue
                 Logger.logi("fetched, cost time: {1}".format(pr_timelines.__len__(), datetime.now() - loop_begin_time))
                 for pr_timeline in pr_timelines:
-                    target_content = target_content.append(pr_timeline.toTSVFormat(),ignore_index=True)
+                    target_content = target_content.append(pr_timeline.toTSVFormat(), ignore_index=True)
             pandasHelper.writeTSVFile(target_filename, target_content)
             pos += fetchLimit
             sleepSec = random.randint(10, 20)
             Logger.logi("sleep {0}s...".format(sleepSec))
             time.sleep(sleepSec)
         Logger.logi("--------------end---------------")
-
 
     @staticmethod
     def checkPRTimeLineResult():
@@ -299,7 +307,7 @@ class AsyncProjectAllDataFetcher:
         Logger.logi("there are {0} pr_timeline need to fetch".format(need_fetch_prs.__len__()))
         """3. 开始爬取"""
         results = AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(),
-                                                                   repo=configPraser.getRepo(), nodes=need_fetch_prs)
+                                                                    repo=configPraser.getRepo(), nodes=need_fetch_prs)
         Logger.logi("successfully fetched! ")
         target_content = DataFrame()
         for result in results:
@@ -320,7 +328,7 @@ class AsyncProjectAllDataFetcher:
         AsyncApiHelper.setRepo(owner, repo)
         """PRTimeLine表头"""
         PR_CHANGE_TRIGGER_COLUMNS = ["pullrequest_node", "user_login",
-                              "comment_id", "comment_type", "filepath", "change_trigger"]
+                                     "comment_id", "comment_type", "filepath", "change_trigger"]
 
         """初始化目标文件"""
         target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
@@ -343,7 +351,8 @@ class AsyncProjectAllDataFetcher:
                 Logger.loge("{0}'s timeline_items is none ".format(pr))
                 pos += 1
                 continue
-            pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(pr, pr_timeline_items.values())
+            pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(pr,
+                                                                                             pr_timeline_items.values())
             target_content = DataFrame()
             target_content = target_content.append(pr_change_trigger_comments, ignore_index=True)
             if not target_content.empty:
@@ -351,11 +360,32 @@ class AsyncProjectAllDataFetcher:
             Logger.logi("successfully analyzed pos: {0} pr: {1}".format(pos, pr))
             pos += 1
 
+    @staticmethod
+    async def preProcessUnmatchCommitFile(loop, statistic):
+
+        semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
+        mysql = await getMysqlObj(loop)
+
+        if configPraser.getPrintMode():
+            print("mysql init success")
+        print("mysql init success")
+
+        res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE, None)
+        print(res)
+
+        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadCommits(item[0], item[1], semaphore, mysql, statistic))
+                 for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
+        await asyncio.wait(tasks)
 
 
 if __name__ == '__main__':
-    # 全量爬取pr时间线信息，写入prTimeData文件夹
+    # # 全量爬取pr时间线信息，写入prTimeData文件夹
     # AsyncProjectAllDataFetcher.getPRTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo())
 
     # 全量获取pr change_trigger信息，写入prTimeData文件夹
     AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+
+    # AsyncProjectAllDataFetcher.getDataForRepository(owner=configPraser.getOwner(), repo=configPraser.getRepo()
+    #                                                 , start=configPraser.getStart(), limit=configPraser.getLimit())
+
+    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()

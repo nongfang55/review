@@ -61,7 +61,8 @@ class PRTimeLineRelation(BeanBase):
 
         @staticmethod
         def parser(item):
-            item = json.loads(item)
+            if isinstance(item, str):
+                item = json.loads(item)
             relation = PRTimeLineRelation()  # 返回结果为一系列关系
 
             """依据每个Item的TypeName来判断Item的具体类型"""
