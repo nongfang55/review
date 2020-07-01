@@ -518,18 +518,7 @@ class DataProcessUtils:
             print("after fliter commit_file:", commitFileData.shape)
 
         pullRequestData = pullRequestData[['number', 'created_at', 'closed_at', 'user_login', 'node_id']].copy(deep=True)
-
-        """合并pr和change_trigger表，并过滤comment就是pr作者的情况"""
-        changeTriggerData.rename(columns={'user_login': 'review_user_login'}, inplace=True)
-        changeTriggerData = pandas.merge(pullRequestData, changeTriggerData, left_on='node_id', right_on='pullrequest_node')
-        changeTriggerData = changeTriggerData.loc[changeTriggerData['user_login'] != changeTriggerData['review_user_login']].copy(deep=True)
-        print("change_trigger after fliter author:", changeTriggerData.shape)
-
-        changeTriggerData.rename(columns={'number': 'pull_number'}, inplace=True)
-        reviewData = pandas.merge(changeTriggerData, reviewData, on=['pull_number', 'user_login'])
         reviewData = reviewData[["pull_number", "id", "user_login", 'submitted_at']].copy(deep=True)
-        reviewData.drop_duplicates(inplace=True, keep='first')
-        print("after fliter review:", reviewData.shape)
 
         targetFileName = f'FPS_{projectName}_data'
         if label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
@@ -579,8 +568,8 @@ class DataProcessUtils:
             """过滤机器人的场景"""
             data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
-            data_issue = data_issue[['number', 'created_at_x', 'user_login_y']].copy(deep=True)
-            data_issue.columns = ['number', 'created_at', 'user_login']
+            data_issue = data_issue[['node_id_x', 'number', 'created_at_x', 'user_login_y']].copy(deep=True)
+            data_issue.columns = ['node_id_x', 'number', 'created_at', 'user_login']
             data_issue.drop_duplicates(inplace=True)
 
             data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
@@ -605,9 +594,20 @@ class DataProcessUtils:
             data = pandas.merge(data, prChangeFileData, left_on='number', right_on='pull_number')
             """只选出感兴趣的部分"""
             data['commit_sha'] = 0
-            data = data[['repo_full_name', 'number', 'created_at', 'user_login', 'commit_sha', 'filename']].copy(
+            data = data[['repo_full_name', 'number', 'node_id_x', 'created_at', 'user_login', 'commit_sha', 'filename']].copy(
                 deep=True)
             data.drop_duplicates(inplace=True)
+
+            """删除无用review"""
+            unuseful_review_idx = []
+            for index, row in data.iterrows():
+                change_trigger_records = changeTriggerData.loc[(changeTriggerData['pullrequest_node'] == row['node_id_x'])
+                                                               & (changeTriggerData['user_login'] == row['user_login'])]
+                if change_trigger_records.empty:
+                    unuseful_review_idx.append(index)
+            data = data.drop(labels=unuseful_review_idx, axis=0)
+            data = data.drop(labels='node_id_x', axis=1)
+
             data.columns = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha',
                             'file_filename']
             data.sort_values(by='pull_number', ascending=False, inplace=True)
