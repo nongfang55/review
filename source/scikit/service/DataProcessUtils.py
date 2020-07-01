@@ -425,6 +425,7 @@ class DataProcessUtils:
               ALL_{projectName}_data_issuecomment
               ALL_{projectName}_data_pr_change_file
               ALL_{proejctName}_data_review
+              ALL_{proejctName}_data_pr_change_trigger
 
         注 ：issue comment不能使用  ALL_{projectName}_data_pr_review_commit_file
         这里pr已经和review做连接 导致数量减少
@@ -438,6 +439,7 @@ class DataProcessUtils:
         pull_request_path = projectConfig.getPullRequestPath()
         pr_change_file_path = projectConfig.getPRChangeFilePath()
         review_path = projectConfig.getReviewDataPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
 
         if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
             prReviewData = pandasHelper.readTSVFile(
@@ -482,6 +484,12 @@ class DataProcessUtils:
             pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
         )
 
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
         print("read file cost time:", datetime.now() - time1)
 
         """过滤状态非关闭的pr review"""
@@ -509,9 +517,19 @@ class DataProcessUtils:
             commitFileData.reset_index(drop=True, inplace=True)
             print("after fliter commit_file:", commitFileData.shape)
 
-        pullRequestData = pullRequestData[['number', 'created_at', 'closed_at', 'user_login']].copy(deep=True)
+        pullRequestData = pullRequestData[['number', 'created_at', 'closed_at', 'user_login', 'node_id']].copy(deep=True)
 
+        """合并pr和change_trigger表，并过滤comment就是pr作者的情况"""
+        changeTriggerData.rename(columns={'user_login': 'review_user_login'}, inplace=True)
+        changeTriggerData = pandas.merge(pullRequestData, changeTriggerData, left_on='node_id', right_on='pullrequest_node')
+        changeTriggerData = changeTriggerData.loc[changeTriggerData['user_login'] != changeTriggerData['review_user_login']].copy(deep=True)
+        print("change_trigger after fliter author:", changeTriggerData.shape)
+
+        changeTriggerData.rename(columns={'number': 'pull_number'}, inplace=True)
+        reviewData = pandas.merge(changeTriggerData, reviewData, on=['pull_number', 'user_login'])
         reviewData = reviewData[["pull_number", "id", "user_login", 'submitted_at']].copy(deep=True)
+        reviewData.drop_duplicates(inplace=True, keep='first')
+        print("after fliter review:", reviewData.shape)
 
         targetFileName = f'FPS_{projectName}_data'
         if label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:

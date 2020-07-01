@@ -295,12 +295,12 @@ class AsyncProjectAllDataFetcher:
         fetchLimit = 200
         size = pr_nodes.__len__()
         # """PRTimeLine表头"""
-        # PRTIMELINE_COLUMNS = ["pullrequest_node", "timelineitem_node",
-        #                       "typename", "position", "origin"]
+        PRTIMELINE_COLUMNS = ["pullrequest_node", "timelineitem_node",
+                              "typename", "position", "origin"]
         """初始化文件"""
         target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
-        # target_content = DataFrame(columns=PRTIMELINE_COLUMNS)
-        # pandasHelper.writeTSVFile(target_filename, target_content)
+        target_content = DataFrame(columns=PRTIMELINE_COLUMNS)
+        pandasHelper.writeTSVFile(target_filename, target_content)
         Logger.logi("--------------begin--------------")
         """2. 分割获取pr_timeline"""
         while pos < size:
@@ -347,18 +347,87 @@ class AsyncProjectAllDataFetcher:
         fetched_prs = list(df['pullrequest_node'])
         need_fetch_prs = list(set(pr_nodes).difference(set(fetched_prs)))
         Logger.logi("there are {0} pr_timeline need to fetch".format(need_fetch_prs.__len__()))
-        """3. 开始爬取"""
-        results = AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(),
-                                                                    repo=configPraser.getRepo(), nodes=need_fetch_prs)
-        Logger.logi("successfully fetched! ")
-        target_content = DataFrame()
-        for result in results:
-            pr_timelines = result
-            if pr_timelines is None:
-                continue
-            for pr_timeline in pr_timelines:
-                target_content = target_content.append(pr_timeline.toTSVFormat(), ignore_index=True)
-        pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
+
+        """设置fetch参数"""
+        pos = 0
+        fetchLimit = 200
+        size = need_fetch_prs.__len__()
+        while pos < size:
+            sub_need_fetch_prs = need_fetch_prs[pos:pos + fetchLimit]
+            Logger.logi("start: {0}, end: {1}, all: {2}".format(pos, pos + fetchLimit, size))
+            """3. 开始爬取"""
+            results = AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(),
+                                                                    repo=configPraser.getRepo(), nodes=sub_need_fetch_prs)
+            Logger.logi("successfully fetched {0} pr! ".format(pos + fetchLimit))
+            target_content = DataFrame()
+            for result in results:
+                pr_timelines = result
+                if pr_timelines is None:
+                    continue
+                for pr_timeline in pr_timelines:
+                    target_content = target_content.append(pr_timeline.toTSVFormat(), ignore_index=True)
+            pandasHelper.writeTSVFile(target_filename, target_content)
+            pos += fetchLimit
+
+    @staticmethod
+    def checkChangeTriggerResult():
+        """检查PRChangeTrigger是否计算完整"""
+        """在切换代理的时候，数据库连接会断开，导致comments信息查不到，会遗漏review comment的情况"""
+        """这里检查一遍pr的change_trigger里是否有review_comment数据，如果没有，重新获取一次"""
+
+        """1. 获取该仓库所有的pr_node"""
+        repo_fullname = configPraser.getOwner() + "/" + configPraser.getRepo()
+        pr_nodes = AsyncProjectAllDataFetcher.getPullRequestNodes(repo_fullname)
+        pr_nodes = list(pr_nodes)
+        pr_nodes = [node[0] for node in pr_nodes]
+
+        """2. 读取pr_change_trigger文件"""
+        change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
+        change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
+
+        """3. 读取pr_timeline文件"""
+        timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
+        timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
+
+        """4. 将change_trigger按照pull_request_node分组"""
+        grouped_timeline = change_trigger_df.groupby((['pullrequest_node']))
+        """5. 分析pullrequest_node的change_trigger信息是否完整，整理出需要重新获取的pr信息"""
+        re_analyze_prs = []
+        for pr, group in grouped_timeline:
+            if pr not in pr_nodes:
+                re_analyze_prs.append(pr)
+            else:
+                review_comment_trigger = group[group['comment_type'] == StringKeyUtils.STR_LABEL_REVIEW_COMMENT]
+                if review_comment_trigger is None or review_comment_trigger.empty:
+                    re_analyze_prs.append(pr)
+        Logger.logi("there are {0} prs need to re analyze".format(re_analyze_prs.__len__()))
+
+        """设置fetch参数"""
+        pos = 0
+        fetchLimit = 20
+        size = re_analyze_prs.__len__()
+        while pos < size:
+            Logger.logi("start: {0}, end: {1}, all: {2}".format(pos, pos + fetchLimit, size))
+            sub_re_analyze_prs = re_analyze_prs[pos:pos + fetchLimit]
+            """6. 重新获取这些pr的timeline"""
+            re_analyze_prs_timeline_df = timeline_df[timeline_df['pullrequest_node'].isin(sub_re_analyze_prs)]
+            grouped_timeline = re_analyze_prs_timeline_df.groupby((['pullrequest_node']))
+            formated_data = []
+            for pr, group in grouped_timeline:
+                formated_data.append(group.to_dict(orient='records'))
+
+            """7. 开始分析"""
+            pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(formated_data)
+            pr_change_trigger_comments = [x for y in pr_change_trigger_comments for x in y]
+
+            """8. 将分析结果去重并追加到change_trigger表中"""
+            target_content = DataFrame()
+            target_content = target_content.append(pr_change_trigger_comments, ignore_index=True)
+            target_content.drop_duplicates(subset=['pullrequest_node', 'comment_node'], inplace=True, keep='first')
+            if not target_content.empty:
+                pandasHelper.writeTSVFile(change_trigger_filename, target_content)
+            Logger.logi("successfully analyzed {0} prs".format(re_analyze_prs.__len__()))
+            pos += fetchLimit
 
     @staticmethod
     def getPRChangeTriggerData(owner, repo):
@@ -384,7 +453,7 @@ class AsyncProjectAllDataFetcher:
 
         """设置fetch参数"""
         pos = 0
-        fetchLimit = 5
+        fetchLimit = 20
         size = pr_nodes.__len__()
         Logger.logi("there are {0} prs need to analyze".format(pr_nodes.__len__()))
 
@@ -416,17 +485,25 @@ class AsyncProjectAllDataFetcher:
 
 
 if __name__ == '__main__':
-    # AsyncProjectAllDataFetcher.checkPRTimeLineResult();
+    AsyncProjectAllDataFetcher.checkPRTimeLineResult();
     # 全量爬取pr时间线信息，写入prTimeData文件夹
-    AsyncProjectAllDataFetcher.getPRTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    # AsyncProjectAllDataFetcher.getPRTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    # AsyncProjectAllDataFetcher.checkPRTimeLineResult()
 
     # # 全量获取pr change_trigger信息，写入prTimeData文件夹
     # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
-    # source_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_opencv_data_prtimeline.tsv'
-    # target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_opencv_data_prtimeline_drop.tsv'
+    # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
+
+    # # pr timeline去重
+    # source_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
+    # target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline_drop.tsv'
+    # df = pandasHelper.readTSVFile(fileName=source_filename, header=0)
+    # df.drop_duplicates(subset=["pullrequest_node", "timelineitem_node"], inplace=True, keep='first')
+    # pandasHelper.writeTSVFile(target_filename, df)
+
+    # # pr change_trigger去重
+    # source_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
+    # target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger_drop.tsv'
     # df = pandasHelper.readTSVFile(fileName=source_filename, header=0)
     # df.drop_duplicates(inplace=True, keep='first')
     # pandasHelper.writeTSVFile(target_filename, df)
-
-    # 全量获取pr change_trigger信息，写入prTimeData文件夹
-    AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())

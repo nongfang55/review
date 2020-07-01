@@ -876,8 +876,8 @@ class AsyncApiHelper:
                 """获取commit点信息 包括数据库获取的GitHub API获取 nodes就是一个Group"""
                 needFetchList = [node.oid for node in nodes if node.willFetch]
                 """先尝试从数据库中读取"""
-                # localExistList, localRelationList = await AsyncApiHelper.getCommitsFromStore(needFetchList, mysql)
-                # needFetchList = [oid for oid in needFetchList if oid not in localExistList]
+                localExistList, localRelationList = await AsyncApiHelper.getCommitsFromStore(needFetchList, mysql)
+                needFetchList = [oid for oid in needFetchList if oid not in localExistList]
                 print("need fetch list:", needFetchList)
                 webRelationList = await AsyncApiHelper.getCommitsFromApi(needFetchList, mysql, session)
 
@@ -885,7 +885,7 @@ class AsyncApiHelper:
                     node.willFetch = False
 
                 relationList = []
-                # relationList.extend(localRelationList)
+                relationList.extend(localRelationList)
                 relationList.extend(webRelationList)
 
                 """原有的node 补全parents"""
