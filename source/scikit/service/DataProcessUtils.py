@@ -16,6 +16,7 @@ from scipy.stats import mannwhitneyu, ranksums, ttest_1samp, ttest_ind, wilcoxon
 
 from source.config.projectConfig import projectConfig
 from source.nlp.SplitWordHelper import SplitWordHelper
+from source.scikit.service.BotUserRecognizer import BotUserRecognizer
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
 from source.utils.ExcelHelper import ExcelHelper
 from source.utils.StringKeyUtils import StringKeyUtils
@@ -174,7 +175,8 @@ class DataProcessUtils:
             print(subDf.shape)
             # targetFileName = filename.split(os.sep)[-1].split(".")[0]
             sub_filename = f'{targetFileName}_{y}_{m}_to_{y}_{m}.tsv'
-            pandasHelper.writeTSVFile(os.path.join(targetPath, sub_filename), subDf)
+            pandasHelper.writeTSVFile(os.path.join(targetPath, sub_filename), subDf
+                                      , pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
 
     @staticmethod
     def changeStringToNumber(data, columns):  # 对dataframe的一些特征做文本转数字  input: dataFrame，需要处理的某些列
@@ -338,7 +340,7 @@ class DataProcessUtils:
                                  , on='review_id', how='left')
 
         print(result.loc[result['review_comment_id'].isna()].shape)
-        pandasHelper.writeTSVFile(out_put_file_name, result)
+        pandasHelper.writeTSVFile(out_put_file_name, result, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
 
     @staticmethod
     def splitProjectCommitFileData(projectName):
@@ -392,7 +394,8 @@ class DataProcessUtils:
             apply(lambda x: x in needCommits)].copy(deep=True)
         print(commitFileData.shape)
 
-        pandasHelper.writeTSVFile(os.path.join(target_file_path, target_file_name), commitFileData)
+        pandasHelper.writeTSVFile(os.path.join(target_file_path, target_file_name), commitFileData
+                                  , pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
         print(f"write over: {target_file_name}, cost time:", datetime.now() - time1)
 
     @staticmethod
@@ -436,23 +439,24 @@ class DataProcessUtils:
         pr_change_file_path = projectConfig.getPRChangeFilePath()
         review_path = projectConfig.getReviewDataPath()
 
-        prReviewData = pandasHelper.readTSVFile(
-            os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
-        prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
-        print("raw pr review :", prReviewData.shape)
+        if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
+            prReviewData = pandasHelper.readTSVFile(
+                os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
+            prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
+            print("raw pr review :", prReviewData.shape)
 
-        """commit file 信息是拼接出来的 所以有抬头"""
-        commitFileData = pandasHelper.readTSVFile(
-            os.path.join(commit_file_data_path, f'ALL_{projectName}_data_commit_file.tsv'), low_memory=False,
-            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
-        print("raw commit file :", commitFileData.shape)
+            """commit file 信息是拼接出来的 所以有抬头"""
+            commitFileData = pandasHelper.readTSVFile(
+                os.path.join(commit_file_data_path, f'ALL_{projectName}_data_commit_file.tsv'), low_memory=False,
+                header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+            print("raw commit file :", commitFileData.shape)
 
-        commitPRRelationData = pandasHelper.readTSVFile(
-            os.path.join(pr_commit_relation_path, f'ALL_{projectName}_data_pr_commit_relation.tsv'),
-            pandasHelper.INT_READ_FILE_WITHOUT_HEAD, low_memory=False
-        )
-        commitPRRelationData.columns = DataProcessUtils.COLUMN_NAME_PR_COMMIT_RELATION
-        print("pr_commit_relation:", commitPRRelationData.shape)
+            commitPRRelationData = pandasHelper.readTSVFile(
+                os.path.join(pr_commit_relation_path, f'ALL_{projectName}_data_pr_commit_relation.tsv'),
+                pandasHelper.INT_READ_FILE_WITHOUT_HEAD, low_memory=False
+            )
+            commitPRRelationData.columns = DataProcessUtils.COLUMN_NAME_PR_COMMIT_RELATION
+            print("pr_commit_relation:", commitPRRelationData.shape)
 
         """issue commit 数据库输出 自带抬头"""
         issueCommentData = pandasHelper.readTSVFile(
@@ -494,16 +498,16 @@ class DataProcessUtils:
                                             != prReviewData['review_user_login']].copy(deep=True)
             print("after fliter author:", prReviewData.shape)
 
-        """过滤不需要的字段"""
-        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at']].copy(deep=True)
-        prReviewData.drop_duplicates(inplace=True)
-        prReviewData.reset_index(drop=True, inplace=True)
-        print("after fliter pr_review:", prReviewData.shape)
+            """过滤不需要的字段"""
+            prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at']].copy(deep=True)
+            prReviewData.drop_duplicates(inplace=True)
+            prReviewData.reset_index(drop=True, inplace=True)
+            print("after fliter pr_review:", prReviewData.shape)
 
-        commitFileData = commitFileData[['commit_sha', 'file_filename']].copy(deep=True)
-        commitFileData.drop_duplicates(inplace=True)
-        commitFileData.reset_index(drop=True, inplace=True)
-        print("after fliter commit_file:", commitFileData.shape)
+            commitFileData = commitFileData[['commit_sha', 'file_filename']].copy(deep=True)
+            commitFileData.drop_duplicates(inplace=True)
+            commitFileData.reset_index(drop=True, inplace=True)
+            print("after fliter commit_file:", commitFileData.shape)
 
         pullRequestData = pullRequestData[['number', 'created_at', 'closed_at', 'user_login']].copy(deep=True)
 
@@ -552,6 +556,11 @@ class DataProcessUtils:
             """过滤 comment 在closed 后面的场景 2020.6.28"""
             data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
             data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)
+            """过滤删除用户的场景"""
+            data_issue.dropna(subset=['user_login_y'], inplace=True)
+            """过滤机器人的场景"""
+            data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+            data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
             data_issue = data_issue[['number', 'created_at_x', 'user_login_y']].copy(deep=True)
             data_issue.columns = ['number', 'created_at', 'user_login']
             data_issue.drop_duplicates(inplace=True)
@@ -560,6 +569,11 @@ class DataProcessUtils:
             data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
             """过滤 comment 在closed 后面的场景 2020.6.28"""
             data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
+            """过滤删除用户场景"""
+            data_review.dropna(subset=['user_login_y'], inplace=True)
+            """过滤机器人的场景  """
+            data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+            data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
             data_review = data_review[['number', 'created_at', 'user_login_y']].copy(deep=True)
             data_review.columns = ['number', 'created_at', 'user_login']
             data_review.drop_duplicates(inplace=True)
@@ -572,7 +586,7 @@ class DataProcessUtils:
             """拼接 文件改动"""
             data = pandas.merge(data, prChangeFileData, left_on='number', right_on='pull_number')
             """只选出感兴趣的部分"""
-            data['commit_sha'] = None
+            data['commit_sha'] = 0
             data = data[['repo_full_name', 'number', 'created_at', 'user_login', 'commit_sha', 'filename']].copy(
                 deep=True)
             data.drop_duplicates(inplace=True)
@@ -948,10 +962,10 @@ class DataProcessUtils:
         file1 = 'FPS_SEAA_opencv_data_2017_10_to_2017_10.tsv'
         df1 = pandasHelper.readTSVFile(projectConfig.getFPSDataPath() + os.sep + file1,
                                        header=pandasHelper.INT_READ_FILE_WITH_HEAD)
-        df1.drop(columns=['pr_created_at'], inplace=True)
+        df1.drop(columns=['pr_created_at', 'commit_sha'], inplace=True)
         df2 = pandasHelper.readTSVFile(projectConfig.getFPSDataPath() + os.sep + file2,
                                        header=pandasHelper.INT_READ_FILE_WITH_HEAD)
-        df2.drop(columns=['pr_created_at'], inplace=True)
+        df2.drop(columns=['pr_created_at', 'commit_sha'], inplace=True)
 
         df1 = pandas.concat([df1, df2])
         df1 = pandas.concat([df1, df2])
@@ -975,9 +989,10 @@ if __name__ == '__main__':
     """分割不同算法的训练集"""
     # DataProcessUtils.contactCAData('cakephp')
 
-    # projects = ['opencv']
-    # for p in projects:
-    #     DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    # projects = ['opencv', 'adobe', 'angular', 'bitcoin', 'cakephp']
+    projects = ['cakephp']
+    for p in projects:
+        DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
 
     # DataProcessUtils.contactMLData('xbmc')
     # DataProcessUtils.contactIRData('xbmc')

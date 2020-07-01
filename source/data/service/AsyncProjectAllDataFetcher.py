@@ -250,6 +250,23 @@ class AsyncProjectAllDataFetcher:
         print('cost time:', datetime.now() - t1)
 
     @staticmethod
+    async def preProcessUnmatchCommitFile(loop, statistic):
+
+        semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
+        mysql = await getMysqlObj(loop)
+
+        if configPraser.getPrintMode():
+            print("mysql init success")
+        print("mysql init success")
+
+        res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE, None)
+        print(res)
+
+        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadCommits(item[0], item[1], semaphore, mysql, statistic))
+                 for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
+        await asyncio.wait(tasks)
+
+    @staticmethod
     async def preProcessUnmatchCommits(loop, statistic):
 
         semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
@@ -304,7 +321,7 @@ class AsyncProjectAllDataFetcher:
                 Logger.logi("fetched, cost time: {1}".format(pr_timelines.__len__(), datetime.now() - loop_begin_time))
                 for pr_timeline in pr_timelines:
                     target_content = target_content.append(pr_timeline.toTSVFormat(), ignore_index=True)
-            pandasHelper.writeTSVFile(target_filename, target_content)
+            pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
             pos += fetchLimit
             sleepSec = random.randint(10, 20)
             Logger.logi("sleep {0}s...".format(sleepSec))
@@ -341,7 +358,7 @@ class AsyncProjectAllDataFetcher:
                 continue
             for pr_timeline in pr_timelines:
                 target_content = target_content.append(pr_timeline.toTSVFormat(), ignore_index=True)
-        pandasHelper.writeTSVFile(target_filename, target_content)
+        pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
 
     @staticmethod
     def getPRChangeTriggerData(owner, repo):
@@ -357,7 +374,7 @@ class AsyncProjectAllDataFetcher:
         """初始化目标文件"""
         target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
         target_content = DataFrame(columns=PR_CHANGE_TRIGGER_COLUMNS)
-        pandasHelper.writeTSVFile(target_filename, target_content)
+        pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
 
         """读取PRTimeline，获取需要分析change_trigger的pr列表"""
         pr_timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
@@ -393,7 +410,7 @@ class AsyncProjectAllDataFetcher:
             target_content = target_content.append(pr_change_trigger_comments, ignore_index=True)
             target_content.drop_duplicates(subset=['pullrequest_node', 'comment_node'], inplace=True, keep='first')
             if not target_content.empty:
-                pandasHelper.writeTSVFile(target_filename, target_content)
+                pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
             Logger.logi("successfully analyzed {0} prs".format(pos))
             pos += fetchLimit
 

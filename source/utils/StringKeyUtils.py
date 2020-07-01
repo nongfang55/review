@@ -310,6 +310,9 @@ class StringKeyUtils:
     STR_LABEL_REVIEW_COMMENT = 'label_review_comment'
     STR_LABEL_ALL_COMMENT = 'label_all_comment'
 
+    """机器人识别可能用上"""
+    STR_NAME_BOT = '[bot]'
+
 
 
 
