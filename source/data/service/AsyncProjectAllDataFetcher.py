@@ -68,9 +68,9 @@ class AsyncProjectAllDataFetcher:
         else:
             for index in range(0, nodes.__len__(), 10):
                 if index + 10 < nodes.__len__():
-                    nodesGroup.append(nodes[index:index + 10])
+                    nodesGroup.append(np.array(nodes[index:index + 10]))
                 else:
-                    nodesGroup.append(nodes[index:nodes.__len__()])
+                    nodesGroup.append(np.array(nodes[index:nodes.__len__()]))
 
         tasks = [
             asyncio.ensure_future(AsyncApiHelper.downloadRPTimeLine(nodegroup.tolist(), semaphore, mysql, statistic))
@@ -136,13 +136,24 @@ class AsyncProjectAllDataFetcher:
             review = pair[0]
             changes = pair[1]
             """若issueComment且后面有紧跟着的change，则认为该issueComment触发了change_trigger"""
-            if (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT) and changes:
+            if (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT) and changes.__len__() > 0:
                 change_trigger_issue_comment = {
                     "pullrequest_node": pr_node_id,
                     "user_login": review.user_login,
                     "comment_node": review.timeline_item_node,
                     "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
                     "change_trigger": 1,
+                    "filepath": None
+                }
+                changeTriggerComments.append(change_trigger_issue_comment)
+                continue
+            elif (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT) and changes.__len__() == 0:
+                change_trigger_issue_comment = {
+                    "pullrequest_node": pr_node_id,
+                    "user_login": review.user_login,
+                    "comment_node": review.timeline_item_node,
+                    "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
+                    "change_trigger": -1,
                     "filepath": None
                 }
                 changeTriggerComments.append(change_trigger_issue_comment)
@@ -296,19 +307,19 @@ class AsyncProjectAllDataFetcher:
         size = pr_nodes.__len__()
         # """PRTimeLine表头"""
         PRTIMELINE_COLUMNS = ["pullrequest_node", "timelineitem_node",
-                              "typename", "position", "origin"]
+                              "create_at", "typename", "position", "origin"]
         """初始化文件"""
         target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
-        target_content = DataFrame(columns=PRTIMELINE_COLUMNS)
-        pandasHelper.writeTSVFile(target_filename, target_content)
+        # target_content = DataFrame(columns=PRTIMELINE_COLUMNS)
+        # pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
         Logger.logi("--------------begin--------------")
         """2. 分割获取pr_timeline"""
         while pos < size:
             loop_begin_time = datetime.now()
             Logger.logi("start: {0}, end: {1}, all: {2}".format(pos, pos + fetchLimit, size))
             pr_sub_nodes = pr_nodes[pos:pos + fetchLimit]
-            results = AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=configPraser.getOwner(),
-                                                                        repo=configPraser.getRepo(), nodes=pr_sub_nodes)
+            results = AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=owner,
+                                                                        repo=repo, nodes=pr_sub_nodes)
             if results is None:
                 Logger.loge("start: {0}, end: {1} meet error".format(pos, pos + fetchLimit))
                 pos += fetchLimit
@@ -366,7 +377,7 @@ class AsyncProjectAllDataFetcher:
                     continue
                 for pr_timeline in pr_timelines:
                     target_content = target_content.append(pr_timeline.toTSVFormat(), ignore_index=True)
-            pandasHelper.writeTSVFile(target_filename, target_content)
+            pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
             pos += fetchLimit
 
     @staticmethod
@@ -397,7 +408,7 @@ class AsyncProjectAllDataFetcher:
             if pr not in pr_nodes:
                 re_analyze_prs.append(pr)
             else:
-                review_comment_trigger = group[group['comment_type'] == StringKeyUtils.STR_LABEL_REVIEW_COMMENT]
+                review_comment_trigger = group[(group['comment_type'] == StringKeyUtils.STR_LABEL_REVIEW_COMMENT) & (group['change_trigger'] == '1')]
                 if review_comment_trigger is None or review_comment_trigger.empty:
                     re_analyze_prs.append(pr)
         Logger.logi("there are {0} prs need to re analyze".format(re_analyze_prs.__len__()))
@@ -425,7 +436,7 @@ class AsyncProjectAllDataFetcher:
             target_content = target_content.append(pr_change_trigger_comments, ignore_index=True)
             target_content.drop_duplicates(subset=['pullrequest_node', 'comment_node'], inplace=True, keep='first')
             if not target_content.empty:
-                pandasHelper.writeTSVFile(change_trigger_filename, target_content)
+                pandasHelper.writeTSVFile(change_trigger_filename, target_content, writeStyle=pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
             Logger.logi("successfully analyzed {0} prs".format(re_analyze_prs.__len__()))
             pos += fetchLimit
 
@@ -438,12 +449,12 @@ class AsyncProjectAllDataFetcher:
         AsyncApiHelper.setRepo(owner, repo)
         """PRTimeLine表头"""
         PR_CHANGE_TRIGGER_COLUMNS = ["pullrequest_node", "user_login",
-                              "comment_node", "comment_type", "filepath", "change_trigger"]
+                              "comment_node", "comment_type", "change_trigger", "filepath"]
 
         """初始化目标文件"""
         target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
-        target_content = DataFrame(columns=PR_CHANGE_TRIGGER_COLUMNS)
-        pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
+        # target_content = DataFrame(columns=PR_CHANGE_TRIGGER_COLUMNS)
+        # pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
 
         """读取PRTimeline，获取需要分析change_trigger的pr列表"""
         pr_timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
@@ -452,7 +463,7 @@ class AsyncProjectAllDataFetcher:
         pr_nodes.sort()
 
         """设置fetch参数"""
-        pos = 0
+        pos = 4160
         fetchLimit = 20
         size = pr_nodes.__len__()
         Logger.logi("there are {0} prs need to analyze".format(pr_nodes.__len__()))
@@ -483,27 +494,52 @@ class AsyncProjectAllDataFetcher:
             Logger.logi("successfully analyzed {0} prs".format(pos))
             pos += fetchLimit
 
-
 if __name__ == '__main__':
+    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
+    # AsyncProjectAllDataFetcher.getDataForRepository("django", "django", 3500, 11000)
+    # AsyncProjectAllDataFetcher.getPRTimeLine("akka", 'akka')
+    # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
+
     AsyncProjectAllDataFetcher.checkPRTimeLineResult();
     # 全量爬取pr时间线信息，写入prTimeData文件夹
-    # AsyncProjectAllDataFetcher.getPRTimeLine(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    # AsyncProjectAllDataFetcher.getPRTimeLine("django", 'django')
+    # AsyncProjectAllDataFetcher.getPRTimeLine("akka", 'akka')
     # AsyncProjectAllDataFetcher.checkPRTimeLineResult()
 
     # # 全量获取pr change_trigger信息，写入prTimeData文件夹
     # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
     # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
 
-    # # pr timeline去重
+    # pr timeline去重
     # source_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
     # target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline_drop.tsv'
     # df = pandasHelper.readTSVFile(fileName=source_filename, header=0)
     # df.drop_duplicates(subset=["pullrequest_node", "timelineitem_node"], inplace=True, keep='first')
     # pandasHelper.writeTSVFile(target_filename, df)
 
-    # # pr change_trigger去重
+    # pr change_trigger去重
     # source_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
     # target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger_drop.tsv'
     # df = pandasHelper.readTSVFile(fileName=source_filename, header=0)
-    # df.drop_duplicates(inplace=True, keep='first')
+    # df = df[(df['comment_type'] == 'label_review_comment') & (df['change_trigger'] == 1)]
+    # print("hello")
+    # df.drop_duplicates(subset=["comment_node"], keep="first", inplace=True)
     # pandasHelper.writeTSVFile(target_filename, df)
+
+    # source_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
+    # df = pandasHelper.readTSVFile(fileName=source_filename, header=0)
+    # df = df[df['typename'].isin(['PullRequestReview', 'PullRequestReviewThread'])]
+    # df = df['timelineitem_node']
+    # df.drop_duplicates(keep='first', inplace=True)
+    # reviews = df.tolist()
+    # size = reviews.__len__()
+    # result = 0
+    # for review in reviews:
+    #     comments = AsyncProjectAllDataFetcher.getComments(review)
+    #     if comments is not None:
+    #         result += comments.__len__()
+    #     print("fetched comments {0}".format(result))
+    # print("finish!")
+
+

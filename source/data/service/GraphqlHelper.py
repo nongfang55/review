@@ -49,7 +49,7 @@ class GraphqlHelper:
     STR_KEY_QUERY_PR_TIMELINE = '''
 query($ids:[ID!]!) { 
   nodes(ids:$ids) {
-    ... on PullRequest {
+      ... on PullRequest {
       id
       author {
         login
@@ -65,6 +65,13 @@ query($ids:[ID!]!) {
             ... on PullRequestCommit {
               commit {
                 oid
+                authoredDate
+				author {
+                  user {
+                    login
+                  }
+                }
+                message
               }
             }
             
@@ -75,28 +82,36 @@ query($ids:[ID!]!) {
               author {
                 login
               }
+              bodyText
+              createdAt
               comments(first: 100) {
                 nodes {
                   commit {
                     oid
+                    message
                   }
                   originalCommit {
                     oid
+                    message
                   }
                   author {
                     login
                   }
                   path
+                  createdAt
                 }
               }
             }
             ... on HeadRefForcePushedEvent {
               afterCommit {
                 oid
+                message
               }
               beforeCommit {
                 oid
+                message
               }
+              createdAt
             }
             ... on PullRequestReviewThread {
               id
@@ -104,14 +119,17 @@ query($ids:[ID!]!) {
                 nodes {
                   commit {
                     oid
+                    message
                   }
                   originalCommit {
                     oid
+                    message
                   }
                   author {
                     login
                   }
                   path
+                  createdAt
                 }
               }
             }
@@ -120,11 +138,14 @@ query($ids:[ID!]!) {
               commit {
                 oid
               }
+              createdAt
             }
             ... on IssueComment {
               author {
                 login
               }
+              bodyText
+              createdAt
             }
           }   
         }

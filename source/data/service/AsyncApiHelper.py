@@ -640,7 +640,7 @@ class AsyncApiHelper:
             if proxy is not None:
                 proxy = proxy.split('//')[1]
                 await ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
-            # print("judge end")
+            print("judge end")
             """循环重试"""
             return await AsyncApiHelper.fetchBeanData(session, api, isMediaType=isMediaType)
 
@@ -678,11 +678,10 @@ class AsyncApiHelper:
                     await ProxyHelper.judgeProxy(proxy.split('//')[1], ProxyHelper.INT_POSITIVE_POINT)
                 return await response.json()
         except Exception as e:
-            print(e)
             if proxy is not None:
                 proxy = proxy.split('//')[1]
                 await ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
-            # print("judge end")
+            print("judge end")
             return await AsyncApiHelper.postGraphqlData(session, api, query, args)
 
     @staticmethod
@@ -918,6 +917,8 @@ class AsyncApiHelper:
 
         review = pair[0]
         changes = pair[1]
+        if changes is None or changes.__len__() == 0:
+            return None
 
         """从数据库获取review comments(注：一个review 可能会关联多个comment，每个comment会指定一个文件和对应代码行)"""
         comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timeline_item_node, mysql)
@@ -929,6 +930,8 @@ class AsyncApiHelper:
         files = await AsyncApiHelper.getFilesFromStore(oids, mysql)
         """依次补全"""
         for comment in comments:
+            """comment默认未触发change_trigger"""
+            comment.change_trigger = -1
             for file in files:
                 if file.commit_sha == comment.original_commit_id and file.filename == comment.path:
                     """计算 line 和 origin line"""
@@ -1067,8 +1070,6 @@ class AsyncApiHelper:
                 for comment in comments:  # 对每一个comment统计change trigger
                     """comment 对应的文件"""
                     commentFile = comment.path
-                    """comment默认未触发change_trigger"""
-                    comment.change_trigger = -1
                     for file in changed_files:
                         if file.filename == commentFile:
                             comment.change_trigger = 1
@@ -1105,15 +1106,6 @@ class AsyncApiHelper:
                     #                     # TODO 目前暂不考虑comment细化到行的change_trigger
                     #                     # diff_patch2.insert(0, file.patch)
                     #             startNode.extend(node.parents)
-                    if comment.change_trigger > 0:
-                        change_trigger_comments.append({
-                            "pullrequest_node": pr_node_id,
-                            "user_login": comment.user_login,
-                            "comment_node": comment.node_id,
-                            "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
-                            "change_trigger": comment.change_trigger,
-                            "filepath": comment.path
-                        })
                     # TODO 目前暂不考虑comment细化到行的change_trigger
                     # """通过比较commit集合来计算距离comment最近的文件变化"""
                     # closedChange = TextCompareUtils.getClosedFileChange(diff_patch1, diff_patch2, commentLine)
@@ -1125,10 +1117,18 @@ class AsyncApiHelper:
             except Exception as e:
                 print(e)
                 continue
-
+        for comment in comments:
+            change_trigger_comments.append({
+                "pullrequest_node": pr_node_id,
+                "user_login": comment.user_login,
+                "comment_node": comment.node_id,
+                "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                "change_trigger": comment.change_trigger,
+                "filepath": comment.path
+            })
         statistic.lock.acquire()
         statistic.outOfLoopCase += outOfLoopCase
-        statistic.usefulChangeTrigger += [x for x in comments if x.change_trigger is not None].__len__()
+        statistic.usefulChangeTrigger += [x for x in comments if x.change_trigger > 0].__len__()
         statistic.lock.release()
 
         # 更新comments的change_trigger, line, original_line信息"""
@@ -1144,7 +1144,7 @@ class AsyncApiHelper:
 
         reviews = await AsyncSqlHelper.queryBeanData([review], mysql, [[StringKeyUtils.STR_KEY_NODE_ID]])
         print("reviews:", reviews)
-        if reviews and reviews[0] and reviews[0].__len__() > 0:
+        if reviews is not None and reviews[0] is not None and reviews[0].__len__() > 0:
             review_id = reviews[0][0][2]
             print("review_id:", review_id)
             comment = ReviewComment()
@@ -1153,7 +1153,7 @@ class AsyncApiHelper:
             result = await AsyncSqlHelper.queryBeanData([comment], mysql,
                                                         [[StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_ID]])
             print(result)
-            if result[0].__len__() > 0:
+            if result is not None and result[0].__len__() > 0:
                 comments = BeanParserHelper.getBeansFromTuple(ReviewComment(), ReviewComment.getItemKeyList(),
                                                               result[0])
 
@@ -1176,12 +1176,12 @@ class AsyncApiHelper:
 
         gitFiles = []
 
-        if queryFiles.__len__() > 0:
+        if queryFiles is not None and queryFiles.__len__() > 0:
             results = await AsyncSqlHelper.queryBeanData(queryFiles, mysql,
                                                          [[StringKeyUtils.STR_KEY_COMMIT_SHA]] * queryFiles.__len__())
             print("files:", results)
             for result in results:
-                if result.__len__() > 0:
+                if result is not None and result.__len__() > 0:
                     files = BeanParserHelper.getBeansFromTuple(File(), File.getItemKeyList(), result)
                     gitFiles.extend(files)
 
@@ -1206,7 +1206,7 @@ class AsyncApiHelper:
 
         """从本地返回的结果做解析"""
         for relationTuple in results:
-            if relationTuple.__len__() > 0:
+            if relationTuple is not None and relationTuple.__len__() > 0:
                 existList.append(relationTuple[0][0])
                 for relation in relationTuple:
                     r = CommitRelation()

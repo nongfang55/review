@@ -30,7 +30,7 @@ class FPSTrain:
         ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
         for date in dates:
             startTime = datetime.now()
-            FPSTrain.algorithmBody(date, project, recommendNum)
+            # FPSTrain.algorithmBody(date, project, recommendNum)
             recommendList, answerList, prList, convertDict, trainSize = FPSTrain.algorithmBody(date, project, recommendNum)
             """根据推荐列表做评价"""
             topk, mrr, precisionk, recallk, fmeasurek = \

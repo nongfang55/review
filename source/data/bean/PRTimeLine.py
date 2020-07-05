@@ -17,6 +17,7 @@ class PRTimeLine(BeanBase):
             res.append({
                 "pullrequest_node": item.pull_request_node,
                 "timelineitem_node": item.timeline_item_node,
+                "create_at": item.create_at,
                 "typename": item.typename,
                 "position": item.position,
                 "origin": item.origin

@@ -581,8 +581,9 @@ class DataProcessUtils:
             """过滤机器人的场景  """
             data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
-            data_review = data_review[['number', 'created_at', 'user_login_y']].copy(deep=True)
-            data_review.columns = ['number', 'created_at', 'user_login']
+            data_review = data_review[['node_id', 'number', 'created_at', 'user_login_y']].copy(deep=True)
+            data_review.columns = ['node_id', 'number', 'created_at', 'user_login']
+            data_review.rename(columns={'node_id': 'node_id_x'}, inplace=True)
             data_review.drop_duplicates(inplace=True)
 
             data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
@@ -599,13 +600,19 @@ class DataProcessUtils:
             data.drop_duplicates(inplace=True)
 
             """删除无用review"""
-            unuseful_review_idx = []
-            for index, row in data.iterrows():
-                change_trigger_records = changeTriggerData.loc[(changeTriggerData['pullrequest_node'] == row['node_id_x'])
-                                                               & (changeTriggerData['user_login'] == row['user_login'])]
-                if change_trigger_records.empty:
-                    unuseful_review_idx.append(index)
-            data = data.drop(labels=unuseful_review_idx, axis=0)
+            # unuseful_review_idx = []
+            # for index, row in data.iterrows():
+            #     change_trigger_records = changeTriggerData.loc[(changeTriggerData['pullrequest_node'] == row['node_id_x'])
+            #                                                    & (changeTriggerData['user_login'] == row['user_login'])]
+            #     if change_trigger_records.empty:
+            #         unuseful_review_idx.append(index)
+            # data = data.drop(labels=unuseful_review_idx, axis=0)
+            """change_trigger只取出pr, reviewer，和data取交集"""
+            changeTriggerData = changeTriggerData[(changeTriggerData['change_trigger'] == '1') | changeTriggerData['change_trigger'] == 1]
+            changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x'}, inplace=True)
+            data = pandas.merge(data, changeTriggerData, how='inner')
             data = data.drop(labels='node_id_x', axis=1)
 
             data.columns = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha',

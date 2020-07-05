@@ -135,6 +135,7 @@ class StringKeyUtils:
     STR_KEY_PULL_REQUEST_REVIEW_NODE_ID = 'pull_request_review_node_id'
 
     '''issue comment 可能会使用的数据'''
+    STR_KEY_BODY_V4 = 'bodyText'
 
     '''commit 可能会使用的数据'''
     STR_KEY_COMMIT = 'commit'
@@ -158,6 +159,7 @@ class StringKeyUtils:
     STR_KEY_PARENTS = 'parents'
     STR_KEY_FILES = 'files'
     STR_KEY_MESSAGE_BODY_V4 = 'messageBody'
+    STR_KEY_COMMIT_AUTHOR_DATE_V4 = 'authoredDate'
 
     '''file 可能会使用的数据'''
     STR_KEY_COMMIT_SHA = 'commit_sha'

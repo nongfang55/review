@@ -17,19 +17,18 @@ class PRTimeLineUtils:
 
         for item in prTimeLineItems:
             if item.typename in PRTimeLineUtils.getReviewType():
-                if pair_review_node is not None and pair_change_nodes.__len__() > 0:
+                if pair_review_node is not None:
                     reviewPair.append((pair_review_node, pair_change_nodes))
                 pair_review_node = item
                 pair_change_nodes = []
             elif item.typename in PRTimeLineUtils.getChangeType() and pair_review_node is not None:
                 pair_change_nodes.append(item)
             elif item.typename not in PRTimeLineUtils.getChangeType() and pair_review_node is not None:
-                if pair_change_nodes.__len__() > 0:
-                    reviewPair.append((pair_review_node, pair_change_nodes))
+                reviewPair.append((pair_review_node, pair_change_nodes))
                 pair_review_node = None
                 pair_change_nodes = None
 
-        if pair_change_nodes is not None and pair_change_nodes.__len__() > 0:
+        if pair_change_nodes is not None:
             reviewPair.append((pair_review_node, pair_change_nodes))
         return reviewPair
 

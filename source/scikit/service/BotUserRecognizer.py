@@ -9,7 +9,7 @@ class BotUserRecognizer:
     """
 
     """手动维护的列表"""
-    BOT_TABLE = ['stickler-ci', 'codecov-io']
+    BOT_TABLE = ['stickler-ci', 'codecov-io', 'akka-ci']
 
     @staticmethod
     def isBot(name):
