@@ -52,6 +52,12 @@ class SqlUtils:
                                         where gitCommit.sha not in (select gitFile.commit_sha from gitFile)
                                         and gitCommit.sha = commitPRRelation.sha LIMIT 2000"""
 
+    '''查询数据库中没有匹配 gitfile 的commit 通过 has_file_fetched判断'''
+    STR_SQL_QUERY_UNMATCH_COMMIT_FILE_BY_HAS_FETCHED_FILE = """select distinct commitPRRelation.repo_full_name, gitCommit.sha
+                                        from gitCommit, commitPRRelation
+                                        where gitCommit.has_file_fetched = False
+                                        and gitCommit.sha = commitPRRelation.sha LIMIT 2000"""
+
     STR_SQL_QUERY_PR_FOR_TIME_LINE = """select distinct node_id 
                                         from pullRequest 
                                         where state = 'closed' and repo_full_name = %s

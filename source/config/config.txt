@@ -1,5 +1,5 @@
 [authorization]
-token=0dd75965578ed321653109fbc3c7a78a4b05b412
+token=ef638c320e51db0f2f5f9e356d906ebcc9523936
 [database]
 host=101.133.220.93
 username=review
@@ -8,10 +8,10 @@ database=REVIEW
 [debug]
 print=False
 [project]
-owner=yarn
-repo=yarn
+owner=babel
+repo=babel
 limit=100
-start=13803
+start=3000
 commitFetchLoop=10
 [network]
 timeout=60

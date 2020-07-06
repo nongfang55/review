@@ -28,6 +28,8 @@ class Commit(BeanBase):
 
         self.author_login = None
         self.committer_login = None
+        """用于判断是否保存对应的gitFile"""
+        self.has_file_fetched = None
 
     @staticmethod
     def getIdentifyKeys():
@@ -39,7 +41,8 @@ class Commit(BeanBase):
                  StringKeyUtils.STR_KEY_COMMITTER_LOGIN, StringKeyUtils.STR_KEY_COMMIT_AUTHOR_DATE,
                  StringKeyUtils.STR_KEY_COMMIT_COMMITTER_DATE, StringKeyUtils.STR_KEY_COMMIT_MESSAGE,
                  StringKeyUtils.STR_KEY_COMMIT_COMMENT_COUNT, StringKeyUtils.STR_KEY_STATUS_TOTAL,
-                 StringKeyUtils.STR_KEY_STATUS_ADDITIONS, StringKeyUtils.STR_KEY_STATUS_DELETIONS]
+                 StringKeyUtils.STR_KEY_STATUS_ADDITIONS, StringKeyUtils.STR_KEY_STATUS_DELETIONS,
+                 StringKeyUtils.STR_KEY_HAS_FILE_FETCHED]
 
         return items
 
@@ -55,7 +58,8 @@ class Commit(BeanBase):
                  (StringKeyUtils.STR_KEY_COMMIT_COMMENT_COUNT, BeanBase.DATA_TYPE_INT),
                  (StringKeyUtils.STR_KEY_STATUS_TOTAL, BeanBase.DATA_TYPE_INT),
                  (StringKeyUtils.STR_KEY_STATUS_ADDITIONS, BeanBase.DATA_TYPE_INT),
-                 (StringKeyUtils.STR_KEY_STATUS_DELETIONS, BeanBase.DATA_TYPE_INT)]
+                 (StringKeyUtils.STR_KEY_STATUS_DELETIONS, BeanBase.DATA_TYPE_INT),
+                 (StringKeyUtils.STR_KEY_HAS_FILE_FETCHED, BeanBase.DATA_TYPE_BOOLEAN)]
 
         return items
 
@@ -69,7 +73,8 @@ class Commit(BeanBase):
                  StringKeyUtils.STR_KEY_COMMIT_COMMENT_COUNT: self.commit_comment_count,
                  StringKeyUtils.STR_KEY_STATUS_TOTAL: self.status_total,
                  StringKeyUtils.STR_KEY_STATUS_ADDITIONS: self.status_additions,
-                 StringKeyUtils.STR_KEY_STATUS_DELETIONS: self.status_deletions}
+                 StringKeyUtils.STR_KEY_STATUS_DELETIONS: self.status_deletions,
+                 StringKeyUtils.STR_KEY_HAS_FILE_FETCHED: self.has_file_fetched}
 
         return items
 

@@ -360,6 +360,7 @@ class AsyncApiHelper:
                                                 commitData = reviewData.get(StringKeyUtils.STR_KEY_COMMIT, None)
                                                 if commitData is not None and isinstance(commitData, dict):
                                                     commit = Commit.parserV4.parser(commitData)
+                                                    commit.has_file_fetched = False
                                                     isFind = False
                                                     for c in commits:
                                                         if c.sha == commit.sha:
@@ -414,6 +415,7 @@ class AsyncApiHelper:
                                                                 if commitData is not None and isinstance(commitData,
                                                                                                          dict):
                                                                     commit = Commit.parserV4.parser(commitData)
+                                                                    commit.has_file_fetched = False
                                                                     isFind = False
                                                                     for c in commits:
                                                                         if c.sha == commit.sha:
@@ -462,6 +464,7 @@ class AsyncApiHelper:
                                                 continue
                                             commitData = commitData.get(StringKeyUtils.STR_KEY_COMMIT, None)
                                             commit = Commit.parserV4.parser(commitData)
+                                            commit.has_file_fetched = False
                                             isFind = False
                                             for c in commits:
                                                 if c.sha == commit.sha:
@@ -678,6 +681,7 @@ class AsyncApiHelper:
                     await ProxyHelper.judgeProxy(proxy.split('//')[1], ProxyHelper.INT_POSITIVE_POINT)
                 return await response.json()
         except Exception as e:
+            print(e)
             if proxy is not None:
                 proxy = proxy.split('//')[1]
                 await ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
@@ -735,6 +739,8 @@ class AsyncApiHelper:
         try:
             if not AsyncApiHelper.judgeNotFind(resultJson):
                 res = Commit.parser.parser(resultJson)
+                """v3 接口认为有gitFile信息"""
+                res.has_file_fetched = True
                 return res
         except Exception as e:
             print(e)
@@ -1253,14 +1259,18 @@ class AsyncApiHelper:
                     json = await AsyncApiHelper.fetchBeanData(session, api)
                     print(json)
                     commit = await AsyncApiHelper.parserCommit(json)
+                    """过v3的接口视为有GitFile"""
+                    commit.has_file_fetched = True
 
                     if commit.parents is not None:
                         beanList.extend(commit.parents)
                     if commit.files is not None:
                         beanList.extend(commit.files)
 
-                    beanList.append(commit)
+                    # beanList.append(commit)
                     await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+                    """commit 信息更新"""
+                    await AsyncSqlHelper.updateBeanDateList([commit], mysql)
 
                     # 做了同步处理
                     statistic.lock.acquire()

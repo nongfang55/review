@@ -275,7 +275,7 @@ class AsyncProjectAllDataFetcher:
             print("mysql init success")
         print("mysql init success")
 
-        res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE, None)
+        res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_BY_HAS_FETCHED_FILE, None)
         print(res)
 
         tasks = [asyncio.ensure_future(AsyncApiHelper.downloadCommits(item[0], item[1], semaphore, mysql, statistic))
@@ -510,13 +510,15 @@ class AsyncProjectAllDataFetcher:
                 pos += fetchLimit
 
 if __name__ == '__main__':
-    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
+    # AsyncProjectAllDataFetcher.getDataForRepository(configPraser.getOwner(), configPraser.getRepo(),
+    #                                                 configPraser.getLimit(), configPraser.getStart())
+    AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
     # AsyncProjectAllDataFetcher.getDataForRepository("django", "django", 3500, 11000)
     # AsyncProjectAllDataFetcher.getPRTimeLine("akka", 'akka')
     # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
     # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
 
-    AsyncProjectAllDataFetcher.checkPRTimeLineResult();
+    #AsyncProjectAllDataFetcher.checkPRTimeLineResult();
     # 全量爬取pr时间线信息，写入prTimeData文件夹
     # AsyncProjectAllDataFetcher.getPRTimeLine("django", 'django')
     # AsyncProjectAllDataFetcher.getPRTimeLine("akka", 'akka')
@@ -534,4 +536,4 @@ if __name__ == '__main__':
     # pandasHelper.writeTSVFile(target_filename, df)
 
     # 全量获取pr change_trigger信息，写入prTimeData文件夹
-    AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())

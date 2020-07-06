@@ -160,6 +160,7 @@ class StringKeyUtils:
     STR_KEY_FILES = 'files'
     STR_KEY_MESSAGE_BODY_V4 = 'messageBody'
     STR_KEY_COMMIT_AUTHOR_DATE_V4 = 'authoredDate'
+    STR_KEY_HAS_FILE_FETCHED = 'has_file_fetched'
 
     '''file 可能会使用的数据'''
     STR_KEY_COMMIT_SHA = 'commit_sha'
