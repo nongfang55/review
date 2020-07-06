@@ -750,6 +750,8 @@ class AsyncApiHelper:
                     query = GraphqlHelper.getTimeLineQueryByNodes()
                     resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
                     print("successfully fetched Json! nodeIDS: {0}".format(json.dumps(node_ids)))
+                    """用于 肉眼观测 403 或者 rate等情况 = ="""
+                    print(resultJson)
 
                     if AsyncApiHelper.judgeNotFindV4(resultJson):
                         Logger.loge("not found")

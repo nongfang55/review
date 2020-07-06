@@ -8,8 +8,8 @@ database=REVIEW
 [debug]
 print=False
 [project]
-owner=opencv
-repo=opencv
+owner=yarn
+repo=yarn
 limit=100
 start=13803
 commitFetchLoop=10

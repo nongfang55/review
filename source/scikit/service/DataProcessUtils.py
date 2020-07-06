@@ -517,7 +517,8 @@ class DataProcessUtils:
             commitFileData.reset_index(drop=True, inplace=True)
             print("after fliter commit_file:", commitFileData.shape)
 
-        pullRequestData = pullRequestData[['number', 'created_at', 'closed_at', 'user_login', 'node_id']].copy(deep=True)
+        pullRequestData = pullRequestData[['number', 'created_at', 'closed_at', 'user_login', 'node_id']].copy(
+            deep=True)
         reviewData = reviewData[["pull_number", "id", "user_login", 'submitted_at']].copy(deep=True)
 
         targetFileName = f'FPS_{projectName}_data'
@@ -618,7 +619,7 @@ class DataProcessUtils:
             data.columns = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha',
                             'file_filename']
             data.sort_values(by='pull_number', ascending=False, inplace=True)
-            data.reset_index(drop=True)
+            data.reset_index(drop=True, inplace=True)
 
         print("after merge:", data.shape)
 
@@ -632,11 +633,17 @@ class DataProcessUtils:
         return int(time.mktime(time.strptime(s, "%Y-%m-%d %H:%M:%S")))
 
     @staticmethod
-    def contactMLData(projectName):
+    def contactMLData(projectName, label=StringKeyUtils.STR_LABEL_REVIEW_COMMENT):
         """
+        对于 label == review comment
         通过 ALL_{projectName}_data_pr_review_commit_file
              ALL_commit_file
              ALL_data_review_comment 三个文件初步拼接出ML所需信息量的文件
+
+        对于 label == review comment and issue comment
+        通过 ALL_{projectName}_data_pullrequest
+             ALL_{projectName}_data_review
+             ALL_{projectName}_data_issuecomment 三个文件
         """
 
         """
@@ -647,68 +654,185 @@ class DataProcessUtils:
         data_train_path = projectConfig.getDataTrainPath()
         commit_file_data_path = projectConfig.getCommitFilePath()
         pr_commit_relation_path = projectConfig.getPrCommitRelationPath()
-        prReviewData = pandasHelper.readTSVFile(
-            os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
-        prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
-        print("raw pr review :", prReviewData.shape)
+        issue_comment_path = projectConfig.getIssueCommentPath()
+        pull_request_path = projectConfig.getPullRequestPath()
+        review_path = projectConfig.getReviewDataPath()
+
+        if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
+            prReviewData = pandasHelper.readTSVFile(
+                os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
+            prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
+            print("raw pr review :", prReviewData.shape)
+
+        """issue commit 数据库输出 自带抬头"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review 数据库输出 自带抬头"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        targetFileName = f'ML_{projectName}_data'
+        if label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
+            targetFileName = f'ML_ISSUE_{projectName}_data'
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+            targetFileName = f'ML_ALL_{projectName}_data'
 
         print("read file cost time:", datetime.now() - time1)
 
-        """过滤状态非关闭的pr review"""
-        prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
-        print("after fliter closed pr:", prReviewData.shape)
+        if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
 
-        """过滤pr 作者就是reviewer的情况"""
-        prReviewData = prReviewData.loc[prReviewData['pr_user_login']
-                                        != prReviewData['review_user_login']].copy(deep=True)
-        print("after fliter author:", prReviewData.shape)
+            """过滤状态非关闭的pr review"""
+            prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
+            print("after fliter closed pr:", prReviewData.shape)
 
-        """过滤不需要的字段"""
-        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at',
-                                     'pr_commits', 'pr_additions', 'pr_deletions',
-                                     'pr_changed_files', 'pr_head_label', 'pr_base_label', 'pr_user_login']].copy(
-            deep=True)
-        prReviewData.drop_duplicates(inplace=True)
-        prReviewData.reset_index(drop=True, inplace=True)
-        print("after fliter pr_review:", prReviewData.shape)
+            """过滤pr 作者就是reviewer的情况"""
+            prReviewData = prReviewData.loc[prReviewData['pr_user_login']
+                                            != prReviewData['review_user_login']].copy(deep=True)
+            print("after fliter author:", prReviewData.shape)
 
-        """尝试添加 作者总共提交次数，作者提交时间间隔，作者review次数的特征"""
-        author_push_count = []
-        author_submit_gap = []
-        author_review_count = []
-        pos = 0
-        for data in prReviewData.itertuples(index=False):
-            pullNumber = getattr(data, 'pr_number')
-            author = getattr(data, 'pr_user_login')
-            temp = prReviewData.loc[prReviewData['pr_user_login'] == author].copy(deep=True)
-            temp = temp.loc[temp['pr_number'] < pullNumber].copy(deep=True)
-            push_num = temp['pr_number'].drop_duplicates().shape[0]
-            author_push_count.append(push_num)
+            """过滤不需要的字段"""
+            prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at',
+                                         'pr_commits', 'pr_additions', 'pr_deletions',
+                                         'pr_changed_files', 'pr_head_label', 'pr_base_label', 'pr_user_login']].copy(
+                deep=True)
+            prReviewData.drop_duplicates(inplace=True)
+            prReviewData.reset_index(drop=True, inplace=True)
+            print("after fliter pr_review:", prReviewData.shape)
 
-            gap = DataProcessUtils.convertStringTimeToTimeStrip(prReviewData.loc[prReviewData.shape[0] - 1,
-                                                                                 'pr_created_at']) - DataProcessUtils.convertStringTimeToTimeStrip(
-                prReviewData.loc[0, 'pr_created_at'])
-            if push_num != 0:
-                last_num = list(temp['pr_number'])[-1]
-                this_created_time = getattr(data, 'pr_created_at')
-                last_created_time = list(prReviewData.loc[prReviewData['pr_number'] == last_num]['pr_created_at'])[0]
-                gap = int(time.mktime(time.strptime(this_created_time, "%Y-%m-%d %H:%M:%S"))) - int(
-                    time.mktime(time.strptime(last_created_time, "%Y-%m-%d %H:%M:%S")))
-            author_submit_gap.append(gap)
+            """尝试添加 作者总共提交次数，作者提交时间间隔，作者review次数的特征"""
+            author_push_count = []
+            author_submit_gap = []
+            author_review_count = []
+            pos = 0
+            for data in prReviewData.itertuples(index=False):
+                pullNumber = getattr(data, 'pr_number')
+                author = getattr(data, 'pr_user_login')
+                temp = prReviewData.loc[prReviewData['pr_user_login'] == author].copy(deep=True)
+                temp = temp.loc[temp['pr_number'] < pullNumber].copy(deep=True)
+                push_num = temp['pr_number'].drop_duplicates().shape[0]
+                author_push_count.append(push_num)
 
-            temp = prReviewData.loc[prReviewData['review_user_login'] == author].copy(deep=True)
-            temp = temp.loc[temp['pr_number'] < pullNumber].copy(deep=True)
-            review_num = temp.shape[0]
-            author_review_count.append(review_num)
-        prReviewData['author_push_count'] = author_push_count
-        prReviewData['author_review_count'] = author_review_count
-        prReviewData['author_submit_gap'] = author_submit_gap
+                gap = DataProcessUtils.convertStringTimeToTimeStrip(prReviewData.loc[prReviewData.shape[0] - 1,
+                                                                                     'pr_created_at']) - DataProcessUtils.convertStringTimeToTimeStrip(
+                    prReviewData.loc[0, 'pr_created_at'])
+                if push_num != 0:
+                    last_num = list(temp['pr_number'])[-1]
+                    this_created_time = getattr(data, 'pr_created_at')
+                    last_created_time = list(prReviewData.loc[prReviewData['pr_number'] == last_num]['pr_created_at'])[
+                        0]
+                    gap = int(time.mktime(time.strptime(this_created_time, "%Y-%m-%d %H:%M:%S"))) - int(
+                        time.mktime(time.strptime(last_created_time, "%Y-%m-%d %H:%M:%S")))
+                author_submit_gap.append(gap)
 
-        data = prReviewData
+                temp = prReviewData.loc[prReviewData['review_user_login'] == author].copy(deep=True)
+                temp = temp.loc[temp['pr_number'] < pullNumber].copy(deep=True)
+                review_num = temp.shape[0]
+                author_review_count.append(review_num)
+            prReviewData['author_push_count'] = author_push_count
+            prReviewData['author_review_count'] = author_review_count
+            prReviewData['author_submit_gap'] = author_submit_gap
+
+            data = prReviewData
+
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+            """先找出所有参与 reivew的人选"""
+            data_issue = pandas.merge(pullRequestData, issueCommentData, left_on='number', right_on='pull_number')
+            """过滤 comment 在closed 后面的场景 2020.6.28"""
+            data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
+            data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)
+            """过滤删除用户的场景"""
+            data_issue.dropna(subset=['user_login_y'], inplace=True)
+            """"过滤 head_label 为nan的场景"""
+            data_issue.dropna(subset=['head_label'], inplace=True)
+            """过滤机器人的场景"""
+            data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+            data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
+            data_issue = data_issue[['number', 'user_login_y',
+                                     'created_at_x', 'commits', 'additions', 'deletions',
+                                     'changed_files', 'head_label', 'base_label', 'user_login_x']].copy(deep=True)
+
+            data_issue.columns = ['pr_number', 'review_user_login', 'pr_created_at', 'pr_commits',
+                                  'pr_additions', 'pr_deletions', 'pr_changed_files', 'pr_head_label',
+                                  'pr_base_label', 'pr_user_login']
+            data_issue.drop_duplicates(inplace=True)
+
+            data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
+            data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
+            """过滤 comment 在closed 后面的场景 2020.6.28"""
+            data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
+            """过滤删除用户场景"""
+            data_review.dropna(subset=['user_login_y'], inplace=True)
+            """"过滤 head_label 为nan的场景"""
+            data_review.dropna(subset=['head_label'], inplace=True)
+            """过滤机器人的场景  """
+            data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+            data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
+            data_review = data_review[['number', 'user_login_y',
+                                     'created_at', 'commits', 'additions', 'deletions',
+                                     'changed_files', 'head_label', 'base_label', 'user_login_x']].copy(deep=True)
+
+            data_review.columns = ['pr_number', 'review_user_login', 'pr_created_at', 'pr_commits',
+                                  'pr_additions', 'pr_deletions', 'pr_changed_files', 'pr_head_label',
+                                  'pr_base_label', 'pr_user_login']
+            data_review.drop_duplicates(inplace=True)
+
+            rawData = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
+            rawData.drop_duplicates(inplace=True)
+            rawData.reset_index(drop=True, inplace=True)
+            print(rawData.shape)
+
+            "pr_number, review_user_login, pr_created_at, pr_commits, pr_additions, pr_deletions" \
+            "pr_changed_files, pr_head_label, pr_base_label, pr_user_login, author_push_count," \
+            "author_review_count, author_submit_gap"
+
+            """尝试添加 作者总共提交次数，作者提交时间间隔，作者review次数的特征"""
+            author_push_count = []
+            author_submit_gap = []
+            author_review_count = []
+            pos = 0
+            for data in rawData.itertuples(index=False):
+                pullNumber = getattr(data, 'pr_number')
+                author = getattr(data, 'pr_user_login')
+                temp = rawData.loc[rawData['pr_user_login'] == author].copy(deep=True)
+                temp = temp.loc[temp['pr_number'] < pullNumber].copy(deep=True)
+                push_num = temp['pr_number'].drop_duplicates().shape[0]
+                author_push_count.append(push_num)
+
+                gap = DataProcessUtils.convertStringTimeToTimeStrip(rawData.loc[rawData.shape[0] - 1,
+                                                                                     'pr_created_at']) - DataProcessUtils.convertStringTimeToTimeStrip(
+                    rawData.loc[0, 'pr_created_at'])
+                if push_num != 0:
+                    last_num = list(temp['pr_number'])[-1]
+                    this_created_time = getattr(data, 'pr_created_at')
+                    last_created_time = list(rawData.loc[rawData['pr_number'] == last_num]['pr_created_at'])[
+                        0]
+                    gap = int(time.mktime(time.strptime(this_created_time, "%Y-%m-%d %H:%M:%S"))) - int(
+                        time.mktime(time.strptime(last_created_time, "%Y-%m-%d %H:%M:%S")))
+                author_submit_gap.append(gap)
+
+                temp = rawData.loc[rawData['review_user_login'] == author].copy(deep=True)
+                temp = temp.loc[temp['pr_number'] < pullNumber].copy(deep=True)
+                review_num = temp.shape[0]
+                author_review_count.append(review_num)
+            rawData['author_push_count'] = author_push_count
+            rawData['author_review_count'] = author_review_count
+            rawData['author_submit_gap'] = author_submit_gap
+            data = rawData
 
         """按照时间分成小片"""
         DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getMLDataPath(),
-                                          targetFileName=f'ML_{projectName}_data', dateCol='pr_created_at',
+                                          targetFileName=targetFileName, dateCol='pr_created_at',
                                           dataFrame=data)
 
     @staticmethod
@@ -836,40 +960,117 @@ class DataProcessUtils:
         return result
 
     @staticmethod
-    def contactIRData(projectName):
+    def contactIRData(projectName, label=StringKeyUtils.STR_LABEL_REVIEW_COMMENT):
         """
+        对于 label == review comment
+
         通过 ALL_{projectName}_data_pr_review_commit_file
              ALL_{projectName}_commit_file
              ALL_data_review_comment 三个文件拼接出IR所需信息量的文件
+
+        对于 label == review comment and issue comment
+             ALL_{projectName}_data_pullrequest
+             ALL_{projectName}_data_issuecomment
+             ALL_{projectName}_data_review
+             三个文件拼出IR所需的信息量文件
         """
+
+        targetFileName = f'IR_{projectName}_data'
+        if label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
+            targetFileName = f'IR_ISSUE_{projectName}_data'
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+            targetFileName = f'IR_ALL_{projectName}_data'
 
         """读取信息  IR 只需要pr 的title和body的信息"""
         data_train_path = projectConfig.getDataTrainPath()
-        prReviewData = pandasHelper.readTSVFile(
-            os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
-        prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
-        print("raw pr review :", prReviewData.shape)
+        issue_comment_path = projectConfig.getIssueCommentPath()
+        pull_request_path = projectConfig.getPullRequestPath()
+        review_path = projectConfig.getReviewDataPath()
 
-        """过滤状态非关闭的pr review"""
-        prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
-        print("after fliter closed pr:", prReviewData.shape)
+        if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
+            prReviewData = pandasHelper.readTSVFile(
+                os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
+            prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
+            print("raw pr review :", prReviewData.shape)
 
-        """过滤pr 作者就是reviewer的情况"""
-        prReviewData = prReviewData.loc[prReviewData['pr_user_login']
-                                        != prReviewData['review_user_login']].copy(deep=True)
-        print("after fliter author:", prReviewData.shape)
+        """issue commit 数据库输出 自带抬头"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
 
-        """过滤不需要的字段"""
-        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_title', 'pr_body', 'pr_created_at']].copy(
-            deep=True)
-        prReviewData.drop_duplicates(inplace=True)
-        prReviewData.reset_index(drop=True, inplace=True)
-        print("after fliter pr_review:", prReviewData.shape)
-        data = prReviewData
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review 数据库输出 自带抬头"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
+            """过滤状态非关闭的pr review"""
+            prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
+            print("after fliter closed pr:", prReviewData.shape)
+
+            """过滤pr 作者就是reviewer的情况"""
+            prReviewData = prReviewData.loc[prReviewData['pr_user_login']
+                                            != prReviewData['review_user_login']].copy(deep=True)
+            print("after fliter author:", prReviewData.shape)
+
+            """过滤不需要的字段"""
+            prReviewData = prReviewData[
+                ['pr_number', 'review_user_login', 'pr_title', 'pr_body', 'pr_created_at']].copy(
+                deep=True)
+            prReviewData.drop_duplicates(inplace=True)
+            prReviewData.reset_index(drop=True, inplace=True)
+            print("after fliter pr_review:", prReviewData.shape)
+            data = prReviewData
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+            """思路  上面两部分依次做凭借， 最后加上文件"""
+            data_issue = pandas.merge(pullRequestData, issueCommentData, left_on='number', right_on='pull_number')
+            """过滤 comment 在closed 后面的场景 2020.6.28"""
+            data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
+            data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)
+            """过滤删除用户的场景"""
+            data_issue.dropna(subset=['user_login_y'], inplace=True)
+            """过滤机器人的场景"""
+            data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+            data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
+            "IR数据行： pr_number, review_user_login, pr_title, pr_body, pr_created_at"
+            data_issue = data_issue[['number', 'title', 'body_x', 'created_at_x', 'user_login_y']].copy(deep=True)
+            data_issue.columns = ['pr_number', 'pr_title', 'pr_body', 'pr_created_at', 'review_user_login']
+            data_issue.drop_duplicates(inplace=True)
+
+            data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
+            data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
+            """过滤 comment 在closed 后面的场景 2020.6.28"""
+            data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
+            """过滤删除用户场景"""
+            data_review.dropna(subset=['user_login_y'], inplace=True)
+            """过滤机器人的场景  """
+            data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+            data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
+            data_review = data_review[['number', 'title', 'body_x', 'created_at', 'user_login_y']].copy(deep=True)
+            data_review.columns = ['pr_number', 'pr_title', 'pr_body', 'pr_created_at', 'review_user_login']
+            data_review.drop_duplicates(inplace=True)
+
+            data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
+            data.drop_duplicates(inplace=True)
+            data.reset_index(drop=True, inplace=True)
+            print(data.shape)
+
+            """只选出感兴趣的部分"""
+            data = data[['pr_number', 'review_user_login', 'pr_title', 'pr_body', 'pr_created_at']].copy(deep=True)
+            data.sort_values(by='pr_number', ascending=False, inplace=True)
+            data.reset_index(drop=True)
 
         """按照时间分成小片"""
         DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getIRDataPath(),
-                                          targetFileName=f'IR_{projectName}_data', dateCol='pr_created_at',
+                                          targetFileName=targetFileName, dateCol='pr_created_at',
                                           dataFrame=data)
 
     @staticmethod
@@ -1015,9 +1216,9 @@ if __name__ == '__main__':
     # DataProcessUtils.contactCAData('cakephp')
 
     # projects = ['opencv', 'adobe', 'angular', 'bitcoin', 'cakephp']
-    projects = ['cakephp']
+    projects = ['opencv']
     for p in projects:
-        DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+        DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
 
     # DataProcessUtils.contactMLData('xbmc')
     # DataProcessUtils.contactIRData('xbmc')

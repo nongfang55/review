@@ -6,4 +6,5 @@
 /source/config/__pycache__
 /source/nlp/__pycache__
 .settings/
+log/
 *.pyc

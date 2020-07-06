@@ -27,7 +27,7 @@ class IRTrain:
         """
 
         recommendNum = 5  # 推荐数量
-        excelName = f'outputIR.xlsx'
+        excelName = f'outputIR_{project}.xlsx'
         sheetName = 'result'
 
         """初始化excel文件"""
@@ -69,7 +69,7 @@ class IRTrain:
             print(y, m)
 
             filename = projectConfig.getIRDataPath() + os.sep \
-                       + f'IR_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+                       + f'IR_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
             if df is None:
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
             else:
@@ -277,5 +277,5 @@ if __name__ == '__main__':
     # dates = [(2018, 4, 2018, 5), (2018, 4, 2018, 7), (2018, 4, 2018, 10), (2018, 4, 2019, 1),
     #          (2018, 4, 2019, 4)]
     # dates = [(2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 8)]
-    dates = [(2019, 1, 2019, 5)]
-    IRTrain.testIRAlgorithm('bitcoin', dates)
+    dates = [(2018, 1, 2018, 3)]
+    IRTrain.testIRAlgorithm('opencv', dates)
