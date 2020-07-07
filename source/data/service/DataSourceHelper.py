@@ -477,11 +477,146 @@ def processFilePathVectorByGensim(filename=None, df=None):
 #     return inputDf
 
 
+# def appendFilePathFeatureVector(inputDf, projectName, date, pull_number_name):
+#     """
+#        用tf-idf模型计算pr的所有commit的设计的文件的路径
+#        @description: 给df, 在之前的dataframe的基础上面追加   pr路径形成的tf-idf特征向量
+#        @notice: datafrme 必须有pull_numberzid店，可以重复
+#        @param origin_df: 预先读取好的dataframe
+#        @param projectName: 指定项目名
+#        @param date: 开始年，开始月，结束年，结束月的四元组
+#        @return: df: 添加路径权重后的dataframe，可直接用于机器学习算法
+#        """
+#
+#     """对输入df做label存在检测"""
+#     if 'label' not in inputDf.columns:
+#         raise Exception("label not in input dataframe!")
+#
+#     df = inputDf[[pull_number_name]].copy(deep=True)
+#     df.drop_duplicates(inplace=True)
+#     df.columns = ['pr_number']
+#
+#     """读取commit pr relation文件"""
+#     time1 = datetime.now()
+#     data_train_path = projectConfig.getDataTrainPath()
+#     commit_file_data_path = projectConfig.getCommitFilePath()
+#     pr_commit_relation_path = projectConfig.getPrCommitRelationPath()
+#     """commit file 信息是拼接出来的 所以有抬头"""
+#     commitFileData = pandasHelper.readTSVFile(
+#         os.path.join(commit_file_data_path, f'ALL_{projectName}_data_commit_file.tsv'), low_memory=False,
+#         header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+#     print("raw commit file :", commitFileData.shape)
+#
+#     commitPRRelationData = pandasHelper.readTSVFile(
+#         os.path.join(pr_commit_relation_path, f'ALL_{projectName}_data_pr_commit_relation.tsv'),
+#         pandasHelper.INT_READ_FILE_WITHOUT_HEAD, low_memory=False
+#     )
+#     commitPRRelationData.columns = DataProcessUtils.COLUMN_NAME_PR_COMMIT_RELATION
+#     print("pr_commit_relation:", commitPRRelationData.shape)
+#
+#     print("read file cost time:", datetime.now() - time1)
+#
+#     """做三者连接"""
+#     df = pandas.merge(df, commitPRRelationData, left_on='pr_number', right_on='pull_number')
+#     print("merge relation:", df.shape)
+#     df = pandas.merge(df, commitFileData, left_on='sha', right_on='commit_sha')
+#     df.reset_index(drop=True, inplace=True)
+#     df = df[['pr_number', 'commit_sha', 'file_filename']].copy(deep=True)
+#     df.drop_duplicates(inplace=True)
+#
+#     print("after merge:", df.shape)
+#
+#     """获取filepath -> sub_filepath映射表"""
+#     file_path_list = set(df['file_filename'].copy(deep=True))
+#     file_path_dict = {}
+#     for file_path in file_path_list:
+#         sub_file_path = splitFileName(file_path)
+#         if file_path not in file_path_dict:
+#             file_path_dict[file_path] = set()
+#         file_path_dict[file_path] = file_path_dict[file_path].union(sub_file_path)
+#
+#     """获取pr_number -> sub_filepath语料"""
+#     pr_to_file_path = df[['pr_number', 'file_filename']]
+#     # 按照pr_number分组，获得原始语料（未经过分词的filepath）"""
+#     groups = dict(list(pr_to_file_path.groupby('pr_number')))
+#     # 获取目标语料（即经过自定义分词后的语料）
+#     pr_file_path_corpora = []
+#     for pr in groups:
+#         paths = list(groups[pr]['file_filename'])
+#         sub_paths = list(map(lambda x: list(file_path_dict[x]), paths))
+#         sub_paths = reduce(lambda x, y: x + y, sub_paths)
+#         pr_file_path_corpora.append(sub_paths)
+#
+#     """计算tf-idf"""
+#     print("start tf_idf algorithm......")
+#     # 建立词典
+#     dictionary = corpora.Dictionary(pr_file_path_corpora)
+#     # 基于词典建立新的语料库
+#     corpus = [dictionary.doc2bow(text) for text in pr_file_path_corpora]
+#     # 用语料库训练TF-IDF模型
+#     tf_idf_model = models.TfidfModel(corpus)
+#     # 得到加权矩阵
+#     path_tf_tdf = list(tf_idf_model[corpus])
+#
+#     """处理path_tf_tdf，构造pr_path加权矩阵"""
+#     print("start merge tf_idf to origin_df......")
+#     pr_list = list(groups.keys())
+#     columns = ['pr_number']
+#     path_ids = list(dictionary.token2id.values())
+#     path_ids = list(map(lambda x: str(x), path_ids))
+#     columns.extend(path_ids)
+#     pr_path_weight_df = pandas.DataFrame(columns=columns).fillna(value=0)
+#     for index, row in enumerate(path_tf_tdf):
+#         """用字典的方式填充dataframe"""
+#         new_row = {'pr_number': pr_list[index]}
+#         row = list(map(lambda x: (str(x[0]), x[1]), row))
+#         path_weight = dict(row)
+#         new_row = dict(new_row, **path_weight)
+#         pr_path_weight_df = pr_path_weight_df.append(new_row, ignore_index=True)
+#     pr_path_weight_df = pr_path_weight_df.fillna(value=0)
+#     print(pr_path_weight_df.shape)
+#
+#     """PCA 做缩减之前需要把pr_path_weight_df 做分割 训练集和测试集分别处理"""
+#     tempData = pr_path_weight_df.copy(deep=True)
+#     labelData = inputDf[['pr_number', 'label']].drop_duplicates().copy(deep=True)
+#     tempData = pandas.merge(tempData, labelData, on='pr_number')
+#
+#     tempData_train = tempData.loc[tempData['label'] == 0].copy(deep=True)
+#     tempData_test = tempData.loc[tempData['label'] == 1].copy(deep=True)
+#
+#     tempData_train.drop(columns=['pr_number', 'label'], inplace=True)
+#     tempData_test.drop(columns=['pr_number', 'label'], inplace=True)
+#
+#     # tempData.drop(columns=['pr_number'], inplace=True)
+#
+#     """PCA 做缩减"""
+#     pca = PCA(n_components=0.95)
+#     tempData_train = pca.fit_transform(tempData_train)
+#     print("after pca :", tempData_train.shape)
+#     print(pca.explained_variance_ratio_)
+#     tempData_train = pandas.DataFrame(tempData_train)
+#
+#     tempData_test = pca.transform(tempData_test)
+#     print("after pca :", tempData_train.shape)
+#     tempData_test = pandas.DataFrame(tempData_test)
+#
+#     tempData = pandas.concat([tempData_train, tempData_test], axis=0)
+#     tempData.reset_index(drop=True, inplace=True)
+#
+#     """和提供的数据做拼接"""
+#     tempData['pr_number_t'] = list(pr_path_weight_df['pr_number'])
+#     inputDf = pandas.merge(inputDf, tempData, left_on=pull_number_name, right_on='pr_number_t')
+#     inputDf.drop(columns=['pr_number_t'], inplace=True)
+#
+#     return inputDf
+
 def appendFilePathFeatureVector(inputDf, projectName, date, pull_number_name):
     """
        用tf-idf模型计算pr的所有commit的设计的文件的路径
+       注： 文件改动来源于 pullrequest直接关联的changeFile  2020.7.7
+
        @description: 给df, 在之前的dataframe的基础上面追加   pr路径形成的tf-idf特征向量
-       @notice: datafrme 必须有pull_numberzid店，可以重复
+       @notice: datafrme 必须有pull_number id，可以重复
        @param origin_df: 预先读取好的dataframe
        @param projectName: 指定项目名
        @param date: 开始年，开始月，结束年，结束月的四元组
@@ -498,36 +633,25 @@ def appendFilePathFeatureVector(inputDf, projectName, date, pull_number_name):
 
     """读取commit pr relation文件"""
     time1 = datetime.now()
-    data_train_path = projectConfig.getDataTrainPath()
-    commit_file_data_path = projectConfig.getCommitFilePath()
-    pr_commit_relation_path = projectConfig.getPrCommitRelationPath()
-    """commit file 信息是拼接出来的 所以有抬头"""
-    commitFileData = pandasHelper.readTSVFile(
-        os.path.join(commit_file_data_path, f'ALL_{projectName}_data_commit_file.tsv'), low_memory=False,
-        header=pandasHelper.INT_READ_FILE_WITH_HEAD)
-    print("raw commit file :", commitFileData.shape)
+    pr_change_file_path = projectConfig.getPRChangeFilePath()
 
-    commitPRRelationData = pandasHelper.readTSVFile(
-        os.path.join(pr_commit_relation_path, f'ALL_{projectName}_data_pr_commit_relation.tsv'),
-        pandasHelper.INT_READ_FILE_WITHOUT_HEAD, low_memory=False
+    """pr_change_file 数据库输出 自带抬头"""
+    prChangeFileData = pandasHelper.readTSVFile(
+        os.path.join(pr_change_file_path, f'ALL_{projectName}_data_pr_change_file.tsv'),
+        pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
     )
-    commitPRRelationData.columns = DataProcessUtils.COLUMN_NAME_PR_COMMIT_RELATION
-    print("pr_commit_relation:", commitPRRelationData.shape)
-
-    print("read file cost time:", datetime.now() - time1)
 
     """做三者连接"""
-    df = pandas.merge(df, commitPRRelationData, left_on='pr_number', right_on='pull_number')
+    df = pandas.merge(df, prChangeFileData, left_on='pr_number', right_on='pull_number')
     print("merge relation:", df.shape)
-    df = pandas.merge(df, commitFileData, left_on='sha', right_on='commit_sha')
-    df.reset_index(drop=True, inplace=True)
-    df = df[['pr_number', 'commit_sha', 'file_filename']].copy(deep=True)
+    df = df[['pr_number', 'filename']].copy(deep=True)
     df.drop_duplicates(inplace=True)
+    df.reset_index(drop=True, inplace=True)
 
     print("after merge:", df.shape)
 
     """获取filepath -> sub_filepath映射表"""
-    file_path_list = set(df['file_filename'].copy(deep=True))
+    file_path_list = set(df['filename'].copy(deep=True))
     file_path_dict = {}
     for file_path in file_path_list:
         sub_file_path = splitFileName(file_path)
@@ -536,13 +660,13 @@ def appendFilePathFeatureVector(inputDf, projectName, date, pull_number_name):
         file_path_dict[file_path] = file_path_dict[file_path].union(sub_file_path)
 
     """获取pr_number -> sub_filepath语料"""
-    pr_to_file_path = df[['pr_number', 'file_filename']]
+    pr_to_file_path = df[['pr_number', 'filename']]
     # 按照pr_number分组，获得原始语料（未经过分词的filepath）"""
     groups = dict(list(pr_to_file_path.groupby('pr_number')))
     # 获取目标语料（即经过自定义分词后的语料）
     pr_file_path_corpora = []
     for pr in groups:
-        paths = list(groups[pr]['file_filename'])
+        paths = list(groups[pr]['filename'])
         sub_paths = list(map(lambda x: list(file_path_dict[x]), paths))
         sub_paths = reduce(lambda x, y: x + y, sub_paths)
         pr_file_path_corpora.append(sub_paths)
@@ -610,10 +734,10 @@ def appendFilePathFeatureVector(inputDf, projectName, date, pull_number_name):
 
     return inputDf
 
-
 def appendTextualFeatureVector(inputDf, projectName, date, pull_number_name):
     """
-       用tf-idf模型计算pr的所有title,pr的文本的路径
+       用tf-idf模型计算pr的所有title,pr的文本
+       pr的信息直接从PRDataFile 那里获取
        @description: 给df, 在之前的dataframe的基础上面追加   pr路径形成的tf-idf特征向量
        @notice: datafrme 必须有pull_number_id，可以重复
        @param origin_df: 预先读取好的dataframe
@@ -634,19 +758,19 @@ def appendTextualFeatureVector(inputDf, projectName, date, pull_number_name):
     df.reset_index(drop=True, inplace=True)
     df.columns = ['pr_number']
 
-    """读取commit pr relation文件"""
-    data_train_path = projectConfig.getDataTrainPath()
-    pr_review_data = pandasHelper.readTSVFile(
-        data_train_path + os.sep + f'ALL_{projectName}_data_pr_review_commit_file.tsv')
-    pr_review_data.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
-    pr_review_data = pr_review_data[['pr_number', 'pr_title', 'pr_body']].copy(deep=True)
-    pr_review_data.drop_duplicates(inplace=True)
-    pr_review_data.reset_index(drop=True, inplace=True)
-    """处理NAN"""
-    pr_review_data.fillna(value='', inplace=True)
+    """读取pullrequestData 文件"""
+    pull_request_path = projectConfig.getPullRequestPath()
 
+    pullRequestData = pandasHelper.readTSVFile(
+        os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+        pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+    )
     """pull_number和pr review commit relation做拼接"""
-    df = pandas.merge(df, pr_review_data, how='left')
+    df = pandas.merge(df, pullRequestData, left_on='pr_number', right_on='number')
+    df = df[['pr_number', 'title', 'body']].copy(deep=True)
+    df.columns = ['pr_number', 'pr_title', 'pr_body']
+    df.drop_duplicates(inplace=True)
+    df.reset_index(drop=True, inplace=True)
     df.fillna(value='', inplace=True)
 
     """用于收集所有文本向量分词"""
