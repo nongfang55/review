@@ -1,5 +1,5 @@
 [authorization]
-token=ef638c320e51db0f2f5f9e356d906ebcc9523936
+token=fed1bed94f069fd633b5073332692f07d500e573
 [database]
 host=101.133.220.93
 username=review
@@ -8,8 +8,8 @@ database=REVIEW
 [debug]
 print=False
 [project]
-owner=babel
-repo=babel
+owner=yarnpkg
+repo=yarn
 limit=100
 start=3000
 commitFetchLoop=10

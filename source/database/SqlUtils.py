@@ -22,6 +22,7 @@ class SqlUtils:
     STR_TABLE_NAME_HEAD_REF_FORCE_PUSHED_EVENT = 'HeadRefForcePushedEvent'
     STR_TABLE_NAME_PULL_REQUEST_COMMIT = 'pullRequestCommit'
     STR_TABLE_NAME_PR_CHANGE_FILE = 'PRChangeFile'
+    STR_TABLE_NAME_REVIEW_CHANGE_RELATION = 'reviewChangeRelation'
 
     '''存储的表中的类型'''
     STR_KEY_INT = 'int'

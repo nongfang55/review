@@ -188,6 +188,13 @@ class StringKeyUtils:
     STR_FAILED_FETCH = 'Failed to fetch'
     STR_KEY_PULL_REQUEST_REVIEW_THREAD = 'PullRequestReviewThread'
 
+    '''review change relation 可能会用到的'''
+    STR_KEY_PULL_REQUEST_NODE_ID = 'pull_request_node_id'
+    STR_KEY_REVIEW_NODE_ID = 'review_node_id'
+    STR_KEY_CHANGE_NODE_ID = 'change_node_id'
+    STR_KEY_REVIEW_POSITION = 'review_position'
+    STR_KEY_CHANGE_POSITION = 'change_position'
+
     '''v4 接口可能会用到的'''
     STR_KEY_ERRORS = 'errors'
     STR_KEY_TYPE_NAME_JSON = '__typename'

@@ -12,6 +12,7 @@ from pandas import DataFrame
 from source.config.configPraser import configPraser
 from source.config.projectConfig import projectConfig
 from source.data.bean.PRTimeLineRelation import PRTimeLineRelation
+from source.data.bean.ReviewChangeRelation import ReviewChangeRelation
 from source.data.service.ApiHelper import ApiHelper
 from source.data.service.AsyncApiHelper import AsyncApiHelper
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
@@ -132,14 +133,21 @@ class AsyncProjectAllDataFetcher:
                 pr_node_id = item.get(StringKeyUtils.STR_KEY_PULL_REQUEST_NODE)
             origin = item.get(StringKeyUtils.STR_KEY_ORIGIN)
             prTimeLineRelation = PRTimeLineRelation.Parser.parser(origin)
+            prTimeLineRelation.position = item.get(StringKeyUtils.STR_KEY_POSITION, None)
+            prTimeLineRelation.pull_request_node = item.get(StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, None)
             prTimeLineItems.append(prTimeLineRelation)
 
         """解析pr时间线，找出触发过change_trigger的comment"""
         changeTriggerComments = []
+        ReviewChangeRelations = []
         pairs = PRTimeLineUtils.splitTimeLine(prTimeLineItems)
         for pair in pairs:
             review = pair[0]
             changes = pair[1]
+
+            reviewChangeRelationList = ReviewChangeRelation.parserV4.parser(pair)
+            ReviewChangeRelations.extend(reviewChangeRelationList)
+
             """若issueComment且后面有紧跟着的change，则认为该issueComment触发了change_trigger"""
             if (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT) and changes.__len__() > 0:
                 change_trigger_issue_comment = {
@@ -168,6 +176,10 @@ class AsyncProjectAllDataFetcher:
                                                                                              statistic)
             if change_trigger_review_comments is not None:
                 changeTriggerComments.extend(change_trigger_review_comments)
+            if reviewChangeRelationList.__len__() > 0:
+                ReviewChangeRelations.extend(reviewChangeRelationList)
+
+        await AsyncSqlHelper.storeBeanDateList(ReviewChangeRelations, mysql)
 
         """计数"""
         statistic.lock.acquire()
@@ -314,7 +326,7 @@ class AsyncProjectAllDataFetcher:
         PRTIMELINE_COLUMNS = ["pullrequest_node", "timelineitem_node",
                               "create_at", "typename", "position", "origin"]
         """初始化文件"""
-        target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
+        target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
         target_content = DataFrame(columns=PRTIMELINE_COLUMNS)
         pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
         Logger.logi("--------------begin--------------")
@@ -339,10 +351,11 @@ class AsyncProjectAllDataFetcher:
                 Logger.logi("fetched, cost time: {1}".format(pr_timelines.__len__(), datetime.now() - loop_begin_time))
                 for pr_timeline in pr_timelines:
                     target_content = target_content.append(pr_timeline.toTSVFormat(), ignore_index=True)
-            target_content = target_content[PRTIMELINE_COLUMNS].copy(deep=True)
-            pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW,
-                                      header=pandasHelper.INT_WRITE_WITHOUT_HEADER)
-            pos += fetchLimit
+            if not target_content.empty:
+                target_content = target_content[PRTIMELINE_COLUMNS].copy(deep=True)
+                pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW,
+                                          header=pandasHelper.INT_WRITE_WITHOUT_HEADER)
+                pos += fetchLimit
             sleepSec = random.randint(10, 20)
             Logger.logi("sleep {0}s...".format(sleepSec))
             time.sleep(sleepSec)
@@ -475,7 +488,7 @@ class AsyncProjectAllDataFetcher:
         pr_nodes.sort()
 
         """设置fetch参数"""
-        pos = 4160
+        pos = 0
         fetchLimit = 20
         size = pr_nodes.__len__()
         Logger.logi("there are {0} prs need to analyze".format(pr_nodes.__len__()))
@@ -512,10 +525,11 @@ class AsyncProjectAllDataFetcher:
 if __name__ == '__main__':
     # AsyncProjectAllDataFetcher.getDataForRepository(configPraser.getOwner(), configPraser.getRepo(),
     #                                                 configPraser.getLimit(), configPraser.getStart())
-    AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
+    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
     # AsyncProjectAllDataFetcher.getDataForRepository("django", "django", 3500, 11000)
-    # AsyncProjectAllDataFetcher.getPRTimeLine("akka", 'akka')
-    # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    # AsyncProjectAllDataFetcher.getPRTimeLine("yarnpkg", "yarn")
+    # AsyncProjectAllDataFetcher.checkPRTimeLineResult()
+    AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
     # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
 
     #AsyncProjectAllDataFetcher.checkPRTimeLineResult();

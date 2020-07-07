@@ -15,6 +15,7 @@ from source.data.bean.PullRequest import PullRequest
 from source.data.bean.PullRequestCommit import PullRequestCommit
 from source.data.bean.Repository import Repository
 from source.data.bean.Review import Review
+from source.data.bean.ReviewChangeRelation import ReviewChangeRelation
 from source.data.bean.ReviewComment import ReviewComment
 from source.data.bean.User import User
 from source.database.SqlExecuteHelper import SqlExecuteHelper
@@ -60,6 +61,8 @@ class AsyncSqlHelper:
             return SqlUtils.STR_TABLE_NAME_PULL_REQUEST_COMMIT
         elif isinstance(bean, PRChangeFile):
             return SqlUtils.STR_TABLE_NAME_PR_CHANGE_FILE
+        elif isinstance(bean, ReviewChangeRelation):
+            return SqlUtils.STR_TABLE_NAME_REVIEW_CHANGE_RELATION
         else:
             return None
 
