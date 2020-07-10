@@ -1,5 +1,6 @@
 # coding=gbk
 import asyncio
+import difflib
 import json
 import random
 import time
@@ -9,6 +10,7 @@ from datetime import datetime
 import aiohttp
 
 from source.config.configPraser import configPraser
+from source.data.bean.Blob import Blob
 from source.data.bean.Comment import Comment
 from source.data.bean.CommentRelation import CommitRelation
 from source.data.bean.Commit import Commit
@@ -21,6 +23,7 @@ from source.data.bean.PRTimeLineRelation import PRTimeLineRelation
 from source.data.bean.PullRequest import PullRequest
 from source.data.bean.Review import Review
 from source.data.bean.ReviewComment import ReviewComment
+from source.data.bean.TreeEntry import TreeEntry
 from source.data.bean.User import User
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
 from source.data.service.BeanParserHelper import BeanParserHelper
@@ -604,7 +607,6 @@ class AsyncApiHelper:
         api = api.replace(StringKeyUtils.STR_COMMIT_SHA, str(commit_sha))
         return api
 
-
     @staticmethod
     async def fetchBeanData(session, api, isMediaType=False):
         """异步获取数据通用接口（重要）"""
@@ -643,7 +645,7 @@ class AsyncApiHelper:
             if proxy is not None:
                 proxy = proxy.split('//')[1]
                 await ProxyHelper.judgeProxy(proxy, ProxyHelper.INT_NEGATIVE_POINT)
-            print("judge end")
+            #print("judge end")
             """循环重试"""
             return await AsyncApiHelper.fetchBeanData(session, api, isMediaType=isMediaType)
 
@@ -785,7 +787,8 @@ class AsyncApiHelper:
                             await AsyncSqlHelper.storeBeanDateList(prTimeLineItems, mysql)
                         except Exception as e:
                             Logger.loge(json.dumps(e.args))
-                            Logger.loge("this pr's timeline: {0} fail to insert".format(node.get(StringKeyUtils.STR_KEY_ID)))
+                            Logger.loge(
+                                "this pr's timeline: {0} fail to insert".format(node.get(StringKeyUtils.STR_KEY_ID)))
                         # 做同步处理
                         statistic.lock.acquire()
                         statistic.usefulTimeLineCount += 1
@@ -798,6 +801,7 @@ class AsyncApiHelper:
                     return prTimeLines
                 except Exception as e:
                     print(e)
+
     @staticmethod
     async def analyzeReviewChangeTrigger(pr_node_id, pair, mysql, statistic):
         """分析review和随后的changes是否有trigger关系"""
@@ -834,6 +838,7 @@ class AsyncApiHelper:
         """
 
         """commit node工具类"""
+
         class CommitNode:
             willFetch = None
             oid = None
@@ -845,6 +850,7 @@ class AsyncApiHelper:
                 self.parents = parents
 
         """node group工具方法start"""
+
         def findNodes(nodes, oid):
             for node in nodes:
                 if node.oid == oid:
@@ -921,6 +927,7 @@ class AsyncApiHelper:
                         addNode.append(newNode)
                 nodes.extend(addNode)
                 return nodes
+
         """node group工具方法end"""
 
         review = pair[0]
@@ -932,7 +939,7 @@ class AsyncApiHelper:
         comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timeline_item_node, mysql)
         if comments is None:
             return None
-        """通过comment的 position、originalPosition信息补全line, originalLine 需要对应commit的file的patch"""
+        """通过comment的 position、originalPosition信息补全originalLine, side 需要对应commit的file的patch"""
         oids = [comment.original_commit_id for comment in comments]
         """获取这些的changes files"""
         files = await AsyncApiHelper.getFilesFromStore(oids, mysql)
@@ -943,9 +950,8 @@ class AsyncApiHelper:
             for file in files:
                 if file.commit_sha == comment.original_commit_id and file.filename == comment.path:
                     """计算 line 和 origin line"""
-                    line, original_line = TextCompareUtils.getStartLine(file.patch, comment.position,
-                                                                        comment.original_position)
-                    comment.line = line
+                    original_line, side = TextCompareUtils.getStartLine(file.patch, comment.original_position)
+                    comment.side = side
                     comment.original_line = original_line
 
                     """line 是改动后文本评论指向的行数， original line 是改动前的文本评论指向行数
@@ -1144,6 +1150,226 @@ class AsyncApiHelper:
         return change_trigger_comments
 
     @staticmethod
+    async def analyzeReviewChangeTriggerByBlob(pr_node_id, pair, mysql, statistic):
+
+        review = pair[0]
+        changes = pair[1]
+        t1 = datetime.now()
+        """从数据库获取review comments(注：一个review 可能会关联多个comment，每个comment会指定一个文件和对应代码行)"""
+        comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timeline_item_node, mysql)
+        if comments is None:
+            return None
+
+        """遍历review之后的changes，判断是否有comment引起change的情况"""
+        change_trigger_comments = []
+
+        if changes is None or changes.__len__() == 0:
+            """缺失的review comment 弥补"""
+            for comment in comments:
+                change_trigger_comments.append({
+                    "pullrequest_node": pr_node_id,
+                    "user_login": comment.user_login,
+                    "comment_node": comment.node_id,
+                    "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                    "change_trigger": -1,
+                    "filepath": comment.path
+                })
+            return change_trigger_comments
+
+        """通过comment的 position、originalPosition信息补全line, originalLine 需要对应commit的file的patch"""
+        oids = [comment.original_commit_id for comment in comments]
+        """获取这些的changes files"""
+        t11 = datetime.now()
+        files = await AsyncApiHelper.getFilesFromStore(oids, mysql)
+        t21 = datetime.now()
+        print("get file cost:", t21-t11, " total:", t21 - t1)
+        """依次补全"""
+
+        needFetch = False
+        for comment in comments:
+            """comment默认未触发change_trigger"""
+            comment.change_trigger = -1
+            # if comment.original_line is None:
+            #     needFetch = True
+            #     break
+
+            for file in files:
+                if file.commit_sha == comment.original_commit_id and file.filename == comment.path:
+                    """计算origin line 和 side"""
+                    original_line, side = TextCompareUtils.getStartLine(file.patch, comment.original_position)
+
+                    """
+                     注 ： 2020.07.09 在patch是多个patch组合的时候， 自己计算出来的original_line 可能会有1行的误差
+                           具体原因不明  对比例子: https://github.com/gib94927855/Review/pull/3#pullrequestreview-445279262
+                                                  https://github.com/yarnpkg/yarn/pull/2723
+                    """
+
+                    comment.side = side
+                    comment.original_line = original_line
+
+                    """line 是改动后文本评论指向的行数， original line 是改动前的文本评论指向行数
+                       有 line 就别用 original line
+                    """
+
+        # """"现阶段妥协  先看comment 有没有 original_line 字段， 没有的话comment 重新获取补全"""
+        # if needFetch:
+        #     async with aiohttp.ClientSession() as session:
+        #         """数据库获取 pr"""
+        #         tempPR = PullRequest()
+        #         tempPR.node_id = pr_node_id
+        #         pr_number = None
+        #         result = await AsyncSqlHelper.queryBeanData([tempPR], mysql, [[StringKeyUtils.STR_KEY_NODE_ID]])
+        #         if result[0].__len__() > 0:
+        #             pr_number = result[0][0][PullRequest.getItemKeyList().index(StringKeyUtils.STR_KEY_NUMBER)]
+        #         """v3 获取comments"""
+        #         if pr_number is not None:
+        #             """获取review comment信息"""
+        #             api = AsyncApiHelper.getReviewCommentForPullRequestApi(pr_number)
+        #             json = await AsyncApiHelper.fetchBeanData(session, api, isMediaType=True)
+        #             reviewComments = await AsyncApiHelper.parserReviewComment(json)
+        #             await AsyncSqlHelper.updateBeanDateList(reviewComments, mysql)
+        #             for comment in comments:
+        #                 for comment_t in reviewComments:
+        #                     if comment.node_id == comment_t.node_id:
+        #                         comment.side = comment_t.side
+        #                         comment.original_line = comment_t.original_line
+
+        """遍历comment，对于comment的side是 LEFT 的场景，需要把相对行数转换到 RIGHT 的行数版本"""
+        for comment in comments:
+            if comment.side == 'LEFT':
+                for file in files:
+                    if file.commit_sha == comment.original_commit_id and file.filename == comment.path:
+                        comment.temp_original_line = TextCompareUtils.ConvertLeftToRight(file.patch, comment.original_position)
+            else:
+                comment.temp_original_line = comment.original_line
+
+        t2 = datetime.now()
+        print("update comment cost time:", t2 - t1, '  total:', t2 - t1)
+
+        for change in changes:  # 对后面连续改动依次遍历
+            reviewCommit = review.pull_request_review_commit
+            changeCommit = None
+            if change.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
+                changeCommit = change.pull_request_commit
+            elif change.typename == StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT:
+                changeCommit = change.headRefForcePushedEventAfterCommit
+
+            if changeCommit is None or reviewCommit is None:
+                break
+            try:
+                """获取两个commit 对应的 tree_id"""
+                commitTreeList = await AsyncApiHelper.getCommitsByCheckTreeOID([reviewCommit, changeCommit], mysql)
+                print("commitTreeListL", commitTreeList)
+                changeCommitTreeOid = None
+                reviewCommitTreeOid = None
+                for oid, tree_oid in commitTreeList:
+                    if oid == changeCommit:
+                        changeCommitTreeOid = tree_oid
+                    elif oid == reviewCommit:
+                        reviewCommitTreeOid = tree_oid
+
+                for comment in comments:
+
+                    t3 = datetime.now()
+
+                    """依次遍历每一个 comment, 寻找 comment 对应的文件的blob
+                       在两个commit版本中的文本
+                    """
+                    if comment.temp_original_line is None or comment.side is None:
+                        comment.change_trigger = -1
+                        continue
+
+                    fileName = comment.path
+                    reviewBlob = await AsyncApiHelper.getBlob(reviewCommitTreeOid, fileName, mysql)
+                    changeBlob = await AsyncApiHelper.getBlob(changeCommitTreeOid, fileName, mysql)
+
+                    if reviewBlob == changeBlob:
+                        comment.change_trigger = -1
+                        continue
+
+                    if reviewBlob is None or changeBlob is None:
+                        print("blob is None!")
+
+                    print(reviewBlob.__len__())
+                    print(changeBlob.__len__())
+
+                    t4 = datetime.now()
+                    print("fetch blob cost time:", t4 - t3, '  total:', t4 - t1)
+
+
+
+                    if not configPraser.getIsChangeTriggerByLine():
+                        """对于不细致的ChangeTrigger版本  两个内容不相同即可"""
+                        if reviewBlob != changeBlob:
+                            comment.change_trigger = 1
+                        else:
+                            if comment.change_trigger == -1:
+                                comment.change_trigger = -1
+                    else:
+                        """获取两个Blob的文本内容之后，比较差异"""
+                        review_text_lines = reviewBlob.splitlines()
+                        change_text_lines = changeBlob.splitlines()
+
+                        diff = difflib.unified_diff(
+                            review_text_lines,
+                            change_text_lines,
+                            lineterm='',
+                        )
+
+                        patch = '\n'.join(diff)
+                        # print(patch)
+                        """解析 patch"""
+                        """patch 的前两行  
+                           --- 
+                           +++
+                        去除"""
+                        textChanges = TextCompareUtils.patchParser(patch[10:])
+                        dis = 10000000
+                        """依次遍历每个patch 找到每个patch 中距离 original_line 最进的改动距离"""
+                        for textChange in textChanges:
+                            start_left, _, start_right, _ = textChange[0]
+                            status = textChange[1]
+                            """curPos 选取 left， 因为对于变动，comment 的行数属于老版本"""
+                            curPos = start_left - 1
+                            for s in status:
+                                if s != '+':
+                                    curPos += 1
+                                if s != ' ':
+                                    dis = min(dis, abs(comment.temp_original_line - curPos))
+                        if dis <= 10:
+                            if comment.change_trigger == -1:
+                                comment.change_trigger = dis
+                            else:
+                                comment.change_trigger = min(comment.change_trigger, dis)
+                        else:
+                            if comment.change_trigger == -1:
+                                comment.change_trigger = -1
+
+                        t5 = datetime.now()
+                        print("compare comment cost time:", t5 - t4, '  total:', t5 - t1)
+            except Exception as e:
+                print(e)
+                continue
+        for comment in comments:
+            change_trigger_comments.append({
+                "pullrequest_node": pr_node_id,
+                "user_login": comment.user_login,
+                "comment_node": comment.node_id,
+                "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                "change_trigger": comment.change_trigger,
+                "filepath": comment.path
+            })
+        statistic.lock.acquire()
+        statistic.usefulChangeTrigger += [x for x in comments if x.change_trigger > 0].__len__()
+        statistic.lock.release()
+
+        # 更新comments的change_trigger, line, original_line信息"""
+        await AsyncSqlHelper.updateBeanDateList(comments, mysql)
+        t6 = datetime.now()
+        print("all total:", t6 - t1)
+        return change_trigger_comments
+
+    @staticmethod
     async def getReviewCommentsByNodeFromStore(node_id, mysql):
         """从数据库中读取review id 到时候更新只要从数据库中增加就ok了"""
 
@@ -1247,6 +1473,196 @@ class AsyncApiHelper:
         beanList.extend(relationList)
         await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
         return relationList
+
+    @staticmethod
+    async def getCommitsByCheckTreeOID(oids, mysql):
+        """获取 oids 列表的commit
+           注： 2020.7.8 commit新增字段 tree_oid 因为commit点在数据库有 22W+
+                一次性更新比较困难  做兼容
+                先从本地数据库获取，如果有但是没有tree_oid 则也重新获取
+                
+                本地没有或者数据库没有tree_oid字段的commit也重新获取
+                没有的点是store 而已经有的点是 update
+        """
+
+        """先从本地读取"""
+        beans = []
+        needUpdateList = []
+        needFetchList = oids.copy()
+        resultCommitList = []
+
+        """update 与 fetch 一个 update,一个store 使用不同sql"""
+        updateBeanList = []
+        fetchBeanList = []
+        for oid in oids:
+            bean = Commit()
+            bean.sha = oid
+            beans.append(bean)
+
+        results = await AsyncSqlHelper.queryBeanData(beans, mysql, [[StringKeyUtils.STR_KEY_SHA]] * beans.__len__())
+        # print("result:", results)
+        treeOidPos = Commit.getItemKeyList().index(StringKeyUtils.STR_KEY_TREE_OID)
+        shaPos = Commit.getItemKeyList().index(StringKeyUtils.STR_KEY_SHA)
+        print(treeOidPos)
+
+        for pos, result in enumerate(results):
+            sha = result[0][shaPos]
+            treeOid = result[0][treeOidPos]
+            print(pos, sha, treeOid)
+
+            """根据结果更新列表"""
+            needFetchList.remove(sha)
+            if treeOid is None:
+                needUpdateList.append(sha)
+            else:
+                resultCommitList.append((sha, treeOid))
+
+        print("need update:", needUpdateList)
+        print("need fetched:", needFetchList)
+
+        async with aiohttp.ClientSession() as session:
+            """从api 获取 commit 信息，用于更新"""
+            for oid in needUpdateList:
+                api = AsyncApiHelper.getCommitApi(oid)
+                json = await AsyncApiHelper.fetchBeanData(session, api)
+                commit = await AsyncApiHelper.parserCommit(json)
+                commit.has_file_fetched = True
+                resultCommitList.append((commit.sha, commit.tree_oid))
+
+                if commit.parents is not None:
+                    updateBeanList.extend(commit.parents)
+                if commit.files is not None:
+                    updateBeanList.extend(commit.files)
+
+                updateBeanList.append(commit)
+            await AsyncSqlHelper.updateBeanDateList(updateBeanList, mysql)
+
+            for oid in needFetchList:
+                api = AsyncApiHelper.getCommitApi(oid)
+                json = await AsyncApiHelper.fetchBeanData(session, api)
+                commit = await AsyncApiHelper.parserCommit(json)
+                commit.has_file_fetched = True
+                resultCommitList.append((commit.sha, commit.tree_oid))
+
+                if commit.parents is not None:
+                    fetchBeanList.extend(commit.parents)
+                if commit.files is not None:
+                    fetchBeanList.extend(commit.files)
+
+                fetchBeanList.append(commit)
+            await AsyncSqlHelper.storeBeanDateList(fetchBeanList, mysql)
+
+        return resultCommitList
+
+    @staticmethod
+    async def getBlob(tree_oid, path, mysql):
+        """获取 给定 Tree对应的 path的blob对象
+           路径按照 循环获取，不走递归
+        """
+        async with aiohttp.ClientSession() as session:
+            """分割路径"""
+            t1 = datetime.now()
+            paths = path.split('/')
+            print(paths)
+            blobText = None
+
+            """先获取tree的根节点"""
+            curOid = tree_oid
+            curPos = 0
+            beanList = []
+            isBlobFind = False
+
+            while curPos < paths.__len__():
+                treeEntryList = []
+
+                """先尝试数据库中读取"""
+                tempEntry = TreeEntry()
+                tempEntry.repository = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo
+                tempEntry.parent_oid = curOid
+                tempEntry.child_path = paths[curPos]
+                result = await AsyncSqlHelper.queryBeanData([tempEntry], mysql, [[StringKeyUtils.STR_KEY_REPOSITORY,
+                                                                                 StringKeyUtils.STR_KEY_PARENT_OID,
+                                                                                  StringKeyUtils.STR_KEY_CHILD_PATH]])
+                if result[0].__len__() > 0:
+                    curOid = result[0][0][TreeEntry.getItemKeyList().index(StringKeyUtils.STR_KEY_CHILD_OID)]
+                    childType = result[0][0][TreeEntry.getItemKeyList().index(StringKeyUtils.STR_KEY_CHILD_TYPE)]
+                    curPos += 1
+                    if curPos == paths.__len__() and childType == StringKeyUtils.STR_KEY_BLOB:
+                        isBlobFind = True
+                else:
+                    """从v4接口获得tree 关系"""
+                    args = {"expression": "", "owner": AsyncApiHelper.owner,
+                            "name": AsyncApiHelper.repo, "oid": curOid}
+                    api = AsyncApiHelper.getGraphQLApi()
+                    query = GraphqlHelper.getTreeByOid()
+                    resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
+                    print(resultJson)
+
+                    if isinstance(resultJson, dict):
+                        rawData = resultJson.get(StringKeyUtils.STR_KEY_DATA, None)
+                        if isinstance(rawData, dict):
+                            repoData = rawData.get(StringKeyUtils.STR_KEY_REPOSITORY, None)
+                            if isinstance(repoData, dict):
+                                objectData = repoData.get(StringKeyUtils.STR_KEY_OBJECT, None)
+                                treeEntryList = TreeEntry.parserV4.parser(objectData)
+                                beanList.extend(treeEntryList)
+
+                    isFind = False
+                    for entry in treeEntryList:
+                        if entry.child_path == paths[curPos]:
+                            curPos += 1
+                            curOid = entry.child_oid
+                            isFind = True
+
+                            if curPos == paths.__len__() and entry.child_type == StringKeyUtils.STR_KEY_BLOB:
+                                isBlobFind = True
+                            break
+
+                    if not isFind:
+                        """tree 被删除"""
+                        isBlobFind = False
+                        break
+
+            if isBlobFind:
+                """curOid 就是目标的blob对象"""
+                print(curOid)
+
+                """先从数据库获取blob"""
+                tempBlob = Blob()
+                tempBlob.repository = AsyncApiHelper.owner + '/' + AsyncApiHelper.repo
+                tempBlob.oid = curOid
+                result = await AsyncSqlHelper.queryBeanData([tempBlob], mysql, [[StringKeyUtils.STR_KEY_REPOSITORY,
+                                                                                 StringKeyUtils.STR_KEY_OID]])
+                if result[0].__len__() > 0:
+                    blobText = result[0][0][Blob.getItemKeyList().index(StringKeyUtils.STR_KEY_TEXT)]
+
+                if blobText is None:
+                    """从api获取Blob对象"""
+                    args = {"expression": "", "owner": AsyncApiHelper.owner,
+                            "name": AsyncApiHelper.repo, "oid": curOid}
+                    api = AsyncApiHelper.getGraphQLApi()
+                    query = GraphqlHelper.getTreeByOid()
+                    resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
+                    print(resultJson)
+
+                    if isinstance(resultJson, dict):
+                        rawData = resultJson.get(StringKeyUtils.STR_KEY_DATA, None)
+                        if isinstance(rawData, dict):
+                            repoData = rawData.get(StringKeyUtils.STR_KEY_REPOSITORY, None)
+                            if isinstance(repoData, dict):
+                                objectData = repoData.get(StringKeyUtils.STR_KEY_OBJECT, None)
+                                blob = Blob.parserV4.parser(objectData)
+                                blobText = blob.text
+                                beanList.append(blob)
+
+            await  AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+
+            print("blob cost time:", datetime.now() - t1)
+
+            return blobText
+
+
+
 
     @staticmethod
     async def downloadCommits(projectName, oid, semaphore, mysql, statistic):

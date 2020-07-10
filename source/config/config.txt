@@ -1,5 +1,5 @@
 [authorization]
-token=fed1bed94f069fd633b5073332692f07d500e573
+token=75a21ea334efd3f1be2723254900cf7e1e7eb94a
 [database]
 host=101.133.220.93
 username=review
@@ -11,13 +11,13 @@ print=False
 owner=yarnpkg
 repo=yarn
 limit=100
-start=3000
+start=1000
 commitFetchLoop=10
 [network]
 timeout=60
 retry=100
 proxy=False
-semaphore=35
+semaphore=100
 api=4
 [recommend]
 topk=10
@@ -25,3 +25,4 @@ testNumber=10
 reviewerNumber=10
 FPSRemoveAuthor=False
 FPSCtypes=False
+changeTriggerByLine=True

@@ -29,6 +29,10 @@ class GraphqlHelper:
         return GraphqlHelper.STR_KEY_QUERY_PR_ALL
 
     @staticmethod
+    def getTreeByOid():
+        return GraphqlHelper.STR_KEY_QUERY_TREE
+
+    @staticmethod
     def getGraphqlVariables(body, args=None):
         """返回传递参数需要的json"""
         if args is None or isinstance(body, dict) is False:
@@ -296,6 +300,10 @@ query($ids:[ID!]!) {
                  name
                  email
                 }
+                tree {
+                  id
+                  oid
+                }
                 messageBody
                 additions
                 deletions
@@ -363,6 +371,10 @@ query($ids:[ID!]!) {
                  name
                  email
                 }
+                tree {
+                   oid
+                   id
+                }
                 messageBody
                 additions
                 deletions
@@ -417,3 +429,42 @@ query($ids:[ID!]!) {
         }  
       } 
     }'''
+
+    STR_KEY_QUERY_TREE = """query($name:String!, $owner:String!, $expression:String, $oid:GitObjectID) { 
+  repository(name:$name, owner:$owner) {
+     object(expression:$expression, oid:$oid) {
+        __typename
+        ... on Blob {
+        byteSize
+        isBinary
+        isTruncated
+        text
+        commitUrl
+        commitResourcePath
+        oid
+        id
+        repository {
+          nameWithOwner
+        }
+     }
+
+     ... on Tree {
+        oid
+        id
+        entries {
+          mode
+          name
+          type
+          object {
+            oid
+            id
+          }
+        }
+        repository {
+          nameWithOwner
+        }
+     }
+
+    }
+  }
+}"""

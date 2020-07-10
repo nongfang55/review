@@ -36,6 +36,7 @@ class configPraser:  # 用于解析config。ini文件
     STR_FPS_REMOVE_AUTHOR = 'FPSRemoveAuthor'
     STR_FPS_CTYPES = 'FPSCtypes'
     STR_COMMIT_FETCH_LOOP = 'commitFetchLoop'
+    STR_CHANGE_TRIGGER_BY_LINE = 'changeTriggerByLine'
 
     cacheDict = {}  # 用于缓存的字典，防止多次访问拖慢速度
 
@@ -197,10 +198,27 @@ class configPraser:  # 用于解析config。ini文件
 
     @staticmethod
     def getApiVersion():
-        cp = configparser.ConfigParser()
-        cp.read(projectConfig.getConfigPath())
-        return int(cp.get(configPraser.STR_NETWORK, configPraser.STR_API))
+        temp = configPraser.cacheDict.get((configPraser.STR_NETWORK, configPraser.STR_API), None)
+        if temp is None:
+            cp = configparser.ConfigParser()
+            cp.read(projectConfig.getConfigPath())
+            res = int(cp.get(configPraser.STR_NETWORK, configPraser.STR_API))
+            configPraser.cacheDict[(configPraser.STR_NETWORK, configPraser.STR_API)] = res
+            return res
+        else:
+            return temp
 
+    @staticmethod
+    def getIsChangeTriggerByLine():
+        temp = configPraser.cacheDict.get((configPraser.STR_RECOMMEND, configPraser.STR_CHANGE_TRIGGER_BY_LINE), None)
+        if temp is None:
+            cp = configparser.ConfigParser()
+            cp.read(projectConfig.getConfigPath())
+            res = cp.get(configPraser.STR_RECOMMEND, configPraser.STR_CHANGE_TRIGGER_BY_LINE)
+            configPraser.cacheDict[(configPraser.STR_RECOMMEND, configPraser.STR_CHANGE_TRIGGER_BY_LINE)] = res
+            return res
+        else:
+            return temp
 
 if __name__ == '__main__':
     print(configPraser.getApiVersion())

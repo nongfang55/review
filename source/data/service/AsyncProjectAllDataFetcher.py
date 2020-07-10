@@ -172,8 +172,7 @@ class AsyncProjectAllDataFetcher:
                 changeTriggerComments.append(change_trigger_issue_comment)
                 continue
             """若为普通review，则看后面紧跟着的commit是否和reviewCommit有文件重合的改动"""
-            change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTrigger(pr_node_id, pair, mysql,
-                                                                                             statistic)
+            change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTriggerByBlob(pr_node_id, pair, mysql, statistic)
             if change_trigger_review_comments is not None:
                 changeTriggerComments.extend(change_trigger_review_comments)
             if reviewChangeRelationList.__len__() > 0:
@@ -433,14 +432,23 @@ class AsyncProjectAllDataFetcher:
             if pr not in pr_nodes:
                 re_analyze_prs.append(pr)
             else:
-                review_comment_trigger = group[(group['comment_type'] == StringKeyUtils.STR_LABEL_REVIEW_COMMENT) & (group['change_trigger'] == '1')]
+                review_comment_trigger = group.loc[(group['comment_type'] == StringKeyUtils.STR_LABEL_REVIEW_COMMENT) & (group['change_trigger'] >= 0)]
                 if review_comment_trigger is None or review_comment_trigger.empty:
                     re_analyze_prs.append(pr)
         Logger.logi("there are {0} prs need to re analyze".format(re_analyze_prs.__len__()))
 
+        list1 = list(set(timeline_df['pullrequest_node']))
+        list2 = list(set(change_trigger_df['pullrequest_node']))
+        list3 = [x for x in list1 if x not in list2]
+
+        timeline_df['label'] = timeline_df['pullrequest_node'].apply(lambda x: x not in list3)
+        df1 = timeline_df.loc[timeline_df['label'] == 1].copy(deep=True)
+        df2 = timeline_df.loc[timeline_df['label'] == 0].copy(deep=True)
+
+
         """设置fetch参数"""
         pos = 0
-        fetchLimit = 20
+        fetchLimit = 40
         size = re_analyze_prs.__len__()
         while pos < size:
             Logger.logi("start: {0}, end: {1}, all: {2}".format(pos, pos + fetchLimit, size))
@@ -489,11 +497,13 @@ class AsyncProjectAllDataFetcher:
 
         """设置fetch参数"""
         pos = 0
-        fetchLimit = 20
+        fetchLimit = 100
         size = pr_nodes.__len__()
         Logger.logi("there are {0} prs need to analyze".format(pr_nodes.__len__()))
+        t1 = datetime.now()
 
         while pos < size:
+            print("now:", pos, ' total:', size, 'cost time:', datetime.now() - t1)
             Logger.logi("start: {0}, end: {1}, all: {2}".format(pos, pos + fetchLimit, size))
 
             """按照爬取限制取子集"""

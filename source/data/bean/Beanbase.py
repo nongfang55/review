@@ -32,6 +32,7 @@ class BeanBase:
     DATA_TYPE_STRING = 2
     DATA_TYPE_TEXT = 3
     DATA_TYPE_BOOLEAN = 4
+    DATA_TYPE_LONG_TEXT = 5
 
     class parser:
         '''用于解析json的数据类'''

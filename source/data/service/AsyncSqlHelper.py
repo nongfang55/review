@@ -1,6 +1,7 @@
 # coding=gbk
 from source.config.configPraser import configPraser
 from source.data.bean.Beanbase import BeanBase
+from source.data.bean.Blob import Blob
 from source.data.bean.Branch import Branch
 from source.data.bean.CommentRelation import CommitRelation
 from source.data.bean.Commit import Commit
@@ -17,6 +18,7 @@ from source.data.bean.Repository import Repository
 from source.data.bean.Review import Review
 from source.data.bean.ReviewChangeRelation import ReviewChangeRelation
 from source.data.bean.ReviewComment import ReviewComment
+from source.data.bean.TreeEntry import TreeEntry
 from source.data.bean.User import User
 from source.database.SqlExecuteHelper import SqlExecuteHelper
 from source.database.SqlUtils import SqlUtils
@@ -63,6 +65,10 @@ class AsyncSqlHelper:
             return SqlUtils.STR_TABLE_NAME_PR_CHANGE_FILE
         elif isinstance(bean, ReviewChangeRelation):
             return SqlUtils.STR_TABLE_NAME_REVIEW_CHANGE_RELATION
+        elif isinstance(bean, TreeEntry):
+            return SqlUtils.STR_TABLE_NAME_TREE_ENTRY
+        elif isinstance(bean, Blob):
+            return SqlUtils.STR_TABLE_NAME_GIT_BLOB
         else:
             return None
 

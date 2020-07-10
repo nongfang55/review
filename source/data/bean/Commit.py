@@ -30,6 +30,8 @@ class Commit(BeanBase):
         self.committer_login = None
         """用于判断是否保存对应的gitFile"""
         self.has_file_fetched = None
+        """记录commit 指向的Tree"""
+        self.tree_oid = None
 
     @staticmethod
     def getIdentifyKeys():
@@ -42,7 +44,7 @@ class Commit(BeanBase):
                  StringKeyUtils.STR_KEY_COMMIT_COMMITTER_DATE, StringKeyUtils.STR_KEY_COMMIT_MESSAGE,
                  StringKeyUtils.STR_KEY_COMMIT_COMMENT_COUNT, StringKeyUtils.STR_KEY_STATUS_TOTAL,
                  StringKeyUtils.STR_KEY_STATUS_ADDITIONS, StringKeyUtils.STR_KEY_STATUS_DELETIONS,
-                 StringKeyUtils.STR_KEY_HAS_FILE_FETCHED]
+                 StringKeyUtils.STR_KEY_HAS_FILE_FETCHED, StringKeyUtils.STR_KEY_TREE_OID]
 
         return items
 
@@ -59,7 +61,8 @@ class Commit(BeanBase):
                  (StringKeyUtils.STR_KEY_STATUS_TOTAL, BeanBase.DATA_TYPE_INT),
                  (StringKeyUtils.STR_KEY_STATUS_ADDITIONS, BeanBase.DATA_TYPE_INT),
                  (StringKeyUtils.STR_KEY_STATUS_DELETIONS, BeanBase.DATA_TYPE_INT),
-                 (StringKeyUtils.STR_KEY_HAS_FILE_FETCHED, BeanBase.DATA_TYPE_BOOLEAN)]
+                 (StringKeyUtils.STR_KEY_HAS_FILE_FETCHED, BeanBase.DATA_TYPE_BOOLEAN),
+                 (StringKeyUtils.STR_KEY_TREE_OID, BeanBase.DATA_TYPE_STRING)]
 
         return items
 
@@ -74,7 +77,8 @@ class Commit(BeanBase):
                  StringKeyUtils.STR_KEY_STATUS_TOTAL: self.status_total,
                  StringKeyUtils.STR_KEY_STATUS_ADDITIONS: self.status_additions,
                  StringKeyUtils.STR_KEY_STATUS_DELETIONS: self.status_deletions,
-                 StringKeyUtils.STR_KEY_HAS_FILE_FETCHED: self.has_file_fetched}
+                 StringKeyUtils.STR_KEY_HAS_FILE_FETCHED: self.has_file_fetched,
+                 StringKeyUtils.STR_KEY_TREE_OID: self.tree_oid}
 
         return items
 
@@ -104,6 +108,10 @@ class Commit(BeanBase):
                         if res.commit_committer_date is not None:
                             res.commit_committer_date = datetime.strptime(res.commit_committer_date,
                                                                           StringKeyUtils.STR_STYLE_DATA_DATE)
+
+                    treeData = commitData.get(StringKeyUtils.STR_KEY_TREE, None)
+                    if treeData is not None and isinstance(treeData, dict):
+                        res.tree_oid = treeData.get(StringKeyUtils.STR_KEY_SHA, None)
 
                     res.commit_message = commitData.get(StringKeyUtils.STR_KEY_MESSAGE, None)
                     res.commit_comment_count = commitData.get(StringKeyUtils.STR_KEY_COMMENT_COUNT, None)
@@ -164,6 +172,9 @@ class Commit(BeanBase):
                     res.committer = None
                     res.committer_login = committerData.get(StringKeyUtils.STR_KEY_NAME, None)
                     res.commit_committer_date = None
+                treeData = src.get(StringKeyUtils.STR_KEY_TREE, None)
+                if treeData is not None and isinstance(treeData, dict):
+                    res.tree_oid = treeData.get(StringKeyUtils.STR_KEY_OID, None)
 
                 res.commit_message = src.get(StringKeyUtils.STR_KEY_MESSAGE_BODY_V4, None)
                 res.status_additions = src.get(StringKeyUtils.STR_KEY_ADDITIONS, None)

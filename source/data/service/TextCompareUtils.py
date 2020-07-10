@@ -35,8 +35,8 @@ class TextCompareUtils:
         """
 
         changes = []  # 一个patch可能会有多个改动    [(开始行,共,版本二开始,共) -> [+, ,-,....]]
-        print(text)
-        print('-' * 50)
+        # print(text)
+        # print('-' * 50)
 
         headMatch = re.compile(r'@@(.)+@@')
         numberMatch = re.compile(r'[^0-9]+')
@@ -66,7 +66,7 @@ class TextCompareUtils:
                 lines.append(t[0])
         if status is not None:
             changes.append([status, lines])
-        print(changes)
+        # print(changes)
         return changes
 
     @staticmethod
@@ -184,38 +184,94 @@ class TextCompareUtils:
                 return min(upChange, downChange)
 
     @staticmethod
-    def getStartLine(text, position, originalPosition):
-        """通过文本,position,originalPosition来推断出
-           review comment的start_line 和 original_StartLine
+    def getStartLine(text, originalPosition):
+        """通过文本originalPosition来推断出
+           review comment的original_StartLine 和 side
+
+           注： 2020.7.9 发现 position 是代指最新commit上面位置，
         """
 
         """patch 解析"""
         """虽然 patch 可能会解析多个 但是数据库14万comment 只有37个疑似情况
            加上try catch忽略特殊情况
         """
-        startLine = None
+        side = None
         original_startLine = None
         try:
-            [[numbers, status]] = TextCompareUtils.patchParser(text)
-            startLine = None
+            changes = TextCompareUtils.patchParser(text)
+            """找到对应的改动"""
+            """第一行不算行"""
+            originalPosition += 1
+            pos = 0
+            posLine = 0
+            while posLine + changes[pos][1]. __len__() + 1 < originalPosition:
+                posLine += changes[pos][1].__len__() + 1
+                pos += 1
+
             original_startLine = None
-            start, _, original_start, _ = numbers
-            if position is not None:
-                offset = 0
-                for i in range(0, max(position - 1, 0)):
-                    if status[i] != '+':
-                        offset += 1
-                startLine = start + offset
+            side = None
+            left_start, _, right_start, _ = changes[pos][0]
+            status = changes[pos][1]
             if originalPosition is not None:
+                if status[originalPosition - posLine - 2] == '-':
+                    side = 'LEFT'
+                    original_startLine = left_start
+                else:
+                    side = 'RIGHT'
+                    original_startLine = right_start
                 offset = 0
-                for i in range(0, max(originalPosition - 1, 0)):
-                    if status[i] != '-':
-                        offset += 1
-                original_startLine = original_start + offset
+                if side == 'LEFT':
+                    for i in range(0, max(originalPosition - posLine - 1, 0)):
+                        if status[i] != '+':
+                            offset += 1
+                if side == 'RIGHT':
+                    for i in range(0, max(originalPosition - posLine - 1, 0)):
+                        if status[i] != '-':
+                            offset += 1
+                original_startLine = original_startLine + offset - 1
         except Exception as e:
             print(e)
 
-        return startLine, original_startLine
+        return original_startLine, side
+
+    @staticmethod
+    def ConvertLeftToRight(text, originalPosition):
+        """由于 comment 可能会加在  老版本(LEFT) 和新版本 (RIGHT)两个
+        上面，老版本的行数和新版本的行数并不相同。 对于comment和chnage的
+        版本比较而言   是新版本（RIGHT） 和  change 版本的比较，需要把
+        LEFT的行数 转化为 最近的RIGHT 行数
+
+           注： 2020.7.9 同之前相同，当Patch由多个小patch组成的时候，
+           现在拼接出来可能会有1行左右的误差  误差原因不明
+           由于LEFT 的 comment 相对比较少 （LEFT:RIGHT = 1 ： 10）
+           先转化查看效果
+        """
+        try:
+            changes = TextCompareUtils.patchParser(text)
+            """找到对应的改动"""
+            """第一行不算行"""
+            originalPosition += 1
+            pos = 0
+            posLine = 0
+            while posLine + changes[pos][1]. __len__() + 1 < originalPosition:
+                posLine += changes[pos][1].__len__() + 1
+                pos += 1
+
+            left_start, _, right_start, _ = changes[pos][0]
+            status = changes[pos][1]
+            if originalPosition is not None:
+                """认定调用的comment都是LEFT"""
+                offset = 0
+                for i in range(0, max(originalPosition - posLine - 1, 0)):
+                    """统计 RIGHT 版本有的行数"""
+                    if status[i] != '-':
+                        offset += 1
+
+                return right_start + offset - 1
+        except Exception as e:
+            print(e)
+
+        return None
 
 
 if __name__ == '__main__':
@@ -226,5 +282,18 @@ if __name__ == '__main__':
     # print(text)
     # for t in text.split('\n'):
     #     print(t)
-    text = "@@ -20,6 +20,7 @@ ruby <%= \"'#{RUBY_VERSION}'\" -%>\n <% end -%>\n <% end -%>\n \n+\n # Optional gems needed by specific Rails features:\n \n # Use bcrypt to encrypt passwords securely. Works with https://guides.rubyonrails.org/active_model_basics.html#securepassword\n@@ -35,9 +36,8 @@ ruby <%= \"'#{RUBY_VERSION}'\" -%>\n # gem 'rack-cors'\n \n <%- end -%>\n-# The gems below are used in development, but if they cause problems it's OK to remove them\n-\n <% if RUBY_ENGINE == 'ruby' -%>\n+# The gems below are used in development, but if they cause problems it's OK to remove them\n group :development, :test do\n   # Call 'byebug' anywhere in the code to stop execution and get a debugger console\n   gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]\n@@ -75,7 +75,6 @@ group :test do\n   # Easy installation and use of web drivers to run system tests with browsers\n   gem 'webdrivers'\n end\n-\n <%- end -%>\n \n <% if depend_on_bootsnap? -%>"
-    TextCompareUtils.simulateTextChanges([text], [text], 75)
+    #text = "@@ -20,6 +20,7 @@ ruby <%= \"'#{RUBY_VERSION}'\" -%>\n <% end -%>\n <% end -%>\n \n+\n # Optional gems needed by specific Rails features:\n \n # Use bcrypt to encrypt passwords securely. Works with https://guides.rubyonrails.org/active_model_basics.html#securepassword\n@@ -35,9 +36,8 @@ ruby <%= \"'#{RUBY_VERSION}'\" -%>\n # gem 'rack-cors'\n \n <%- end -%>\n-# The gems below are used in development, but if they cause problems it's OK to remove them\n-\n <% if RUBY_ENGINE == 'ruby' -%>\n+# The gems below are used in development, but if they cause problems it's OK to remove them\n group :development, :test do\n   # Call 'byebug' anywhere in the code to stop execution and get a debugger console\n   gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]\n@@ -75,7 +75,6 @@ group :test do\n   # Easy installation and use of web drivers to run system tests with browsers\n   gem 'webdrivers'\n end\n-\n <%- end -%>\n \n <% if depend_on_bootsnap? -%>"
+    #text = "@@ -2,9 +2,9 @@ a\n b\n c\n d\n-e\n a\n b\n+aa\n c\n d\n a\n@@ -123,10 +123,8 @@ a\n d\n f\n d\n-\n+aaa\n t\n-ty\n-u\n u\n u\n y\n@@ -233,10 +231,10 @@ ter\n t\n t\n d\n-\n+zzzz\n t\n-rt\n-ert\n+zz\n+erzt\n r\n t\n rt"
+    text = """@@ -22,8 +22,8 @@ export async function run(
+   const lockfile = args.length ? await Lockfile.fromDirectory(config.cwd, reporter) : new Lockfile();
+   let addArgs = [...args];
+ 
+-  if (args.length) {
+-    const [dependency] = args;
++  if (addArgs.length) {
++    const [dependency] = addArgs;
+     const manifest = await config.readRootManifest() || {};
+     const dependencies = manifest.dependencies || {};
+     const remoteSource = dependencies[dependency];"""
+    print(TextCompareUtils.getStartLine(text, 17))
+    # print(TextCompareUtils.ConvertLeftToRight(text, 33))
