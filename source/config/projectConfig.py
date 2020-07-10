@@ -29,11 +29,13 @@ class projectConfig:
     PATH_PR_CHANGE_FILE = 'data' + os.sep + 'train' + os.sep + 'prChangeFile'
     PATH_REVIEW = 'data' + os.sep + 'train' + os.sep + 'reviewData'
     PATH_TIMELINE = 'data' + os.sep + 'train' + os.sep + 'prTimeLineData'
+    PATH_REVIEW_COMMENT = 'data' + os.sep + 'train' + os.sep + 'reviewCommentData'
 
     PATH_FPS_DATA = 'data' + os.sep + 'train' + os.sep + 'FPS'
     PATH_ML_DATA = 'data' + os.sep + 'train' + os.sep + 'ML'
     PATH_IR_DATA = 'data' + os.sep + 'train' + os.sep + 'IR'
     PATH_CA_DATA = 'data' + os.sep + 'train' + os.sep + 'CA'
+    PATH_PB_DATA = 'data' + os.sep + 'train' + os.sep + 'PB'
 
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
 
@@ -137,6 +139,10 @@ class projectConfig:
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_IR_DATA)
 
     @staticmethod
+    def getPBDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_PB_DATA)
+
+    @staticmethod
     def getCADataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CA_DATA)
 
@@ -155,6 +161,10 @@ class projectConfig:
     @staticmethod
     def getPRTimeLineDataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_TIMELINE)
+
+    @staticmethod
+    def getReviewCommentDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_REVIEW_COMMENT)
 
     @staticmethod
     def getLogPath():

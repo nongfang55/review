@@ -701,6 +701,7 @@ if __name__ == '__main__':
     # MLTrain.testMLAlgorithms('rails', dates, StringKeyUtils.STR_ALGORITHM_DT)
     # MLTrain.testBayesAlgorithms('rails', dates)
     # projects = ['rails', 'scala', 'akka', 'bitcoin']
-    dates = [(2018, 1, 2019, 1)]
-    projects = ['opencv']
-    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [1])
+    dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+             (2017, 1, 2018, 6)]
+    projects = ['opencv', 'cakephp', 'bitcoin']
+    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [7])
