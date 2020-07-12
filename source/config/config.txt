@@ -1,5 +1,5 @@
 [authorization]
-token=75a21ea334efd3f1be2723254900cf7e1e7eb94a
+token=81d4f3e4812cc4f7be4be5ed9d3ed1c0a5efc189
 [database]
 host=101.133.220.93
 username=review
@@ -17,7 +17,7 @@ commitFetchLoop=10
 timeout=60
 retry=100
 proxy=False
-semaphore=100
+semaphore=35
 api=4
 [recommend]
 topk=10

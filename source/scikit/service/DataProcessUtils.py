@@ -21,6 +21,7 @@ from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
 from source.utils.ExcelHelper import ExcelHelper
 from source.utils.StringKeyUtils import StringKeyUtils
 from source.utils.pandas.pandasHelper import pandasHelper
+import matplotlib.pyplot as plt
 
 
 class DataProcessUtils:
@@ -1298,6 +1299,46 @@ class DataProcessUtils:
         print(df1)
 
 
+    @staticmethod
+    def changeTriggerAnalyzer(repo):
+        """对change trigger 数据做统计"""
+        change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_pr_change_trigger.tsv'
+        change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
+
+        prs = list(set(change_trigger_df['pullrequest_node']))
+        print("prs nums:", prs.__len__())
+
+        """"依照 issue comment 和  review comment 划分"""
+        df_issue = change_trigger_df.loc[change_trigger_df['comment_type'] == 'label_issue_comment']
+        print("issue all:", df_issue.shape[0])
+        issue_is_change_count = df_issue.loc[df_issue['change_trigger'] == 1].shape[0]
+        issue_not_change_count = df_issue.loc[df_issue['change_trigger'] == -1].shape[0]
+        print("issue is count:", issue_is_change_count, " not count:", issue_not_change_count)
+        plt.subplot(121)
+        x = ['useful', 'useless']
+        plt.bar(x=x, height=[issue_is_change_count, issue_not_change_count])
+        plt.title(f'issue comment({repo})')
+        for a, b in zip(x, [issue_is_change_count, issue_not_change_count]):
+            plt.text(a, b, '%.0f' % b, ha='center', va='bottom', fontsize=11)
+        # plt.show()
+
+        df_review = change_trigger_df.loc[change_trigger_df['comment_type'] == 'label_review_comment']
+        print("review all:", df_review.shape[0])
+        x = range(-1, 11)
+        y = []
+        for i in x:
+            y.append(df_review.loc[df_review['change_trigger'] == i].shape[0])
+        plt.subplot(122)
+        plt.bar(x=x, height=y)
+        plt.title(f'review comment({repo})')
+        for a, b in zip(x, y):
+            plt.text(a, b, '%.0f' % b, ha='center', va='bottom', fontsize=11)
+        plt.show()
+
+
+
+
+
 if __name__ == '__main__':
     # DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_rails_data.tsv',
     #                                   projectConfig.getRootPath() + r'\data\train\all' + os.sep, hasHead=True)
@@ -1315,9 +1356,9 @@ if __name__ == '__main__':
     # DataProcessUtils.contactCAData('cakephp')
 
     # projects = ['opencv', 'adobe', 'angular', 'bitcoin', 'cakephp']
-    projects = ['bitcoin']
-    for p in projects:
-        DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    # projects = ['bitcoin']
+    # for p in projects:
+    #     DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
 
     # DataProcessUtils.contactMLData('xbmc')
     # DataProcessUtils.contactIRData('xbmc')
@@ -1327,3 +1368,5 @@ if __name__ == '__main__':
     # DataProcessUtils.dunn()
     #
     # DataProcessUtils.compareDataFrameByPullNumber()
+
+    DataProcessUtils.changeTriggerAnalyzer('yarn')

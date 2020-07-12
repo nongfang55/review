@@ -608,6 +608,14 @@ class AsyncApiHelper:
         return api
 
     @staticmethod
+    def getSingleReviewCommentApiWithProjectName(owner, repo, comment_id):
+        api = StringKeyUtils.API_GITHUB + StringKeyUtils.API_COMMENT_FOR_REVIEW_SINGLE
+        api = api.replace(StringKeyUtils.STR_OWNER, owner)
+        api = api.replace(StringKeyUtils.STR_REPO, repo)
+        api = api.replace(StringKeyUtils.STR_COMMENT_ID, str(comment_id))
+        return api
+
+    @staticmethod
     async def fetchBeanData(session, api, isMediaType=False):
         """异步获取数据通用接口（重要）"""
 
@@ -743,6 +751,15 @@ class AsyncApiHelper:
                 res = Commit.parser.parser(resultJson)
                 """v3 接口认为有gitFile信息"""
                 res.has_file_fetched = True
+                return res
+        except Exception as e:
+            print(e)
+
+    @staticmethod
+    async def parserSingleReviewComment(resultJson):
+        try:
+            if not AsyncApiHelper.judgeNotFind(resultJson):
+                res = ReviewComment.parser.parser(resultJson)
                 return res
         except Exception as e:
             print(e)
@@ -1158,7 +1175,22 @@ class AsyncApiHelper:
         """从数据库获取review comments(注：一个review 可能会关联多个comment，每个comment会指定一个文件和对应代码行)"""
         comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timeline_item_node, mysql)
         if comments is None:
+            print("comment is None! review id:", review.timeline_item_node)
             return None
+
+        """时间线上面获取的comment都是初始review的comment，而系列的回复comment需要从数据库读"""
+        beanList = []
+        for comment in comments:
+            bean = ReviewComment()
+            bean.in_reply_to_id = comment.id
+            beanList.append(bean)
+        results = await AsyncSqlHelper.queryBeanData(beanList, mysql, [[StringKeyUtils.STR_KEY_IN_REPLY_TO_ID]] * beanList.__len__())
+        print(results)
+        """commentMap 用于 comment的补救。由于回复的comment与第一个comment指向相同，不用重复算"""
+        commentMap = {}
+        for index, result in enumerate(results):
+            commentMap[comments[index].id] = BeanParserHelper.getBeansFromTuple(ReviewComment(), ReviewComment.getItemKeyList(),
+                                                              result)
 
         """遍历review之后的changes，判断是否有comment引起change的情况"""
         change_trigger_comments = []
@@ -1174,45 +1206,75 @@ class AsyncApiHelper:
                     "change_trigger": -1,
                     "filepath": comment.path
                 })
+                for c in commentMap[comment.id]:
+                    change_trigger_comments.append({
+                    "pullrequest_node": pr_node_id,
+                    "user_login": c.user_login,
+                    "comment_node": c.node_id,
+                    "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                    "change_trigger": -1,
+                    "filepath": c.path
+                })
+
             return change_trigger_comments
 
-        """通过comment的 position、originalPosition信息补全line, originalLine 需要对应commit的file的patch"""
+        # """通过comment的 position、originalPosition信息补全line, originalLine 需要对应commit的file的patch"""
         oids = [comment.original_commit_id for comment in comments]
         """获取这些的changes files"""
         t11 = datetime.now()
         files = await AsyncApiHelper.getFilesFromStore(oids, mysql)
-        t21 = datetime.now()
-        print("get file cost:", t21-t11, " total:", t21 - t1)
-        """依次补全"""
-
-        needFetch = False
+        # t21 = datetime.now()
+        # print("get file cost:", t21-t11, " total:", t21 - t1)
+        # """依次补全"""
+        #
+        # needFetch = False
         for comment in comments:
             """comment默认未触发change_trigger"""
             comment.change_trigger = -1
-            # if comment.original_line is None:
-            #     needFetch = True
-            #     break
-
-            for file in files:
-                if file.commit_sha == comment.original_commit_id and file.filename == comment.path:
-                    """计算origin line 和 side"""
-                    original_line, side = TextCompareUtils.getStartLine(file.patch, comment.original_position)
-
-                    """
-                     注 ： 2020.07.09 在patch是多个patch组合的时候， 自己计算出来的original_line 可能会有1行的误差
-                           具体原因不明  对比例子: https://github.com/gib94927855/Review/pull/3#pullrequestreview-445279262
-                                                  https://github.com/yarnpkg/yarn/pull/2723
-                    """
-
-                    comment.side = side
-                    comment.original_line = original_line
-
-                    """line 是改动后文本评论指向的行数， original line 是改动前的文本评论指向行数
-                       有 line 就别用 original line
-                    """
-
+        #     # if comment.original_line is None:
+        #     #     needFetch = True
+        #     #     break
+        #     if comment.original_line is not None and comment.side is not None:
+        #         continue
+        #
+        #     for file in files:
+        #         if file.commit_sha == comment.original_commit_id and file.filename == comment.path:
+        #             """计算origin line 和 side"""
+        #             original_line, side = TextCompareUtils.getStartLine(file.patch, comment.original_position)
+        #
+        #             """如果Patch有两个 子patch 组成，则网络获取"""
+        #             try:
+        #                 if TextCompareUtils.patchParser(file.patch).__len__() >= 2:
+        #                     needFetch = True
+        #             except Exception as e:
+        #                 print("parser patch fail!")
+        #                 print(e)
+        #
+        #             """
+        #              注 ： 2020.07.09 在patch是多个patch组合的时候， 自己计算出来的original_line 可能会有1行的误差
+        #                    具体原因不明  对比例子: https://github.com/gib94927855/Review/pull/3#pullrequestreview-445279262
+        #                                           https://github.com/yarnpkg/yarn/pull/2723
+        #             """
+        #
+        #             comment.side = side
+        #             comment.original_line = original_line
+        #
+        #             """line 是改动后文本评论指向的行数， original line 是改动前的文本评论指向行数
+        #                有 line 就别用 original line
+        #             """
+        #
+        #             """如果计算之后还是为空 则从网络获取"""
+        #             if comment.side is None or comment.original_line is None:
+        #                 needFetch = True
+        #
         # """"现阶段妥协  先看comment 有没有 original_line 字段， 没有的话comment 重新获取补全"""
         # if needFetch:
+        #     statistic.lock.acquire()
+        #     statistic.needFetchCommentForLineCount += 1
+        #     statistic.lock.release()
+        #     print("now needFetchCommentForLine Count:", statistic.needFetchCommentForLineCount, ' not need:',
+        #           statistic.notNeedFetchCommentForLineCount)
+        #
         #     async with aiohttp.ClientSession() as session:
         #         """数据库获取 pr"""
         #         tempPR = PullRequest()
@@ -1233,8 +1295,19 @@ class AsyncApiHelper:
         #                     if comment.node_id == comment_t.node_id:
         #                         comment.side = comment_t.side
         #                         comment.original_line = comment_t.original_line
+        # else:
+        #     statistic.lock.acquire()
+        #     statistic.notNeedFetchCommentForLineCount += 1
+        #     statistic.lock.release()
+        #     print("now needFetchCommentForLine Count:", statistic.needFetchCommentForLineCount, ' not need:',
+        #           statistic.notNeedFetchCommentForLineCount)
 
-        """遍历comment，对于comment的side是 LEFT 的场景，需要把相对行数转换到 RIGHT 的行数版本"""
+        """运行时候需要保证 reviewComment的orignal_line 和 side存在 
+           见AsyncProjectAllDataFetcher.getNoOriginLineReviewComment"""
+
+        """遍历comment，对于comment的side是 LEFT 的场景，需要把相对行数转换到 RIGHT 的行数版本
+            LEFT 大概只有 3% 如果有误差应该可以接受
+        """
         for comment in comments:
             if comment.side == 'LEFT':
                 for file in files:
@@ -1288,7 +1361,14 @@ class AsyncApiHelper:
                         continue
 
                     if reviewBlob is None or changeBlob is None:
+                        print("--" * 50)
                         print("blob is None!")
+                        print(fileName)
+                        print(comment.getValueDict())
+                        print(changes)
+                        print([reviewCommit, changeCommit])
+                        print("--" * 50)
+                        continue
 
                     print(reviewBlob.__len__())
                     print(changeBlob.__len__())
@@ -1359,6 +1439,15 @@ class AsyncApiHelper:
                 "change_trigger": comment.change_trigger,
                 "filepath": comment.path
             })
+            for c in commentMap[comment.id]:
+                change_trigger_comments.append({
+                    "pullrequest_node": pr_node_id,
+                    "user_login": c.user_login,
+                    "comment_node": c.node_id,
+                    "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                    "change_trigger": comment.change_trigger,
+                    "filepath": c.path
+                })
         statistic.lock.acquire()
         statistic.usefulChangeTrigger += [x for x in comments if x.change_trigger > 0].__len__()
         statistic.lock.release()
@@ -1596,6 +1685,7 @@ class AsyncApiHelper:
                     api = AsyncApiHelper.getGraphQLApi()
                     query = GraphqlHelper.getTreeByOid()
                     resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
+                    print("fetch from v4 relation")
                     print(resultJson)
 
                     if isinstance(resultJson, dict):
@@ -1644,6 +1734,7 @@ class AsyncApiHelper:
                     query = GraphqlHelper.getTreeByOid()
                     resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
                     print(resultJson)
+                    print("fetch from v4 blob")
 
                     if isinstance(resultJson, dict):
                         rawData = resultJson.get(StringKeyUtils.STR_KEY_DATA, None)
@@ -1695,3 +1786,26 @@ class AsyncApiHelper:
                     statistic.lock.release()
                 except Exception as e:
                     print(e)
+
+    @staticmethod
+    async def downloadSingleReviewComment(projectName, comment_id, semaphore, mysql, statistic):
+        async with semaphore:
+            async with aiohttp.ClientSession() as session:
+                try:
+                    beanList = []
+                    owner, repo = projectName.split('/')
+                    api = AsyncApiHelper.getSingleReviewCommentApiWithProjectName(owner, repo, comment_id)
+                    json = await AsyncApiHelper.fetchBeanData(session, api)
+                    print(json)
+                    comment= await AsyncApiHelper.parserSingleReviewComment(json)
+
+                    await AsyncSqlHelper.updateBeanDateList([comment], mysql)
+
+                    # 做了同步处理
+                    statistic.lock.acquire()
+                    statistic.usefulReviewCommentNumber += 1
+                    print(f" usefulReviewCommentCount:{statistic.usefulReviewCommentNumber}")
+                    statistic.lock.release()
+                except Exception as e:
+                    print(e)
+

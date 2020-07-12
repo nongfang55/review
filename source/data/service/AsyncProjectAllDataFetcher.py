@@ -277,6 +277,43 @@ class AsyncProjectAllDataFetcher:
         print('cost time:', datetime.now() - t1)
 
     @staticmethod
+    def getNoOriginLineReviewComment(owner, repo, min_num, max_num):
+        # 获取 数据库中没有获得review comment，一次最多2000个
+        t1 = datetime.now()
+
+        statistic = statisticsHelper()
+        statistic.startTime = t1
+
+        loop = asyncio.get_event_loop()
+        task = [asyncio.ensure_future(AsyncProjectAllDataFetcher.preProcessNoOriginLineReviewComment(loop, statistic,
+                                                                                                     owner, repo,
+                                                                                                     min_num, max_num))]
+        tasks = asyncio.gather(*task)
+        loop.run_until_complete(tasks)
+
+        print('cost time:', datetime.now() - t1)
+
+    @staticmethod
+    async def preProcessNoOriginLineReviewComment(loop, statistic, owner, repo, min_num, max_num):
+
+        semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
+        mysql = await getMysqlObj(loop)
+
+        if configPraser.getPrintMode():
+            print("mysql init success")
+        print("mysql init success")
+
+        repoName = owner + '/' + repo
+        values = [repoName, repoName, min_num, max_num]
+        res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_NO_ORIGINAL_LINE_REVIEW_COMMENT
+                                         , values)
+        print("fetched size:", res.__len__())
+
+        tasks = [asyncio.ensure_future(AsyncApiHelper.downloadSingleReviewComment(repoName, item[0], semaphore, mysql, statistic))
+                 for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
+        await asyncio.wait(tasks)
+
+    @staticmethod
     async def preProcessUnmatchCommitFile(loop, statistic):
 
         semaphore = asyncio.Semaphore(configPraser.getSemaphore())  # 对速度做出限制
@@ -437,15 +474,6 @@ class AsyncProjectAllDataFetcher:
                     re_analyze_prs.append(pr)
         Logger.logi("there are {0} prs need to re analyze".format(re_analyze_prs.__len__()))
 
-        list1 = list(set(timeline_df['pullrequest_node']))
-        list2 = list(set(change_trigger_df['pullrequest_node']))
-        list3 = [x for x in list1 if x not in list2]
-
-        timeline_df['label'] = timeline_df['pullrequest_node'].apply(lambda x: x not in list3)
-        df1 = timeline_df.loc[timeline_df['label'] == 1].copy(deep=True)
-        df2 = timeline_df.loc[timeline_df['label'] == 0].copy(deep=True)
-
-
         """设置fetch参数"""
         pos = 0
         fetchLimit = 40
@@ -497,7 +525,7 @@ class AsyncProjectAllDataFetcher:
 
         """设置fetch参数"""
         pos = 0
-        fetchLimit = 100
+        fetchLimit = 200
         size = pr_nodes.__len__()
         Logger.logi("there are {0} prs need to analyze".format(pr_nodes.__len__()))
         t1 = datetime.now()
@@ -539,8 +567,9 @@ if __name__ == '__main__':
     # AsyncProjectAllDataFetcher.getDataForRepository("django", "django", 3500, 11000)
     # AsyncProjectAllDataFetcher.getPRTimeLine("yarnpkg", "yarn")
     # AsyncProjectAllDataFetcher.checkPRTimeLineResult()
-    AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
-    # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
+    # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    AsyncProjectAllDataFetcher.checkChangeTriggerResult()
+    # AsyncProjectAllDataFetcher.getNoOriginLineReviewComment('yarnpkg', 'yarn', 2000, 7000)
 
     #AsyncProjectAllDataFetcher.checkPRTimeLineResult();
     # 全量爬取pr时间线信息，写入prTimeData文件夹

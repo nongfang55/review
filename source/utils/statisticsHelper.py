@@ -19,4 +19,6 @@ class statisticsHelper:
         self.usefulChangeTrigger = 0  # 有用的comment的change trigger数量
         self.twoParentsNodeCase = 0  # 舍弃的双点的case数量
         self.outOfLoopCase = 0  # 迭代超出预算的case数量
+        self.needFetchCommentForLineCount = 0  # 需要更新line而去获取comment的次数
+        self.notNeedFetchCommentForLineCount = 0
         self.lock = threading.RLock()

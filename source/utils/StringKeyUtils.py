@@ -264,6 +264,7 @@ class StringKeyUtils:
     API_COMMIT = '/repos/:owner/:repo/commits/:commit_sha'
     API_COMMITS_FOR_PULL_REQUEST = '/repos/:owner/:repo/pulls/:pull_number/commits'
     API_COMMIT_COMMENTS_FOR_COMMIT = '/repos/:owner/:repo/commits/:commit_sha/comments'
+    API_COMMENT_FOR_REVIEW_SINGLE = '/repos/:owner/:repo/pulls/comments/:comment_id'
     API_GRAPHQL = '/graphql'
 
     # ÓÃÓÚÌæ»»µÄ×Ö·û´®
@@ -294,6 +295,7 @@ class StringKeyUtils:
     STR_USER = ':user'
     STR_ISSUE_NUMBER = ':issue_number'
     STR_COMMIT_SHA = ':commit_sha'
+    STR_COMMENT_ID = ':comment_id'
 
     STR_PARM_STARE = 'state'
     STR_PARM_ALL = 'all'

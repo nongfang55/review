@@ -61,6 +61,21 @@ class SqlUtils:
                                         where gitCommit.has_file_fetched = False
                                         and gitCommit.sha = commitPRRelation.sha LIMIT 2000"""
 
+    '''查询数据库中没有original_line值的review comment 一次2000个'''
+    STR_SQL_QUERY_NO_ORIGINAL_LINE_REVIEW_COMMENT = """select id
+                                        from reviewComment
+                                        where pull_request_review_id in (
+                                            select id
+                                            from review
+                                            where repo_full_name = %s
+                                              and pull_number
+                                                in (select number
+                                                    from pullRequest
+                                                    where pullRequest.repo_full_name = %s
+                                                      and pullRequest.state = 'closed' and number between %s and %s
+                                                    ) 
+                                        )  and original_line is null LIMIT 2000"""
+
     STR_SQL_QUERY_PR_FOR_TIME_LINE = """select distinct node_id 
                                         from pullRequest 
                                         where state = 'closed' and repo_full_name = %s
