@@ -36,6 +36,7 @@ class ReviewComment(BeanBase):
         self.user_login = None
         self.change_trigger = None  # comment 之后一系列改动中距离comment所指的line最近的距离
         self.pull_request_review_node_id = None  # 考虑Review Thread没有id，只有node_id 只能通过以上方法连接
+        self.temp_original_line = None # 用于处理 LEFT RIGHT 的转换，中间变量
 
     @staticmethod
     def getIdentifyKeys():

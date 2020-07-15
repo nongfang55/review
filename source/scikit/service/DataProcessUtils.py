@@ -610,7 +610,7 @@ class DataProcessUtils:
             #         unuseful_review_idx.append(index)
             # data = data.drop(labels=unuseful_review_idx, axis=0)
             """change_trigger只取出pr, reviewer，和data取交集"""
-            changeTriggerData = changeTriggerData[(changeTriggerData['change_trigger'] == '1') | changeTriggerData['change_trigger'] == 1]
+            changeTriggerData = changeTriggerData[changeTriggerData['change_trigger'] >= 0]
             changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
             changeTriggerData.drop_duplicates(inplace=True)
             changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x'}, inplace=True)
@@ -1298,7 +1298,6 @@ class DataProcessUtils:
         df1.drop_duplicates(inplace=True, keep=False)
         print(df1)
 
-
     @staticmethod
     def changeTriggerAnalyzer(repo):
         """对change trigger 数据做统计"""
@@ -1361,7 +1360,7 @@ if __name__ == '__main__':
     #     DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
 
     # DataProcessUtils.contactMLData('xbmc')
-    # DataProcessUtils.contactIRData('xbmc')
+    # DataProcessUtils.contactFPSData('cakephp', label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
     #
     # DataProcessUtils.getReviewerFrequencyDict('rails', (2019, 4, 2019, 6))
     # DataProcessUtils.getStopWordList()
@@ -1369,4 +1368,4 @@ if __name__ == '__main__':
     #
     # DataProcessUtils.compareDataFrameByPullNumber()
 
-    DataProcessUtils.changeTriggerAnalyzer('yarn')
+    DataProcessUtils.changeTriggerAnalyzer('cakephp')

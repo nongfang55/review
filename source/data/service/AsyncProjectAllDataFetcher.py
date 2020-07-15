@@ -308,6 +308,9 @@ class AsyncProjectAllDataFetcher:
         res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_NO_ORIGINAL_LINE_REVIEW_COMMENT
                                          , values)
         print("fetched size:", res.__len__())
+        if res.__len__() == 0:
+            print("not need fetch")
+            return
 
         tasks = [asyncio.ensure_future(AsyncApiHelper.downloadSingleReviewComment(repoName, item[0], semaphore, mysql, statistic))
                  for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
@@ -567,8 +570,8 @@ if __name__ == '__main__':
     # AsyncProjectAllDataFetcher.getDataForRepository("django", "django", 3500, 11000)
     # AsyncProjectAllDataFetcher.getPRTimeLine("yarnpkg", "yarn")
     # AsyncProjectAllDataFetcher.checkPRTimeLineResult()
-    # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
-    AsyncProjectAllDataFetcher.checkChangeTriggerResult()
+
+    # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
     # AsyncProjectAllDataFetcher.getNoOriginLineReviewComment('yarnpkg', 'yarn', 2000, 7000)
 
     #AsyncProjectAllDataFetcher.checkPRTimeLineResult();
@@ -589,4 +592,4 @@ if __name__ == '__main__':
     # pandasHelper.writeTSVFile(target_filename, df)
 
     # 全量获取pr change_trigger信息，写入prTimeData文件夹
-    # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())

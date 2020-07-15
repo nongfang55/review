@@ -102,24 +102,27 @@ class PRTimeLineRelation(BeanBase):
                 beforeCommit = item.get(StringKeyUtils.STR_KEY_BEFORE_COMMIT)
                 if beforeCommit is not None:
                     relation.headRefForcePushedEventBeforeCommit = beforeCommit.get(StringKeyUtils.STR_KEY_OID, None)
-                relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
-                                                                       StringKeyUtils.STR_STYLE_DATA_DATE)
+                if item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None) is not None:
+                    relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
+                                                                           StringKeyUtils.STR_STYLE_DATA_DATE)
                 return relation
             elif relation.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT:
                 """commit"""
                 commit = item.get(StringKeyUtils.STR_KEY_COMMIT)
                 if commit is not None and isinstance(commit, dict):
                     relation.pull_request_commit = commit.get(StringKeyUtils.STR_KEY_OID, None)
-                    relation.create_at = datetime.strptime(commit.get(StringKeyUtils.STR_KEY_COMMIT_AUTHOR_DATE_V4),
-                                                                       StringKeyUtils.STR_STYLE_DATA_DATE)
+                    if commit.get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None) is not None:
+                        relation.create_at = datetime.strptime(commit.get(StringKeyUtils.STR_KEY_COMMIT_AUTHOR_DATE_V4),
+                                                                           StringKeyUtils.STR_STYLE_DATA_DATE)
                 return relation
             elif relation.typename == StringKeyUtils.STR_KEY_MERGED_EVENT:
                 """merge"""
                 commit = item.get(StringKeyUtils.STR_KEY_COMMIT)
                 if commit is not None and isinstance(commit, dict):
                     relation.merge_commit = commit.get(StringKeyUtils.STR_KEY_OID, None)
-                relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
-                                                                       StringKeyUtils.STR_STYLE_DATA_DATE)
+                if item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None) is not None:
+                    relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
+                                                                           StringKeyUtils.STR_STYLE_DATA_DATE)
                 return relation
             elif relation.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW:
                 """review 需要获取comments, commit和original_commit"""
@@ -131,8 +134,9 @@ class PRTimeLineRelation(BeanBase):
                 author = item.get(StringKeyUtils.STR_KEY_AUTHOR)
                 if author is not None and isinstance(author, dict):
                     relation.user_login = author.get(StringKeyUtils.STR_KEY_LOGIN)
-                relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
-                                                                       StringKeyUtils.STR_STYLE_DATA_DATE)
+                if item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None) is not None:
+                    relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
+                                                                           StringKeyUtils.STR_STYLE_DATA_DATE)
                 return relation
             elif relation.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_THREAD:
                 """review thread 没有createAt字段，拿第一条comment的时间作为review时间"""
@@ -140,8 +144,9 @@ class PRTimeLineRelation(BeanBase):
                 relation.comments = comments
                 if comments is not None and len(comments) > 0 and isinstance(comments, list):
                     original_commit = comments[0].get(StringKeyUtils.STR_KEY_ORIGINAL_COMMIT)
-                    relation.create_at = datetime.strptime(comments[0].get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
-                                                                       StringKeyUtils.STR_STYLE_DATA_DATE)
+                    if comments[0].get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None) is not None:
+                        relation.create_at = datetime.strptime(comments[0].get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
+                                                                           StringKeyUtils.STR_STYLE_DATA_DATE)
                     relation.user_login = comments[0].get(StringKeyUtils.STR_KEY_AUTHOR).get(
                         StringKeyUtils.STR_KEY_LOGIN)
                     if original_commit is not None and isinstance(original_commit, dict):
@@ -153,8 +158,9 @@ class PRTimeLineRelation(BeanBase):
                 if author is not None:
                     relation.user_login = author.get(StringKeyUtils.STR_KEY_LOGIN)
                 relation.body = item.get(StringKeyUtils.STR_KEY_BODY_V4)
-                relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
-                                                                       StringKeyUtils.STR_STYLE_DATA_DATE)
+                if item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None) is not None:
+                    relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
+                                                                           StringKeyUtils.STR_STYLE_DATA_DATE)
                 return relation
             else:
                 return None

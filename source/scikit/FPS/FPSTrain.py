@@ -116,7 +116,7 @@ class FPSTrain:
                 y = y - 1
 
             # print(y, m)
-            filename = projectConfig.getFPSDataPath() + os.sep + f'FPS_SEAA_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            filename = projectConfig.getFPSDataPath() + os.sep + f'FPS_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
             """数据自带head"""
             if df is None:
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
@@ -147,10 +147,10 @@ if __name__ == '__main__':
     # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
     #          (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
     #          (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
-    #          (2017, 1, 2018, 6)]
-    dates = [(2017, 1, 2017, 2), (2017, 1, 2017, 3), (2017, 1, 2017, 4), (2017, 1, 2017, 5), (2017, 1, 2017, 6),
-             (2017, 1, 2017, 7)]
-    projects = ['opencv', 'bitcoin']
+    dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+             (2017, 1, 2018, 6)]
+    # dates = [(2017, 1, 2017, 2), (2017, 1, 2017, 3), (2017, 1, 2017, 4), (2017, 1, 2017, 5), (2017, 1, 2017, 6),
+    #          (2017, 1, 2017, 7)]
+    projects = ['cakephp']
     for p in projects:
         FPSTrain.TestAlgorithm(p, dates)
