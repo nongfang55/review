@@ -1351,6 +1351,35 @@ class AsyncApiHelper:
         """获取tree_id"""
         commitTreeList = await AsyncApiHelper.getCommitsByCheckTreeOID(oids, mysql, pr_node_id,
                                                                        storeBeanList, updateBeanList)
+
+        if (None, None) in commitTreeList:
+            """异常直接返回"""
+            print("commit Tree fetch failed for oids:", oids, '  pr:', pr_node_id, " count:",
+                  statistic.commitNotFoundErrorCount)
+            statistic.lock.acquire()
+            statistic.commitNotFoundErrorCount += 1
+            statistic.lock.release()
+            for comment in comments:
+                change_trigger_comments.append({
+                    "pullrequest_node": pr_node_id,
+                    "user_login": comment.user_login,
+                    "comment_node": comment.node_id,
+                    "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                    "change_trigger": -1,
+                    "filepath": comment.path
+                })
+                for c in commentMap[comment.id]:
+                    change_trigger_comments.append({
+                        "pullrequest_node": pr_node_id,
+                        "user_login": c.user_login,
+                        "comment_node": c.node_id,
+                        "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                        "change_trigger": -1,
+                        "filepath": c.path
+                    })
+
+            return change_trigger_comments
+
         reviewCommentTreeOidMap = {}
         for t in commitTreeList:
             reviewCommentTreeOidMap[t[0]] = t[1]
@@ -1535,7 +1564,7 @@ class AsyncApiHelper:
             result = await AsyncSqlHelper.queryBeanData([comment], mysql,
                                                         [[StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_ID]])
             # print(result)
-            if result is not None and result[0].__len__() > 0:
+            if result is not None and result[0] is not None and result[0].__len__() > 0:
                 comments = BeanParserHelper.getBeansFromTuple(ReviewComment(), ReviewComment.getItemKeyList(),
                                                               result[0])
 

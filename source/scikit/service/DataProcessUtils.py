@@ -610,7 +610,7 @@ class DataProcessUtils:
             #         unuseful_review_idx.append(index)
             # data = data.drop(labels=unuseful_review_idx, axis=0)
             """change_trigger只取出pr, reviewer，和data取交集"""
-            changeTriggerData = changeTriggerData[changeTriggerData['change_trigger'] >= 0]
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
             changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
             changeTriggerData.drop_duplicates(inplace=True)
             changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x'}, inplace=True)
@@ -658,6 +658,7 @@ class DataProcessUtils:
         issue_comment_path = projectConfig.getIssueCommentPath()
         pull_request_path = projectConfig.getPullRequestPath()
         review_path = projectConfig.getReviewDataPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
 
         if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
             prReviewData = pandasHelper.readTSVFile(
@@ -680,6 +681,12 @@ class DataProcessUtils:
         """ review 数据库输出 自带抬头"""
         reviewData = pandasHelper.readTSVFile(
             os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
             pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
         )
 
@@ -759,11 +766,11 @@ class DataProcessUtils:
             """过滤机器人的场景"""
             data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
-            data_issue = data_issue[['number', 'user_login_y',
+            data_issue = data_issue[['number', 'node_id_x', 'user_login_y',
                                      'created_at_x', 'commits', 'additions', 'deletions',
                                      'changed_files', 'head_label', 'base_label', 'user_login_x']].copy(deep=True)
 
-            data_issue.columns = ['pr_number', 'review_user_login', 'pr_created_at', 'pr_commits',
+            data_issue.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_commits',
                                   'pr_additions', 'pr_deletions', 'pr_changed_files', 'pr_head_label',
                                   'pr_base_label', 'pr_user_login']
             data_issue.drop_duplicates(inplace=True)
@@ -779,11 +786,11 @@ class DataProcessUtils:
             """过滤机器人的场景  """
             data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
-            data_review = data_review[['number', 'user_login_y',
+            data_issue = data_issue[['number', 'node_id_x', 'user_login_y',
                                      'created_at', 'commits', 'additions', 'deletions',
                                      'changed_files', 'head_label', 'base_label', 'user_login_x']].copy(deep=True)
 
-            data_review.columns = ['pr_number', 'review_user_login', 'pr_created_at', 'pr_commits',
+            data_issue.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_commits',
                                   'pr_additions', 'pr_deletions', 'pr_changed_files', 'pr_head_label',
                                   'pr_base_label', 'pr_user_login']
             data_review.drop_duplicates(inplace=True)
@@ -792,6 +799,15 @@ class DataProcessUtils:
             rawData.drop_duplicates(inplace=True)
             rawData.reset_index(drop=True, inplace=True)
             print(rawData.shape)
+
+            """change_trigger只取出pr, reviewer，和data取交集"""
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x',
+                                              'user_login': "review_user_login"}, inplace=True)
+            rawData = pandas.merge(rawData, changeTriggerData, how='inner')
+            rawData = rawData.drop(labels='node_id_x', axis=1)
 
             "pr_number, review_user_login, pr_created_at, pr_commits, pr_additions, pr_deletions" \
             "pr_changed_files, pr_head_label, pr_base_label, pr_user_login, author_push_count," \
@@ -1097,6 +1113,7 @@ class DataProcessUtils:
         pull_request_path = projectConfig.getPullRequestPath()
         review_path = projectConfig.getReviewDataPath()
         review_comment_path = projectConfig.getReviewCommentDataPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
 
         """issue commit 数据库输出 自带抬头"""
         issueCommentData = pandasHelper.readTSVFile(
@@ -1122,6 +1139,12 @@ class DataProcessUtils:
             pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
         )
 
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
         if label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
             """思路  上面两部分依次做凭借， 最后加上文件"""
             data_issue = pandas.merge(pullRequestData, issueCommentData, left_on='number', right_on='pull_number')
@@ -1134,10 +1157,10 @@ class DataProcessUtils:
             data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
             "PR数据行： repo_full_name, number, review_user_login, pr_title, pr_body, pr_created_at, comment_body"
-            data_issue = data_issue[['repo_full_name_x', 'number', 'title', 'body_x',
-                                     'created_at_x', 'user_login_y', 'body_y']].copy(deep=True)
-            data_issue.columns = ['repo_full_name', 'pr_number', 'pr_title', 'pr_body',
-                                  'pr_created_at', 'review_user_login', 'comment_body']
+            data_issue = data_issue[['repo_full_name_x', 'number', 'node_id_x', 'title', 'body_x',
+                                     'created_at_x', 'node_id_y', 'user_login_y', 'body_y']].copy(deep=True)
+            data_issue.columns = ['repo_full_name', 'pr_number', 'node_id', 'pr_title', 'pr_body',
+                                  'pr_created_at', 'comment_node_id', 'review_user_login', 'comment_body']
             data_issue.drop_duplicates(inplace=True)
 
             data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
@@ -1151,10 +1174,10 @@ class DataProcessUtils:
             data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
             "PR数据行： repo_full_name, number, review_user_login, pr_title, pr_body, pr_created_at, comment_body"
-            data_review = data_review[['repo_full_name_x', 'number', 'title', 'body_x',
-                                       'created_at_x', 'user_login_y', 'body']].copy(deep=True)
-            data_review.columns = ['repo_full_name', 'pr_number', 'pr_title', 'pr_body',
-                                   'pr_created_at', 'review_user_login', 'comment_body']
+            data_review = data_review[['repo_full_name_x', 'number', 'node_id_x', 'title', 'body_x',
+                                       'created_at_x', 'node_id', 'user_login_y', 'body']].copy(deep=True)
+            data_review.columns = ['repo_full_name', 'pr_number', 'node_id', 'pr_title', 'pr_body',
+                                   'pr_created_at', 'comment_node_id', 'review_user_login', 'comment_body']
             data_review.drop_duplicates(inplace=True)
 
             data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
@@ -1162,9 +1185,23 @@ class DataProcessUtils:
             data.reset_index(drop=True, inplace=True)
             print(data.shape)
 
+            """change_trigger只取出pr, reviewer，和data取交集"""
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            # changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+            changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            # changeTriggerData.rename(columns={'pullrequest_node': 'node_id', "user_login": 'review_user_login'}
+            #                          , inplace=True)
+            changeTriggerData.rename(columns={'comment_node':'comment_node_id'}
+                                     , inplace=True)
+            data = pandas.merge(data, changeTriggerData, how='inner')
+            # data = data.drop(labels='node_id', axis=1)
+            data = data.drop(labels='comment_node_id', axis=1)
+
             """只选出感兴趣的部分"""
             data = data[['repo_full_name', 'pr_number', 'review_user_login', 'pr_title',
                          'pr_body', 'pr_created_at', 'comment_body']].copy(deep=True)
+            data.drop_duplicates(inplace=True)
             data.sort_values(by='pr_number', ascending=False, inplace=True)
             data.reset_index(drop=True)
 
@@ -1304,6 +1341,12 @@ class DataProcessUtils:
         change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_pr_change_trigger.tsv'
         change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
 
+        timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
+        timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
+        timeline_df = timeline_df.loc[(timeline_df['typename'] == 'IssueComment')\
+                                      |(timeline_df['typename'] == 'PullRequestReview')].copy(deep=True)
+        timeline_useful_prs = list(set(timeline_df['pullrequest_node']))
+
         prs = list(set(change_trigger_df['pullrequest_node']))
         print("prs nums:", prs.__len__())
 
@@ -1332,6 +1375,8 @@ class DataProcessUtils:
         plt.title(f'review comment({repo})')
         for a, b in zip(x, y):
             plt.text(a, b, '%.0f' % b, ha='center', va='bottom', fontsize=11)
+
+        print("review comment useful:", df_review.shape[0] - df_review.loc[df_review['change_trigger'] == -1].shape[0])
         plt.show()
 
 

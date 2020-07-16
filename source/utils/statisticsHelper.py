@@ -21,4 +21,5 @@ class statisticsHelper:
         self.outOfLoopCase = 0  # 迭代超出预算的case数量
         self.needFetchCommentForLineCount = 0  # 需要更新line而去获取comment的次数
         self.notNeedFetchCommentForLineCount = 0
+        self.commitNotFoundErrorCount = 0
         self.lock = threading.RLock()

@@ -450,36 +450,50 @@ class AsyncProjectAllDataFetcher:
         """在切换代理的时候，数据库连接会断开，导致comments信息查不到，会遗漏review comment的情况"""
         """这里检查一遍pr的change_trigger里是否有review_comment数据，如果没有，重新获取一次"""
 
+        """PRTimeLine表头"""
+        PR_CHANGE_TRIGGER_COLUMNS = ["pullrequest_node", "user_login", "comment_node",
+                                     "comment_type", "change_trigger", "filepath"]
+        """初始化目标文件"""
+        target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
+
         """1. 获取该仓库所有的pr_node"""
-        repo_fullname = configPraser.getOwner() + "/" + configPraser.getRepo()
-        pr_nodes = AsyncProjectAllDataFetcher.getPullRequestNodes(repo_fullname)
-        pr_nodes = list(pr_nodes)
-        pr_nodes = [node[0] for node in pr_nodes]
+        # repo_fullname = configPraser.getOwner() + "/" + configPraser.getRepo()
+        # pr_nodes = AsyncProjectAllDataFetcher.getPullRequestNodes(repo_fullname)
+        # pr_nodes = list(pr_nodes)
+        # pr_nodes = [node[0] for node in pr_nodes]
+        """需要获取的prs改为有issue 额 review的timeline的pr"""
+        timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
+        timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
+        timeline_df = timeline_df.loc[(timeline_df['typename'] == 'IssueComment') \
+                                      | (timeline_df['typename'] == 'PullRequestReview')].copy(deep=True)
+        pr_nodes = list(set(timeline_df['pullrequest_node']))
 
         """2. 读取pr_change_trigger文件"""
         change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
         change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
+        change_nodes = list(set(change_trigger_df['pullrequest_node']))
 
-        """3. 读取pr_timeline文件"""
-        timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
-        timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
+        # """3. 读取pr_timeline文件"""
+        # timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
+        # timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
 
         """4. 将change_trigger按照pull_request_node分组"""
         grouped_timeline = change_trigger_df.groupby((['pullrequest_node']))
         """5. 分析pullrequest_node的change_trigger信息是否完整，整理出需要重新获取的pr信息"""
-        re_analyze_prs = []
-        for pr, group in grouped_timeline:
-            if pr not in pr_nodes:
-                re_analyze_prs.append(pr)
-            else:
-                review_comment_trigger = group.loc[(group['comment_type'] == StringKeyUtils.STR_LABEL_REVIEW_COMMENT) & (group['change_trigger'] >= 0)]
-                if review_comment_trigger is None or review_comment_trigger.empty:
-                    re_analyze_prs.append(pr)
-        Logger.logi("there are {0} prs need to re analyze".format(re_analyze_prs.__len__()))
+        re_analyze_prs = [x for x in pr_nodes if x not in change_nodes]
+        # for pr, group in grouped_timeline:
+        #     if pr not in pr_nodes:
+        #         re_analyze_prs.append(pr)
+        #     else:
+        #         review_comment_trigger = group.loc[(group['comment_type'] == StringKeyUtils.STR_LABEL_REVIEW_COMMENT) & (group['change_trigger'] >= 0)]
+        #         if review_comment_trigger is None or review_comment_trigger.empty:
+        #             re_analyze_prs.append(pr)
+        # Logger.logi("there are {0} prs need to re analyze".format(re_analyze_prs.__len__()))
+
 
         """设置fetch参数"""
         pos = 0
-        fetchLimit = 40
+        fetchLimit = 200
         size = re_analyze_prs.__len__()
         while pos < size:
             Logger.logi("start: {0}, end: {1}, all: {2}".format(pos, pos + fetchLimit, size))
@@ -496,11 +510,14 @@ class AsyncProjectAllDataFetcher:
             pr_change_trigger_comments = [x for y in pr_change_trigger_comments for x in y]
 
             """8. 将分析结果去重并追加到change_trigger表中"""
-            target_content = DataFrame()
-            target_content = target_content.append(pr_change_trigger_comments, ignore_index=True)
-            target_content.drop_duplicates(subset=['pullrequest_node', 'comment_node'], inplace=True, keep='first')
-            if not target_content.empty:
-                pandasHelper.writeTSVFile(change_trigger_filename, target_content, writeStyle=pandasHelper.STR_WRITE_STYLE_APPEND_NEW)
+            if pr_change_trigger_comments is not None and pr_change_trigger_comments.__len__() > 0:
+                target_content = DataFrame()
+                target_content = target_content.append(pr_change_trigger_comments, ignore_index=True)
+                target_content = target_content[PR_CHANGE_TRIGGER_COLUMNS].copy(deep=True)
+                target_content.drop_duplicates(subset=['pullrequest_node', 'comment_node'], inplace=True, keep='first')
+                if not target_content.empty:
+                    pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW,
+                                              header=pandasHelper.INT_WRITE_WITHOUT_HEADER)
             Logger.logi("successfully analyzed {0} prs".format(re_analyze_prs.__len__()))
             pos += fetchLimit
 
@@ -527,7 +544,7 @@ class AsyncProjectAllDataFetcher:
         pr_nodes.sort()
 
         """设置fetch参数"""
-        pos = 0
+        pos = 200
         fetchLimit = 200
         size = pr_nodes.__len__()
         Logger.logi("there are {0} prs need to analyze".format(pr_nodes.__len__()))
@@ -572,7 +589,7 @@ if __name__ == '__main__':
     # AsyncProjectAllDataFetcher.checkPRTimeLineResult()
 
     # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
-    # AsyncProjectAllDataFetcher.getNoOriginLineReviewComment('yarnpkg', 'yarn', 2000, 7000)
+    # AsyncProjectAllDataFetcher.getNoOriginLineReviewComment('bitcoin', 'bitcoin', 9400, 15500)
 
     #AsyncProjectAllDataFetcher.checkPRTimeLineResult();
     # 全量爬取pr时间线信息，写入prTimeData文件夹

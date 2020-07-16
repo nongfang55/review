@@ -30,6 +30,13 @@ class PBTrain:
         excelName = f'outputPB_{project}.xlsx'
         sheetName = 'result'
 
+        """计算累积数据"""
+        topks = []
+        mrrs = []
+        precisionks = []
+        recallks = []
+        fmeasureks = []
+
         """初始化excel文件"""
         ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
         for date in dates:
@@ -39,6 +46,12 @@ class PBTrain:
             """根据推荐列表做评价"""
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
+
+            topks.append(topk)
+            mrrs.append(mrr)
+            precisionks.append(precisionk)
+            recallks.append(recallk)
+            fmeasureks.append(fmeasurek)
 
             """结果写入excel"""
             DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date)
@@ -50,6 +63,10 @@ class PBTrain:
             ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
 
             print("cost time:", datetime.now() - startTime)
+
+        """计算历史累积数据"""
+        DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
+                                           fmeasureks)
 
     @staticmethod
     def preProcess(df, dates):
