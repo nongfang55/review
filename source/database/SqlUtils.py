@@ -60,6 +60,11 @@ class SqlUtils:
                                         from gitCommit, commitPRRelation
                                         where gitCommit.has_file_fetched = False
                                         and gitCommit.sha = commitPRRelation.sha LIMIT 2000"""
+    '''查询数据库中没有匹配 gitfile 的commit 数量通过 has_file_fetched判断'''
+    STR_SQL_QUERY_UNMATCH_COMMIT_FILE_COUNT_BY_HAS_FETCHED_FILE = """select count(distinct gitCommit.sha)
+                                        from gitCommit, commitPRRelation
+                                        where gitCommit.has_file_fetched = False
+                                        and gitCommit.sha = commitPRRelation.sha"""
 
     '''查询数据库中没有original_line值的review comment 一次2000个'''
     STR_SQL_QUERY_NO_ORIGINAL_LINE_REVIEW_COMMENT = """select id
@@ -75,6 +80,21 @@ class SqlUtils:
                                                       and pullRequest.state = 'closed' and number between %s and %s
                                                     ) 
                                         )  and original_line is null LIMIT 2000"""
+
+    '''查询数据库中没有original_line值的review comment 一次2000个'''
+    STR_SQL_QUERY_NO_ORIGINAL_LINE_REVIEW_COMMENT_COUNT = """select count(id)
+                                        from reviewComment
+                                        where pull_request_review_id in (
+                                            select id
+                                            from review
+                                            where repo_full_name = %s
+                                              and pull_number
+                                                in (select number
+                                                    from pullRequest
+                                                    where pullRequest.repo_full_name = %s
+                                                      and pullRequest.state = 'closed' and number between %s and %s
+                                                    ) 
+                                        )  and original_line is null"""
 
     STR_SQL_QUERY_PR_FOR_TIME_LINE = """select distinct node_id 
                                         from pullRequest 

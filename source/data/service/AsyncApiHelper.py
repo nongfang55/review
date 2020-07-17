@@ -795,6 +795,7 @@ class AsyncApiHelper:
                     prTimeLines = []
                     for node in nodes:
                         """从回应结果解析出pr时间线对象"""
+                        node[StringKeyUtils.STR_KEY_REPO_FULL_NAME] = AsyncApiHelper.repo + "/" + AsyncApiHelper.owner
                         prTimeLine = PRTimeLine.Parser.parser(node)
                         if prTimeLine is None:
                             continue

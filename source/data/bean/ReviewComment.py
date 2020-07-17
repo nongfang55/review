@@ -32,6 +32,7 @@ class ReviewComment(BeanBase):
         self.side = None
         self.in_reply_to_id = None
         self.node_id = None
+        self.repo_full_name = None
 
         self.user_login = None
         self.change_trigger = None  # comment 之后一系列改动中距离comment所指的line最近的距离
@@ -53,7 +54,8 @@ class ReviewComment(BeanBase):
                  StringKeyUtils.STR_KEY_ORIGINAL_START_LINE, StringKeyUtils.STR_KEY_START_SIDE,
                  StringKeyUtils.STR_KEY_LINE, StringKeyUtils.STR_KEY_ORIGINAL_LINE, StringKeyUtils.STR_KEY_SIDE,
                  StringKeyUtils.STR_KEY_IN_REPLY_TO_ID, StringKeyUtils.STR_KEY_NODE_ID,
-                 StringKeyUtils.STR_KEY_CHANGE_TRIGGER, StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_NODE_ID]
+                 StringKeyUtils.STR_KEY_CHANGE_TRIGGER, StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_NODE_ID,
+                 StringKeyUtils.STR_KEY_REPO_FULL_NAME]
 
         return items
 
@@ -81,7 +83,8 @@ class ReviewComment(BeanBase):
                  (StringKeyUtils.STR_KEY_IN_REPLY_TO_ID, BeanBase.DATA_TYPE_INT),
                  (StringKeyUtils.STR_KEY_NODE_ID, BeanBase.DATA_TYPE_STRING),
                  (StringKeyUtils.STR_KEY_CHANGE_TRIGGER, BeanBase.DATA_TYPE_INT),
-                 (StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_NODE_ID, BeanBase.DATA_TYPE_STRING)]
+                 (StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_NODE_ID, BeanBase.DATA_TYPE_STRING),
+                 (StringKeyUtils.STR_KEY_REPO_FULL_NAME, BeanBase.DATA_TYPE_STRING)]
 
         return items
 
@@ -102,7 +105,8 @@ class ReviewComment(BeanBase):
                  StringKeyUtils.STR_KEY_IN_REPLY_TO_ID: self.in_reply_to_id,
                  StringKeyUtils.STR_KEY_NODE_ID: self.node_id,
                  StringKeyUtils.STR_KEY_CHANGE_TRIGGER: self.change_trigger,
-                 StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_NODE_ID: self.pull_request_review_node_id}
+                 StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_NODE_ID: self.pull_request_review_node_id,
+                 StringKeyUtils.STR_KEY_REPO_FULL_NAME: self.repo_full_name}
         return items
 
     class parser(BeanBase.parser):
@@ -112,7 +116,7 @@ class ReviewComment(BeanBase):
             if isinstance(src, dict):
                 res = ReviewComment()
                 res.id = src.get(StringKeyUtils.STR_KEY_ID, None)
-
+                res.repo_full_name = src.get(StringKeyUtils.STR_KEY_REPO_FULL_NAME)
                 res.body = src.get(StringKeyUtils.STR_KEY_BODY)
                 res.pull_request_review_id = src.get(StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_ID)
                 res.diff_hunk = src.get(StringKeyUtils.STR_KEY_DIFF_HUNK)

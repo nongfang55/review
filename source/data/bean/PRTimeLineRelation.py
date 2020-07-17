@@ -13,6 +13,7 @@ class PRTimeLineRelation(BeanBase):
     """github中pull request的timeline 关系"""
 
     def __init__(self):
+        self.repo_full_name = None
         self.pull_request_node = None
         self.timeline_item_node = None
         self.typename = None
@@ -50,7 +51,7 @@ class PRTimeLineRelation(BeanBase):
 
     @staticmethod
     def getItemKeyList():
-        items = [StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE,
+        items = [StringKeyUtils.STR_KEY_REPO_FULL_NAME, StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE,
                  StringKeyUtils.STR_KEY_TYPE_NAME, StringKeyUtils.STR_KEY_POSITION, StringKeyUtils.STR_KEY_ORIGIN,
                  StringKeyUtils.STR_KEY_CREATE_AT]
 
@@ -58,7 +59,8 @@ class PRTimeLineRelation(BeanBase):
 
     @staticmethod
     def getItemKeyListWithType():
-        items = [(StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, BeanBase.DATA_TYPE_STRING),
+        items = [(StringKeyUtils.STR_KEY_REPO_FULL_NAME, BeanBase.DATA_TYPE_STRING),
+                (StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, BeanBase.DATA_TYPE_STRING),
                  (StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE, BeanBase.DATA_TYPE_STRING),
                  (StringKeyUtils.STR_KEY_TYPE_NAME, BeanBase.DATA_TYPE_STRING),
                  (StringKeyUtils.STR_KEY_POSITION, BeanBase.DATA_TYPE_INT),
@@ -68,7 +70,8 @@ class PRTimeLineRelation(BeanBase):
         return items
 
     def getValueDict(self):
-        items = {StringKeyUtils.STR_KEY_PULL_REQUEST_NODE: self.pull_request_node,
+        items = {StringKeyUtils.STR_KEY_REPO_FULL_NAME: self.repo_full_name,
+                 StringKeyUtils.STR_KEY_PULL_REQUEST_NODE: self.pull_request_node,
                  StringKeyUtils.STR_KEY_TIME_LINE_ITEM_NODE: self.timeline_item_node,
                  StringKeyUtils.STR_KEY_TYPE_NAME: self.typename,
                  StringKeyUtils.STR_KEY_POSITION: self.position,
@@ -84,7 +87,7 @@ class PRTimeLineRelation(BeanBase):
             if item is not None and isinstance(item, str):
                 item = json.loads(item)
             relation = PRTimeLineRelation()  # 返回结果为一系列关系
-
+            relation.repo_full_name = item.get(StringKeyUtils.STR_KEY_REPO_FULL_NAME, None)
             """依据每个Item的TypeName来判断Item的具体类型"""
             """item的类型种类可以参考 https://developer.github.com/v4/union/pullrequesttimelineitems/"""
             relation.typename = item.get(StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
