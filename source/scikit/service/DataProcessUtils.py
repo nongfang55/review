@@ -922,6 +922,100 @@ class DataProcessUtils:
         DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getCADataPath(),
                                           targetFileName=f'CA_{projectName}_data', dateCol='pr_created_at',
                                           dataFrame=data)
+    @staticmethod
+    def contactCNData(projectName):
+        """
+        通过 ALL_{projectName}_data_issuecomment
+             ALL_{projectName}_data_review
+             ALL_{projectName}_data_review_comment
+             ALL_{projectName}_data_pullrequest 三个文件拼接出CN所需文件
+        """
+        """读取信息"""
+        start_time = datetime.now()
+        data_train_path = projectConfig.getDataTrainPath()
+        issue_comment_file_path = projectConfig.getIssueCommentPath()
+        review_comment_file_path = projectConfig.getReviewCommentDataPath()
+        review_file_path = projectConfig.getReviewDataPath()
+        pullrequest_file_path = projectConfig.getPullRequestPath()
+
+        """读取issue_comment"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_file_path, f'ALL_{projectName}_data_issuecomment.tsv'), low_memory=False,
+            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        print("raw issue_comment file: ", issueCommentData.shape)
+
+        """读取review"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_file_path, f'ALL_{projectName}_data_review.tsv'), low_memory=False,
+            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        print("raw review file: ", reviewData.shape)
+
+        """读取review_comment"""
+        reviewCommentData = pandasHelper.readTSVFile(
+            os.path.join(review_comment_file_path, f'ALL_{projectName}_data_reviewcomment.tsv'), low_memory=False,
+            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        print("raw review_comment file: ", reviewCommentData.shape)
+
+        """读取issue_comment"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pullrequest_file_path, f'ALL_{projectName}_data_pullrequest.tsv'), low_memory=False,
+            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        print("raw pr file:", pullRequestData.shape)
+
+        print("read file cost time:", datetime.now() - start_time)
+
+        """过滤状态非关闭的pr review"""
+        pullRequestData = pullRequestData.loc[pullRequestData['state'] == 'closed'].copy(deep=True)
+        print("after fliter closed pr:", pullRequestData.shape)
+
+        """过滤pr不需要的字段"""
+        pullRequestData = pullRequestData[['repo_full_name', 'number', 'user_login', 'created_at', 'author_association']].copy(deep=True)
+        pullRequestData.columns = ['repo_full_name', 'pull_number', 'pr_author', 'pr_created_at', 'pr_author_association']
+        pullRequestData.drop_duplicates(inplace=True)
+        pullRequestData.reset_index(drop=True, inplace=True)
+        print("after fliter pr:", pullRequestData.shape)
+
+        """过滤issue comment不需要的字段"""
+        issueCommentData = issueCommentData[['pull_number', 'node_id', 'user_login', 'created_at', 'author_association']].copy(deep=True)
+        issueCommentData.columns = ['pull_number', 'comment_node', 'reviewer', 'commented_at', 'reviewer_association']
+        issueCommentData.drop_duplicates(inplace=True)
+        issueCommentData.reset_index(drop=True, inplace=True)
+        issueCommentData['comment_type'] = StringKeyUtils.STR_LABEL_ISSUE_COMMENT
+        print("after fliter issue comment:", issueCommentData.shape)
+
+        """过滤review不需要的字段"""
+        reviewData = reviewData[['pull_number', 'id']].copy(deep=True)
+        reviewData.columns = ['pull_number', 'pull_request_review_id']
+        reviewData.drop_duplicates(inplace=True)
+        reviewData.reset_index(drop=True, inplace=True)
+        print("after fliter review:", reviewData.shape)
+
+        """过滤review comment不需要的字段"""
+        reviewCommentData = reviewCommentData[['pull_request_review_id', 'node_id', 'user_login', 'created_at', 'author_association']].copy(deep=True)
+        reviewCommentData.columns = ['pull_request_review_id', 'comment_node', 'reviewer', 'commented_at', 'reviewer_association']
+        reviewCommentData.drop_duplicates(inplace=True)
+        reviewCommentData.reset_index(drop=True, inplace=True)
+        reviewCommentData['comment_type'] = StringKeyUtils.STR_LABEL_REVIEW_COMMENT
+        print("after fliter review comment:", reviewCommentData.shape)
+
+        """连接表"""
+        reviewCommentData = pandas.merge(reviewCommentData, reviewData, on='pull_request_review_id')
+        reviewCommentData.drop(columns=['pull_request_review_id'], inplace=True)
+
+        data = pandas.concat([issueCommentData, reviewCommentData])
+        data.reset_index(drop=True, inplace=True)
+        data = pandas.merge(pullRequestData, data, left_on='pull_number', right_on='pull_number')
+        print("after merge:", data.shape)
+
+        """去掉自己是reviewer的情况"""
+        data = data[data['reviewer'] != data['pr_author']]
+        data.reset_index(drop=True, inplace=True)
+        print("after filter:", data.shape)
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getCNDataPath(),
+                                          targetFileName=f'CN_{projectName}_data', dateCol='pr_created_at',
+                                          dataFrame=data)
 
     @staticmethod
     def convertLabelListToDataFrame(label_data, pull_list, maxNum):
@@ -1414,3 +1508,5 @@ if __name__ == '__main__':
     # DataProcessUtils.compareDataFrameByPullNumber()
 
     DataProcessUtils.changeTriggerAnalyzer('cakephp')
+
+    DataProcessUtils.contactCNData("opencv")
