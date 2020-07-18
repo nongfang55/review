@@ -785,11 +785,11 @@ class DataProcessUtils:
             """过滤机器人的场景  """
             data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
-            data_issue = data_issue[['number', 'node_id_x', 'user_login_y',
+            data_review = data_review[['number', 'node_id_x', 'user_login_y',
                                      'created_at', 'commits', 'additions', 'deletions',
                                      'changed_files', 'head_label', 'base_label', 'user_login_x']].copy(deep=True)
 
-            data_issue.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_commits',
+            data_review.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_commits',
                                   'pr_additions', 'pr_deletions', 'pr_changed_files', 'pr_head_label',
                                   'pr_base_label', 'pr_user_login']
             data_review.drop_duplicates(inplace=True)
@@ -1340,6 +1340,128 @@ class DataProcessUtils:
                                           dataFrame=data)
 
     @staticmethod
+    def contactTCData(projectName, label=StringKeyUtils.STR_LABEL_REVIEW_COMMENT):
+        """
+        对于 label == review comment and issue comment
+             ALL_{projectName}_data_pullrequest
+             ALL_{projectName}_data_issuecomment
+             ALL_{projectName}_data_review
+             ALL_{projectName}_data_review_comment
+             三个文件拼出PB所需的信息量文件
+        """
+
+        targetFileName = f'TC_{projectName}_data'
+        if label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
+            targetFileName = f'TC_ISSUE_{projectName}_data'
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+            targetFileName = f'TC_ALL_{projectName}_data'
+
+        """读取信息对应的信息"""
+        data_train_path = projectConfig.getDataTrainPath()
+        issue_comment_path = projectConfig.getIssueCommentPath()
+        pull_request_path = projectConfig.getPullRequestPath()
+        review_path = projectConfig.getReviewDataPath()
+        review_comment_path = projectConfig.getReviewCommentDataPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+
+        """issue commit 数据库输出 自带抬头"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review 数据库输出 自带抬头"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review comment 数据库输出 自带抬头"""
+        reviewCommentData = pandasHelper.readTSVFile(
+            os.path.join(review_comment_path, f'ALL_{projectName}_data_review_comment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        if label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+            """思路  上面两部分依次做凭借， 最后加上文件"""
+            data_issue = pandas.merge(pullRequestData, issueCommentData, left_on='number', right_on='pull_number')
+            """过滤 comment 在closed 后面的场景 2020.6.28"""
+            data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
+            data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)
+            """过滤删除用户的场景"""
+            data_issue.dropna(subset=['user_login_y'], inplace=True)
+            """过滤机器人的场景"""
+            data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+            data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
+            "PR数据行： repo_full_name, number, review_user_login, pr_title, pr_body, pr_created_at, comment_body"
+            data_issue = data_issue[['repo_full_name_x', 'number', 'node_id_x', 'title', 'body_x',
+                                     'created_at_x', 'node_id_y', 'user_login_y', 'body_y']].copy(deep=True)
+            data_issue.columns = ['repo_full_name', 'pr_number', 'node_id', 'pr_title', 'pr_body',
+                                  'pr_created_at', 'comment_node_id', 'review_user_login', 'comment_body']
+            data_issue.drop_duplicates(inplace=True)
+
+            data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
+            data_review = pandas.merge(data_review, reviewCommentData, left_on='id_y',
+                                       right_on='pull_request_review_id')
+            data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
+            """过滤 comment 在closed 后面的场景 2020.6.28"""
+            data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
+            """过滤删除用户场景"""
+            data_review.dropna(subset=['user_login_y'], inplace=True)
+            """过滤机器人的场景  """
+            data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+            data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
+            "TC数据行： repo_full_name, number, review_user_login, pr_title, pr_body, pr_created_at, comment_body"
+            data_review = data_review[['repo_full_name_x', 'number', 'node_id_x', 'title', 'body_x',
+                                       'created_at_x', 'node_id', 'user_login_y', 'body']].copy(deep=True)
+            data_review.columns = ['repo_full_name', 'pr_number', 'node_id', 'pr_title', 'pr_body',
+                                   'pr_created_at', 'comment_node_id', 'review_user_login', 'comment_body']
+            data_review.drop_duplicates(inplace=True)
+
+            data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
+            data.drop_duplicates(inplace=True)
+            data.reset_index(drop=True, inplace=True)
+            print(data.shape)
+
+            """change_trigger只取出pr, reviewer，和data取交集"""
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            # changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+            changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            # changeTriggerData.rename(columns={'pullrequest_node': 'node_id', "user_login": 'review_user_login'}
+            #                          , inplace=True)
+            changeTriggerData.rename(columns={'comment_node': 'comment_node_id'}
+                                     , inplace=True)
+            data = pandas.merge(data, changeTriggerData, how='inner')
+            # data = data.drop(labels='node_id', axis=1)
+            data = data.drop(labels='comment_node_id', axis=1)
+
+            """只选出感兴趣的部分"""
+            data = data[['repo_full_name', 'pr_number', 'review_user_login', 'pr_title',
+                         'pr_body', 'pr_created_at', 'comment_body']].copy(deep=True)
+            data.drop_duplicates(inplace=True)
+            data.sort_values(by='pr_number', ascending=False, inplace=True)
+            data.reset_index(drop=True)
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getTCDataPath(),
+                                          targetFileName=targetFileName, dateCol='pr_created_at',
+                                          dataFrame=data)
+
+
+    @staticmethod
     def getReviewerFrequencyDict(projectName, date):
         """获得某个项目某个时间段的reviewer
         的review次数字典
@@ -1470,11 +1592,11 @@ class DataProcessUtils:
         change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_pr_change_trigger.tsv'
         change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
 
-        timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
-        timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
-        timeline_df = timeline_df.loc[(timeline_df['typename'] == 'IssueComment')\
-                                      |(timeline_df['typename'] == 'PullRequestReview')].copy(deep=True)
-        timeline_useful_prs = list(set(timeline_df['pullrequest_node']))
+        # timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
+        # timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
+        # timeline_df = timeline_df.loc[(timeline_df['typename'] == 'IssueComment')\
+        #                               |(timeline_df['typename'] == 'PullRequestReview')].copy(deep=True)
+        # timeline_useful_prs = list(set(timeline_df['pullrequest_node']))
 
         prs = list(set(change_trigger_df['pullrequest_node']))
         print("prs nums:", prs.__len__())
@@ -1525,8 +1647,14 @@ if __name__ == '__main__':
     # """从总的commit file文件中分割树独立的commit file文件"""
     # DataProcessUtils.splitProjectCommitFileData('infinispan')
 
-    """分割不同算法的训练集"""
-    # DataProcessUtils.contactCAData('cakephp')
+    # projects = ['react']
+    # """分割不同算法的训练集"""
+    # for p in projects:
+    #     DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    #     DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    #     DataProcessUtils.contactIRData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    #     DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    #     DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
 
     # projects = ['opencv', 'adobe', 'angular', 'bitcoin', 'cakephp']
     # projects = ['bitcoin']
@@ -1542,6 +1670,6 @@ if __name__ == '__main__':
     #
     # DataProcessUtils.compareDataFrameByPullNumber()
 
-    DataProcessUtils.changeTriggerAnalyzer('cakephp')
+    DataProcessUtils.changeTriggerAnalyzer('django')
 
     DataProcessUtils.contactCNData("opencv")

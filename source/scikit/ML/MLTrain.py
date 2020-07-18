@@ -692,16 +692,8 @@ class MLTrain:
 
 
 if __name__ == '__main__':
-    # dates = [(2018, 1, 2019, 4), (2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 7),
-    #          (2018, 1, 2019, 8)
-    #     , (2018, 1, 2019, 9), (2018, 1, 2019, 10), (2018, 1, 2019, 11), (2018, 1, 2019, 12)]
-    # dates = [(2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 8), (2018, 1, 2019, 9)
-    #     , (2018, 1, 2019, 10)]
-    # dates = [(2018, 1, 2019, 12)]
-    # MLTrain.testMLAlgorithms('rails', dates, StringKeyUtils.STR_ALGORITHM_DT)
-    # MLTrain.testBayesAlgorithms('rails', dates)
-    # projects = ['rails', 'scala', 'akka', 'bitcoin']
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
-             (2017, 1, 2018, 6)]
-    projects = ['opencv', 'cakephp', 'bitcoin']
-    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [7])
+             (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
+             (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
+    projects = ['react']
+    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0])

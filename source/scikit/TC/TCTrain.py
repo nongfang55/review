@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 
 import pandas
+from gensim import corpora, models
 
 from source.config.projectConfig import projectConfig
 from source.data.bean.PullRequest import PullRequest
@@ -15,19 +16,22 @@ from source.scikit.service import MultisetHelper
 from source.scikit.service.BeanNumpyHelper import BeanNumpyHelper
 from source.scikit.service.DataFrameColumnUtils import DataFrameColumnUtils
 from source.scikit.service.DataProcessUtils import DataProcessUtils
+from source.scikit.service.MultisetHelper import WordMultiset
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
 from source.utils.ExcelHelper import ExcelHelper
 from source.utils.StringKeyUtils import StringKeyUtils
 from source.utils.pandas.pandasHelper import pandasHelper
 
 
-class PBTrain:
+class TCTrain:
+
+    """LDA主题模型来解析作者的画像 TC取之Topic"""
 
     @staticmethod
     def TestAlgorithm(project, dates):
         """整合 训练数据"""
         recommendNum = 5  # 推荐数量
-        excelName = f'outputPB_{project}.xlsx'
+        excelName = f'outputTC_{project}.xlsx'
         sheetName = 'result'
 
         """计算累积数据"""
@@ -41,7 +45,7 @@ class PBTrain:
         ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
         for date in dates:
             startTime = datetime.now()
-            recommendList, answerList, prList, convertDict, trainSize = PBTrain.algorithmBody(date, project,
+            recommendList, answerList, prList, convertDict, trainSize = TCTrain.algorithmBody(date, project,
                                                                                               recommendNum)
             """根据推荐列表做评价"""
             topk, mrr, precisionk, recallk, fmeasurek = \
@@ -93,20 +97,24 @@ class PBTrain:
         """先对tag做拆分"""
         tagDict = dict(list(df.groupby('pr_number')))
 
+        commentDf = df[['pr_number', 'review_user_login', 'comment_body', 'label']].copy(deep=True)
+
+        """用于收集所有文本向量分词"""
+        stopwords = SplitWordHelper().getEnglishStopList()  # 获取通用英语停用词
+
         """先尝试所有信息团在一起"""
         df = df[['pr_number', 'pr_title', 'pr_body', 'label']].copy(deep=True)
         df.drop_duplicates(inplace=True)
         df.reset_index(drop=True, inplace=True)
 
-        """用于收集所有文本向量分词"""
-        stopwords = SplitWordHelper().getEnglishStopList()  # 获取通用英语停用词
+        """训练和测试做分割"""
+        df_train = df.loc[df['label'] == 0].copy(deep=True)
+        df_test = df.loc[df['label'] == 1].copy(deep=True)
+        df_test.reset_index(drop=True, inplace=True)
 
-        textList = []
-        """由于特殊性  PB算法的训练集不是dataFrame
-           { p1:set1, p2:set2, ... }
-        """
-        train_data = {}
-        test_data = {}
+        """收集训练集中的pr的文本作为 文档做LDA提取主题"""
+        trainTextList = []
+        testTextList = []
         for row in df.itertuples(index=False, name='Pandas'):
             tempList = []
             """获取pull request的number"""
@@ -116,9 +124,6 @@ class PBTrain:
             """获取pull request的标题"""
             pr_title = getattr(row, 'pr_title')
             pr_title_word_list = [x for x in FleshReadableUtils.word_list(pr_title) if x not in stopwords]
-
-            """初步尝试提取词干效果反而下降了 。。。。"""
-
             """对单词做提取词干"""
             pr_title_word_list = nltkFunction.stemList(pr_title_word_list)
             tempList.extend(pr_title_word_list)
@@ -130,58 +135,82 @@ class PBTrain:
             pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
             tempList.extend(pr_body_word_list)
 
-            wordSet = MultisetHelper.WordMultiset()
-            wordSet.add(tempList)
+            if label == 0:
+                trainTextList.append(tempList)
+            elif label == 1:
+                testTextList.append(tempList)
+
+        """收集 训练集中的comment"""
+        trainCommentList = []
+        review_comment_map = {}  # pr -> [(reviewer, [w1, w2, w3]), .....]
+        for row in commentDf.itertuples(index=False, name='Pandas'):
+            tempList = []
+            """获取pull request的number"""
+            pr_num = getattr(row, 'pr_number')
+            label = getattr(row, 'label')
+            reviewer = getattr(row, 'review_user_login')
+
+            """获取pull request的标题"""
+            comment_body = getattr(row, 'comment_body')
+            comment_body_word_list = [x for x in FleshReadableUtils.word_list(comment_body) if x not in stopwords]
+            """对单词做提取词干"""
+            comment_body_word_list = nltkFunction.stemList(comment_body_word_list)
+            tempList.extend(comment_body_word_list)
+
+            if review_comment_map.get(pr_num, None) is None:
+                review_comment_map[pr_num] = []
 
             if label == 0:
-                train_data[pr_num] = wordSet
-            else:
-                test_data[pr_num] = wordSet
+                review_comment_map[pr_num].append((reviewer, tempList.copy()))
+                trainCommentList.append(tempList)
 
-        print("train size:", train_data.items().__len__())
-        print("test size:", test_data.items().__len__())
+        """建立LDA模型提取数据"""
+        # 接下来就是模型构建的步骤了，首先构建词频矩阵
+        allTextList = []
+        allTextList.extend(trainTextList)
+        allTextList.extend(trainCommentList)
+        dictionary = corpora.Dictionary(trainTextList)
+        corpus = [dictionary.doc2bow(text) for text in trainTextList]
+        lda = models.LdaModel(corpus=corpus, id2word=dictionary, num_topics=20)
+        topic_list = lda.print_topics(20)
+        print("20个主题的单词分布为：\n")
+        for topic in topic_list:
+            print(topic)
 
-        """问题转化为多标签问题
-            train_data_y   [{pull_number:[(r1, s1), (r2, s2), ...]}, ... ,{}]
-            
-            r 代表reviewer
-            s 代表集合
+        """建立训练集和测试集所需的主题分布
+           pr_num -> {[(t1, p1), (t2, p2), .....]}
         """
+        train_data = {}
+        test_data = {}
+        for index, d in enumerate(lda.get_document_topics([dictionary.doc2bow(text) for text in trainTextList])):
+            train_data[df_train['pr_number'][index]] = d
+        for index, d in enumerate(lda.get_document_topics([dictionary.doc2bow(text) for text in testTextList])):
+            test_data[df_test['pr_number'][index]] = d
 
-        train_data_y = {}
+        train_data_y = {}  # pr -> [(reviewer, [(comment1), (comment2) ...])]
         for pull_number in df.loc[df['label'] == False]['pr_number']:
             reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
-            tempDf = tagDict[pull_number][['review_user_login', 'comment_body']].copy(deep=True)
-            commentDict = dict(list(tempDf.groupby('review_user_login')))
             reviewerList = []
             for reviewer in reviewers:
-                commentDf = commentDict[reviewer]
-                wordSet = MultisetHelper.WordMultiset()
-                for row in commentDf.itertuples(index=False, name='Pandas'):
-                    comment = getattr(row, 'comment_body')
-                    comment_body_word_list = [x for x in FleshReadableUtils.word_list(comment) if x not in stopwords]
-                    """对单词做提取词干"""
-                    comment_body_word_list = nltkFunction.stemList(comment_body_word_list)
-                    wordSet.add(comment_body_word_list)
-                reviewerList.append((reviewer, wordSet))
+                commentTopicList = []
+                for r, words in review_comment_map[pull_number]:
+                    if r == reviewer:
+                        commentTopicList.append(words)
+                commentTopicList = lda.get_document_topics([dictionary.doc2bow(text) for text in commentTopicList])
+                reviewerList.append((reviewer, [x for x in commentTopicList]))
             train_data_y[pull_number] = reviewerList
 
         test_data_y = {}
         for pull_number in df.loc[df['label'] == True]['pr_number']:
             reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
-            tempDf = tagDict[pull_number][['review_user_login', 'comment_body']].copy(deep=True)
-            commentDict = dict(list(tempDf.groupby('review_user_login')))
             reviewerList = []
             for reviewer in reviewers:
-                commentDf = commentDict[reviewer]
-                wordSet = MultisetHelper.WordMultiset()
-                for row in commentDf.itertuples(index=False, name='Pandas'):
-                    comment = getattr(row, 'comment_body')
-                    comment_body_word_list = [x for x in FleshReadableUtils.word_list(comment) if x not in stopwords]
-                    """对单词做提取词干"""
-                    comment_body_word_list = nltkFunction.stemList(comment_body_word_list)
-                    wordSet.add(comment_body_word_list)
-                reviewerList.append((reviewer, wordSet))
+                commentTopicList = []
+                for r, words in review_comment_map[pull_number]:
+                    if r == reviewer:
+                        commentTopicList.append(words)
+                commentTopicList = lda.get_document_topics([dictionary.doc2bow(text) for text in commentTopicList])
+                reviewerList.append((reviewer, commentTopicList))
             test_data_y[pull_number] = reviewerList
 
         print("preprocess cost time:", datetime.now() - t1)
@@ -204,7 +233,7 @@ class PBTrain:
                 y = y - 1
 
             # print(y, m)
-            filename = projectConfig.getPBDataPath() + os.sep + f'PB_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            filename = projectConfig.getTCDataPath() + os.sep + f'TC_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
             """数据自带head"""
             if df is None:
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
@@ -215,11 +244,11 @@ class PBTrain:
         df.reset_index(inplace=True, drop=True)
         """df做预处理"""
         """新增人名映射字典"""
-        train_data, train_data_y, test_data, test_data_y, convertDict = PBTrain.preProcess(df, date)
+        train_data, train_data_y, test_data, test_data_y, convertDict = TCTrain.preProcess(df, date)
 
         prList = None
 
-        recommendList, answerList = PBTrain.RecommendByPB(train_data, train_data_y, test_data,
+        recommendList, answerList = TCTrain.RecommendByTC(train_data, train_data_y, test_data,
                                                           test_data_y, recommendNum=recommendNum)
 
         """新增返回测试 训练集大小，用于做统计"""
@@ -231,8 +260,8 @@ class PBTrain:
         return recommendList, answerList, prList, convertDict, trainSize
 
     @staticmethod
-    def RecommendByPB(train_data, train_data_y, test_data, test_data_y, recommendNum=5):
-        """使用用户画像
+    def RecommendByTC(train_data, train_data_y, test_data, test_data_y, recommendNum=5):
+        """使用LDA 主题建立用户主题
            并且是多标签分类
         """""
 
@@ -240,26 +269,38 @@ class PBTrain:
         answerList = []
 
         t1 = datetime.now()
-        """生成用户画像"""
+        """通过LDA生成用户画像  复用多重集"""
         candicates = {}
+        allSet = WordMultiset()
         for pr_num in train_data.keys():
             prSet = train_data[pr_num]
+            allSet.addByTuple(prSet)
             reviewers = train_data_y[pr_num]
-            for reviewer, commentSet in reviewers:
+            for reviewer, commentSetList in reviewers:
                 if candicates.get(reviewer, None) is None:
-                    candicates[reviewer] = commentSet.copy()
-                    candicates[reviewer].add(prSet)
+                    candicates[reviewer] = WordMultiset()
+                    candicates[reviewer].addByTuple(prSet)
+                    for comment in commentSetList:
+                        candicates[reviewer].addByTuple(comment)
                 else:
-                    candicates[reviewer].add(commentSet)
-                    candicates[reviewer].add(prSet)
+                    candicates[reviewer].addByTuple(prSet)
+                    for comment in commentSetList:
+                        candicates[reviewer].addByTuple(comment)
+
+        for v in candicates.values():
+            allSet.add(v)
+        for candicate, profile in candicates.items():
+            profile.divide(allSet)
+            profile.equalization()
         print("user profile cost time:", datetime.now() - t1)
 
         for pr_num in test_data.keys():
             recommendScore = {}
-            prSet = test_data[pr_num]
+            prSet = WordMultiset()
+            prSet.addByTuple(test_data[pr_num])
             """依次计算候选者的相关系数"""
             for candicate, profile in candicates.items():
-                score = prSet.TverskyIndex(profile, 0, 1)
+                score = prSet.multiply(profile)
                 recommendScore[candicate] = score
             targetRecommendList = [x[0] for x in
                                    sorted(recommendScore.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]]
@@ -271,11 +312,16 @@ class PBTrain:
 
 
 if __name__ == '__main__':
+    # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+    #          (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
+    #          (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
     # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
     #          (2017, 1, 2018, 6)]
+    # dates = [(2017, 1, 2017, 2), (2017, 1, 2017, 3), (2017, 1, 2017, 4), (2017, 1, 2017, 5), (2017, 1, 2017, 6),
+    #          (2017, 1, 2017, 7)]
     projects = ['react']
     for p in projects:
-        PBTrain.TestAlgorithm(p, dates)
+        TCTrain.TestAlgorithm(p, dates)

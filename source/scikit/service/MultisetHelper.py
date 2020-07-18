@@ -11,6 +11,33 @@ class WordMultiset:
         t.data = self.data.copy()
         return t
 
+    def equalization(self):
+        sum = 0
+        for v in self.data.values():
+            sum += v
+        for k, v in self.data.items():
+            self.data[k] = v / sum
+
+    def multiply(self, set2):
+        sum = 0
+        for k, v in set2.data.items():
+            if self.data.get(k, None) is not None:
+                sum += v * self.data.get(k)
+        return sum
+
+    def divide(self, set2):
+        for k, v in set2.data.items():
+            if self.data.get(k, None) is not None:
+                self.data[k] /= v
+
+    def addByTuple(self, tuple_list):
+        if isinstance(tuple_list, list):
+            for k, v in tuple_list:
+                if self.data.get(k, None) is None:
+                    self.data[k] = v
+                else:
+                    self.data[k] += v
+
     def add(self, word_list):
         if isinstance(word_list, list):
             for word in word_list:
@@ -127,12 +154,20 @@ if __name__ == '__main__':
      set1 = WordMultiset()
      set2 = WordMultiset()
 
-     set1.add(['a', 'a', 'b'])
-     set2.add(['b', 'c', 'c'])
+     set1.addByTuple([(1, 0.1), (2, 0.2)])
+     set2.addByTuple([(2, 0.3), (3, 0.4)])
+     # set1.add(['a', 'a', 'b'])
+     # set2.add(['b', 'c', 'c'])
      print(set1.data)
      print(set2.data)
      set2.add(set1)
      print(set1.data)
      print(set2.data)
-     print(set1.jaccardCofficient(set2))
-     print(set1.TverskyIndex(set2, 1, 0))
+     # print(set1.multiply(set2))
+     # print(set2.multiply(set1))
+     set1.divide(set2)
+     print(set1.data)
+     set1.equalization()
+     print(set1.data)
+     # print(set1.jaccardCofficient(set2))
+     # print(set1.TverskyIndex(set2, 1, 0))
