@@ -210,7 +210,7 @@ class CNTrain:
 
     @staticmethod
     def caculateWeight(comment_records, start_time, end_time):
-        weight_lambda = 0.8
+        weight_lambda = 1
         weight = 0
 
         grouped_comment_records = comment_records.groupby(comment_records['pull_number'])
@@ -274,12 +274,15 @@ class CNTrain:
 
             # 利用 Apriori算法 找出频繁项集
             # TODO 现在min_support已经很低了，但是频繁项集数目还是很少，这里需要再研究下怎么回事
-            freq = apriori(df, min_support=0.01, use_colnames=True)
+            print("start gen apriori......")
+            freq = apriori(df, min_support=0.1, use_colnames=True)
             CNTrain.freq = freq.sort_values(by="support", ascending=False)
+            print("finish gen apriori!!!")
 
             # 循环遍历freq，从各个community找出最活跃(入度)的topK
             topKActiveContributor = []
-            while topKActiveContributor.__len__() < recommendNum:
+            # 最多循环recommendNum次
+            for i in range(0, recommendNum):
                 for idx, row in CNTrain.freq.iterrows():
                     community = list(row['itemsets'])
                     """community内部按入度排序"""

@@ -923,7 +923,7 @@ class DataProcessUtils:
                                           targetFileName=f'CA_{projectName}_data', dateCol='pr_created_at',
                                           dataFrame=data)
     @staticmethod
-    def contactCNData(projectName):
+    def contactCNData(projectName, filter_change_trigger=False):
         """
         通过 ALL_{projectName}_data_issuecomment
              ALL_{projectName}_data_review
@@ -937,6 +937,7 @@ class DataProcessUtils:
         review_comment_file_path = projectConfig.getReviewCommentDataPath()
         review_file_path = projectConfig.getReviewDataPath()
         pullrequest_file_path = projectConfig.getPullRequestPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
 
         """读取issue_comment"""
         issueCommentData = pandasHelper.readTSVFile(
@@ -962,6 +963,12 @@ class DataProcessUtils:
             header=pandasHelper.INT_READ_FILE_WITH_HEAD)
         print("raw pr file:", pullRequestData.shape)
 
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
         print("read file cost time:", datetime.now() - start_time)
 
         """过滤状态非关闭的pr review"""
@@ -969,8 +976,8 @@ class DataProcessUtils:
         print("after fliter closed pr:", pullRequestData.shape)
 
         """过滤pr不需要的字段"""
-        pullRequestData = pullRequestData[['repo_full_name', 'number', 'user_login', 'created_at', 'author_association']].copy(deep=True)
-        pullRequestData.columns = ['repo_full_name', 'pull_number', 'pr_author', 'pr_created_at', 'pr_author_association']
+        pullRequestData = pullRequestData[['repo_full_name', 'number', 'node_id', 'user_login', 'created_at', 'author_association']].copy(deep=True)
+        pullRequestData.columns = ['repo_full_name', 'pull_number', 'pullrequest_node', 'pr_author', 'pr_created_at', 'pr_author_association']
         pullRequestData.drop_duplicates(inplace=True)
         pullRequestData.reset_index(drop=True, inplace=True)
         print("after fliter pr:", pullRequestData.shape)
@@ -1010,7 +1017,27 @@ class DataProcessUtils:
         """去掉自己是reviewer的情况"""
         data = data[data['reviewer'] != data['pr_author']]
         data.reset_index(drop=True, inplace=True)
-        print("after filter:", data.shape)
+        print("after filter self reviewer:", data.shape)
+
+        """过滤nan的情况"""
+        data.dropna(axis=0, how='any', inplace=True)
+
+        """过滤机器人的场景  """
+        data['isBot'] = data['reviewer'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data = data.loc[data['isBot'] == False].copy(deep=True)
+        data.drop(columns=['isBot'], inplace=True)
+        print("after filter robot reviewer:", data.shape)
+
+        if filter_change_trigger:
+            """change_trigger只取出pr, reviewer，和data取交集"""
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+            changeTriggerData.rename(columns={'user_login': 'pr_author'}, inplace=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            data = pandas.merge(data, changeTriggerData, how='inner')
+            print("after filter by change_trigger:", data.shape)
+
+        data = data.drop(labels='pullrequest_node', axis=1)
 
         """按照时间分成小片"""
         DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getCNDataPath(),
