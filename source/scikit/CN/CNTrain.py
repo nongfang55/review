@@ -22,6 +22,8 @@ from source.utils.pandas.pandasHelper import pandasHelper
 from collections import deque
 from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import apriori
+from pyecharts import options as opts
+from pyecharts.charts import Graph as EGraph
 
 
 class CNTrain:
@@ -117,11 +119,12 @@ class CNTrain:
 
         prList = list(test_data.drop_duplicates(['pull_number'])['pull_number'])
 
-        recommendList, answerList = CNTrain.RecommendByCN(date, train_data, train_data_y, test_data,
-                                                                test_data_y, convertDict, recommendNum=recommendNum)
+        recommendList, answerList = CNTrain.RecommendByCN(project, date, train_data, train_data_y, test_data,
+                                                          test_data_y, convertDict, recommendNum=recommendNum)
 
         """新增返回测试 训练集大小，用于做统计"""
-
+        from source.scikit.combine.CBTrain import CBTrain
+        recommendList, answerList = CBTrain.recoverName(recommendList, answerList, convertDict)
         """新增返回训练集 测试集大小"""
         trainSize = (train_data.shape, test_data.shape)
         print(trainSize)
@@ -137,10 +140,11 @@ class CNTrain:
 
         """注意： 输入文件中已经带有列名了"""
 
-        """处理NAN"""
-        df.dropna(how='any', inplace=True)
-        df.reset_index(drop=True, inplace=True)
-        df.fillna(value='', inplace=True)
+        """空comment的review包含na信息，但作为结果结果集是有用的，所以只对训练集去掉na"""
+        # """处理NAN"""
+        # df.dropna(how='any', inplace=True)
+        # df.reset_index(drop=True, inplace=True)
+        # df.fillna(value='', inplace=True)
 
         """对df添加一列标识训练集和测试集"""
         df['label'] = df['pr_created_at'].apply(
@@ -158,6 +162,11 @@ class CNTrain:
         train_data.drop(columns=['label'], inplace=True)
         test_data.drop(columns=['label'], inplace=True)
 
+        """8ii处理NAN"""
+        train_data.dropna(how='any', inplace=True)
+        train_data.reset_index(drop=True, inplace=True)
+        train_data.fillna(value='', inplace=True)
+
         test_data_y = {}
         for pull_number in test_data.drop_duplicates(['pull_number'])['pull_number']:
             reviewers = list(tagDict[pull_number].drop_duplicates(['reviewer'])['reviewer'])
@@ -172,7 +181,7 @@ class CNTrain:
 
 
     @staticmethod
-    def RecommendByCN(date, train_data, train_data_y, test_data, test_data_y, convertDict, recommendNum=5):
+    def RecommendByCN(project, date, train_data, train_data_y, test_data, test_data_y, convertDict, recommendNum=5):
         """评论网络推荐算法"""
         recommendList = []
         answerList = []
@@ -194,6 +203,7 @@ class CNTrain:
             weight = CNTrain.caculateWeight(group, start_time, end_time)
             graph.add_edge(relation[0], relation[1], weight)
         print("finish building comments networks! ! ! cost time: {0}s".format(datetime.now() - start))
+        CNTrain.drawCommentGraph(project, date, graph, convertDict)
 
         for test_pull_number, test_df in testDict.items():
             test_df.reset_index(drop=True, inplace=True)
@@ -275,7 +285,7 @@ class CNTrain:
             # 利用 Apriori算法 找出频繁项集
             # TODO 现在min_support已经很低了，但是频繁项集数目还是很少，这里需要再研究下怎么回事
             print("start gen apriori......")
-            freq = apriori(df, min_support=0.1, use_colnames=True)
+            freq = apriori(df, min_support=0.05, use_colnames=True)
             CNTrain.freq = freq.sort_values(by="support", ascending=False)
             print("finish gen apriori!!!")
 
@@ -322,6 +332,51 @@ class CNTrain:
         """缓存结果"""
         CNTrain.PNCCache[contributor] = recommendList
         return recommendList
+
+    @staticmethod
+    def drawCommentGraph(project, date, graph, convertDict):
+        nodes = []
+        links = []
+        tempDict = {k: v for v, k in convertDict.items()}
+
+        """遍历图，找出in_cnt和weight的最大和最小值，数据归一化"""
+        in_min, in_max, w_min, w_max = [0, 0, 0, 0]
+        for key, node in graph.node_list.items():
+            in_max = max(in_max, node.in_cnt)
+            for weight in node.connectedTo.values():
+                w_max = max(w_max, weight)
+
+        in_during = in_max - in_min
+        w_during = w_max - w_min
+        for key, node in graph.node_list.items():
+            nodes.append({
+                "name": tempDict[node.id],
+                "symbolSize": 10 * (node.in_cnt - in_min) / in_during,
+                "value": node.in_cnt
+            })
+            for to, weight in node.connectedTo.items():
+                links.append({
+                    "source": tempDict[node.id],
+                    "target": tempDict[to.id],
+                    "lineStyle": {
+                        "width": 10 * (weight - w_min) / w_during
+                    }
+                })
+
+        file_name = f'graph/{project}_{date[0]}_{date[1]}_{date[2]}_{date[3]}_cn-graph.html'
+        EGraph().add("user",
+                     nodes=nodes,
+                     links=links,
+                     repulsion=8000,
+                     layout="circular",
+                     is_rotate_label=True,
+                     linestyle_opts=opts.LineStyleOpts(color="source", curve=0.3),
+                     ) \
+                .set_global_opts(
+                title_opts=opts.TitleOpts(title="cn-graph"),
+                legend_opts=opts.LegendOpts(orient="vertical", pos_left="2%", pos_top="20%"),
+                ) \
+                .render(file_name)
 
 
 if __name__ == '__main__':

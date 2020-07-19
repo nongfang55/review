@@ -11,7 +11,6 @@ import scikit_posthocs
 import scipy
 import seaborn
 from pandas import DataFrame
-from pyecharts.charts import HeatMap
 from scipy.stats import mannwhitneyu, ranksums, ttest_1samp, ttest_ind, wilcoxon
 
 from source.config.projectConfig import projectConfig
@@ -963,11 +962,12 @@ class DataProcessUtils:
             header=pandasHelper.INT_READ_FILE_WITH_HEAD)
         print("raw pr file:", pullRequestData.shape)
 
-        """ pr_change_trigger 自带抬头"""
-        changeTriggerData = pandasHelper.readTSVFile(
-            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
-            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
-        )
+        if filter_change_trigger:
+            """ pr_change_trigger 自带抬头"""
+            changeTriggerData = pandasHelper.readTSVFile(
+                os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+                pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+            )
 
         print("read file cost time:", datetime.now() - start_time)
 
@@ -976,8 +976,8 @@ class DataProcessUtils:
         print("after fliter closed pr:", pullRequestData.shape)
 
         """过滤pr不需要的字段"""
-        pullRequestData = pullRequestData[['repo_full_name', 'number', 'node_id', 'user_login', 'created_at', 'author_association']].copy(deep=True)
-        pullRequestData.columns = ['repo_full_name', 'pull_number', 'pullrequest_node', 'pr_author', 'pr_created_at', 'pr_author_association']
+        pullRequestData = pullRequestData[['repo_full_name', 'number', 'node_id', 'user_login', 'created_at', 'author_association', 'closed_at']].copy(deep=True)
+        pullRequestData.columns = ['repo_full_name', 'pull_number', 'pullrequest_node', 'pr_author', 'pr_created_at', 'pr_author_association', 'closed_at']
         pullRequestData.drop_duplicates(inplace=True)
         pullRequestData.reset_index(drop=True, inplace=True)
         print("after fliter pr:", pullRequestData.shape)
@@ -991,8 +991,8 @@ class DataProcessUtils:
         print("after fliter issue comment:", issueCommentData.shape)
 
         """过滤review不需要的字段"""
-        reviewData = reviewData[['pull_number', 'id']].copy(deep=True)
-        reviewData.columns = ['pull_number', 'pull_request_review_id']
+        reviewData = reviewData[['pull_number', 'id', 'user_login', 'submitted_at']].copy(deep=True)
+        reviewData.columns = ['pull_number', 'pull_request_review_id', 'reviewer', 'submitted_at']
         reviewData.drop_duplicates(inplace=True)
         reviewData.reset_index(drop=True, inplace=True)
         print("after fliter review:", reviewData.shape)
@@ -1006,13 +1006,21 @@ class DataProcessUtils:
         print("after fliter review comment:", reviewCommentData.shape)
 
         """连接表"""
-        reviewCommentData = pandas.merge(reviewCommentData, reviewData, on='pull_request_review_id')
-        reviewCommentData.drop(columns=['pull_request_review_id'], inplace=True)
+        """对于没有留下评论的review也算入"""
+        reviewCommentData = pandas.merge(reviewData, reviewCommentData, on='pull_request_review_id', how='left')
+        reviewCommentData['reviewer'] = reviewCommentData.apply(lambda row: row['reviewer_x'] if pandas.isna(row['reviewer_y']) else row['reviewer_y'], axis=1)
+        reviewCommentData['commented_at'] = reviewCommentData.apply(lambda row: row['submitted_at'] if pandas.isna(row['commented_at']) else row['commented_at'], axis=1)
+        reviewCommentData.drop(columns=['pull_request_review_id', 'submitted_at', 'reviewer_x', 'reviewer_y'], inplace=True)
 
         data = pandas.concat([issueCommentData, reviewCommentData])
         data.reset_index(drop=True, inplace=True)
         data = pandas.merge(pullRequestData, data, left_on='pull_number', right_on='pull_number')
-        print("after merge:", data.shape)
+        print("contact review & issue comment:", data.shape)
+
+        """过滤comment在closed之后的场景"""
+        data = data.loc[data['closed_at'] >= data['commented_at']].copy(deep=True)
+        data.drop(columns=['closed_at'], inplace=True)
+        print("after filter comment after pr closed:", data.shape)
 
         """去掉自己是reviewer的情况"""
         data = data[data['reviewer'] != data['pr_author']]
@@ -1020,7 +1028,7 @@ class DataProcessUtils:
         print("after filter self reviewer:", data.shape)
 
         """过滤nan的情况"""
-        data.dropna(axis=0, how='any', inplace=True)
+        data.dropna(subset=['reviewer'], inplace=True)
 
         """过滤机器人的场景  """
         data['isBot'] = data['reviewer'].apply(lambda x: BotUserRecognizer.isBot(x))

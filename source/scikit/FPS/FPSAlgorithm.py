@@ -349,8 +349,8 @@ class FPSAlgorithm:
         answerList = []
         testDict = dict(list(test_data.groupby('pull_number')))
         trainDict = dict(list(train_data.groupby('pull_number')))
-
-        for test_pull_number, test_df in testDict.items():
+        testTuple = sorted(testDict.items(), key=lambda x: x[0], reverse=True)
+        for test_pull_number, test_df in testTuple:
             scores = {}  # 初始化分数字典
             """添加正确答案"""
             answerList.append(test_data_y[test_pull_number])

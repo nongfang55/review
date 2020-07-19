@@ -10,7 +10,8 @@ class BotUserRecognizer:
 
     """手动维护的列表"""
     BOT_TABLE = ['stickler-ci', 'codecov-io', 'rails-bot', 'mention-bot',
-                 'babel-bot', 'symfony-skeleton-bot', 'akka-ci', 'buildsize']
+                 'babel-bot', 'symfony-skeleton-bot', 'akka-ci', 'buildsize',
+                 'stale', 'netty-bot', 'codecov', 'label-actions', 'salt-jenkins']
 
     @staticmethod
     def isBot(name):

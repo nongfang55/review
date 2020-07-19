@@ -1,6 +1,7 @@
 # coding=gbk
 from math import floor
 
+from source.scikit.CN.CNTrain import CNTrain
 from source.scikit.FPS.FPSTrain import FPSTrain
 from source.scikit.IR.IRTrain import IRTrain
 from source.scikit.ML.MLTrain import MLTrain
@@ -147,6 +148,8 @@ class CBTrain:
             return MLTrain.algorithmBody(date, project, algorithmType=0, recommendNum=recommendNum, featureType=1)
         elif algorithmName == StringKeyUtils.STR_ALGORITHM_SVM:
             return MLTrain.algorithmBody(date, project, algorithmType=7, recommendNum=recommendNum, featureType=1)
+        elif algorithmName == StringKeyUtils.STR_ALGORITHM_CN:
+            return CNTrain.algorithmBody(date, project, recommendNum)
 
     @staticmethod
     def recoverName(recommendList, answerList, convertDict):

@@ -334,6 +334,7 @@ class StringKeyUtils:
     STR_ALGORITHM_DT = 'decisionTree'
     STR_ALGORITHM_RF = 'randomForest'
     STR_ALGORITHM_IR = 'ir'
+    STR_ALGORITHM_CN = 'cn'
 
     """∂‡±Í«©"""
     STR_ALGORITHM_DT_M = 'decisionTree_m'
