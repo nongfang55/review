@@ -516,7 +516,7 @@ class AsyncProjectAllDataFetcher:
         pr_nodes.sort()
 
         """…Ë÷√fetch≤Œ ˝"""
-        pos = 200
+        pos = 0
         fetchLimit = 200
         size = pr_nodes.__len__()
         Logger.logi("there are {0} prs need to analyze".format(pr_nodes.__len__()))

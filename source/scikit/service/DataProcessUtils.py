@@ -609,7 +609,9 @@ class DataProcessUtils:
             #         unuseful_review_idx.append(index)
             # data = data.drop(labels=unuseful_review_idx, axis=0)
             """change_trigger只取出pr, reviewer，和data取交集"""
-            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            changeTriggerData['label'] = changeTriggerData.apply(lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (x['comment_type'] == 'label_review_comment'and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+            # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
             changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
             changeTriggerData.drop_duplicates(inplace=True)
             changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x'}, inplace=True)
@@ -800,7 +802,9 @@ class DataProcessUtils:
             print(rawData.shape)
 
             """change_trigger只取出pr, reviewer，和data取交集"""
-            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            changeTriggerData['label'] = changeTriggerData.apply(lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (x['comment_type'] == 'label_review_comment'and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+            # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
             changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
             changeTriggerData.drop_duplicates(inplace=True)
             changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x',
@@ -1315,7 +1319,8 @@ class DataProcessUtils:
             print(data.shape)
 
             """change_trigger只取出pr, reviewer，和data取交集"""
-            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            changeTriggerData['label'] = changeTriggerData.apply(lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (x['comment_type'] == 'label_review_comment'and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
             # changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
             changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
             changeTriggerData.drop_duplicates(inplace=True)
@@ -1436,7 +1441,9 @@ class DataProcessUtils:
             print(data.shape)
 
             """change_trigger只取出pr, reviewer，和data取交集"""
-            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            changeTriggerData['label'] = changeTriggerData.apply(lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (x['comment_type'] == 'label_review_comment'and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+            # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
             # changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
             changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
             changeTriggerData.drop_duplicates(inplace=True)
@@ -1461,45 +1468,167 @@ class DataProcessUtils:
                                           dataFrame=data)
 
 
+    # @staticmethod
+    # def getReviewerFrequencyDict(projectName, date):
+    #     """获得某个项目某个时间段的reviewer
+    #     的review次数字典
+    #     用于后面reviewer推荐排序
+    #     date 处理时候不含最后一个月  作为兼容 [y1,m1,y2,m2)
+    #     通过 ALL_{projectName}_data_pr_review_commit_file
+    #     """
+    #
+    #     data_train_path = projectConfig.getDataTrainPath()
+    #     prReviewData = pandasHelper.readTSVFile(
+    #         os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
+    #     prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
+    #     print("raw pr review :", prReviewData.shape)
+    #
+    #     """过滤状态非关闭的pr review"""
+    #     prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
+    #     print("after fliter closed pr:", prReviewData.shape)
+    #
+    #     """过滤pr 作者就是reviewer的情况"""
+    #     prReviewData = prReviewData.loc[prReviewData['pr_user_login']
+    #                                     != prReviewData['review_user_login']].copy(deep=True)
+    #     print("after fliter author:", prReviewData.shape)
+    #
+    #     """只留下 pr reviewer created_time"""
+    #     prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at']].copy(
+    #         deep=True)
+    #     prReviewData.drop_duplicates(inplace=True)
+    #     prReviewData.reset_index(drop=True, inplace=True)
+    #     print(prReviewData.shape)
+    #
+    #     minYear, minMonth, maxYear, maxMonth = date
+    #     """过滤不在的时间"""
+    #     start = minYear * 12 + minMonth
+    #     end = maxYear * 12 + maxMonth
+    #     prReviewData['label'] = prReviewData['pr_created_at'].apply(lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+    #     prReviewData['label_y'] = prReviewData['label'].apply(lambda x: x.tm_year)
+    #     prReviewData['label_m'] = prReviewData['label'].apply(lambda x: x.tm_mon)
+    #     data = None
+    #     for i in range(start, end):
+    #         y = int((i - i % 12) / 12)
+    #         m = i % 12
+    #         if m == 0:
+    #             m = 12
+    #             y = y - 1
+    #         print(y, m)
+    #         subDf = prReviewData.loc[(prReviewData['label_y'] == y) & (prReviewData['label_m'] == m)].copy(deep=True)
+    #         if data is None:
+    #             data = subDf
+    #         else:
+    #             data = pandas.concat([data, subDf])
+    #
+    #     # print(data)
+    #     reviewers = data['review_user_login'].value_counts()
+    #     return dict(reviewers)
+
     @staticmethod
     def getReviewerFrequencyDict(projectName, date):
         """获得某个项目某个时间段的reviewer
         的review次数字典
         用于后面reviewer推荐排序
         date 处理时候不含最后一个月  作为兼容 [y1,m1,y2,m2)
-        通过 ALL_{projectName}_data_pr_review_commit_file
+        通过 ALL_{projectName}_data_review_comment
+             ALL_{projectName}_data_review
+             ALL_{projectName}_data_issuecomment
+             ALL_{proejctName}_data_pull_request
+             ALL_{projectName}_data_change_trigger
         """
+        issue_comment_path = projectConfig.getIssueCommentPath()
+        pull_request_path = projectConfig.getPullRequestPath()
+        review_path = projectConfig.getReviewDataPath()
+        review_comment_path = projectConfig.getReviewCommentDataPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
 
-        data_train_path = projectConfig.getDataTrainPath()
-        prReviewData = pandasHelper.readTSVFile(
-            os.path.join(data_train_path, f'ALL_{projectName}_data_pr_review_commit_file.tsv'), low_memory=False)
-        prReviewData.columns = DataProcessUtils.COLUMN_NAME_PR_REVIEW_COMMIT_FILE
-        print("raw pr review :", prReviewData.shape)
+        """issue commit 数据库输出 自带抬头"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
 
-        """过滤状态非关闭的pr review"""
-        prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
-        print("after fliter closed pr:", prReviewData.shape)
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
 
-        """过滤pr 作者就是reviewer的情况"""
-        prReviewData = prReviewData.loc[prReviewData['pr_user_login']
-                                        != prReviewData['review_user_login']].copy(deep=True)
-        print("after fliter author:", prReviewData.shape)
+        """ review 数据库输出 自带抬头"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
 
-        """只留下 pr reviewer created_time"""
-        prReviewData = prReviewData[['pr_number', 'review_user_login', 'pr_created_at']].copy(
-            deep=True)
-        prReviewData.drop_duplicates(inplace=True)
-        prReviewData.reset_index(drop=True, inplace=True)
-        print(prReviewData.shape)
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review comment 数据库输出 自带抬头"""
+        reviewCommentData = pandasHelper.readTSVFile(
+            os.path.join(review_comment_path, f'ALL_{projectName}_data_review_comment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """思路  上面两部分依次做凭借， 最后加上文件"""
+        data_issue = pandas.merge(pullRequestData, issueCommentData, left_on='number', right_on='pull_number')
+        """过滤 comment 在closed 后面的场景 2020.6.28"""
+        data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
+        data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)
+        """过滤删除用户的场景"""
+        data_issue.dropna(subset=['user_login_y'], inplace=True)
+        """过滤机器人的场景"""
+        data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
+        data_issue = data_issue[['number', 'node_id_x', 'created_at_x', 'node_id_y', 'user_login_y']].copy(deep=True)
+        data_issue.columns = ['pr_number', 'node_id', 'pr_created_at', 'comment_node_id', 'review_user_login']
+        data_issue.drop_duplicates(inplace=True)
+
+        data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
+        data_review = pandas.merge(data_review, reviewCommentData, left_on='id_y', right_on='pull_request_review_id')
+        data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
+        """过滤 comment 在closed 后面的场景 2020.6.28"""
+        data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
+        """过滤删除用户场景"""
+        data_review.dropna(subset=['user_login_y'], inplace=True)
+        """过滤机器人的场景  """
+        data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
+        "PR数据行： repo_full_name, number, review_user_login, pr_title, pr_body, pr_created_at, comment_body"
+        data_review = data_review[['number', 'node_id_x', 'created_at_x', 'node_id', 'user_login_y']].copy(deep=True)
+        data_review.columns = ['pr_number', 'node_id', 'pr_created_at', 'comment_node_id', 'review_user_login']
+        data_review.drop_duplicates(inplace=True)
+
+        data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
+        data.drop_duplicates(inplace=True)
+        data.reset_index(drop=True, inplace=True)
+        print(data.shape)
+
+        """change_trigger只取出pr, reviewer，和data取交集"""
+        changeTriggerData['label'] = changeTriggerData.apply(
+            lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+        changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+        # changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+        changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
+        changeTriggerData.drop_duplicates(inplace=True)
+        # changeTriggerData.rename(columns={'pullrequest_node': 'node_id', "user_login": 'review_user_login'}
+        #                          , inplace=True)
+        changeTriggerData.rename(columns={'comment_node': 'comment_node_id'}
+                                 , inplace=True)
+        data = pandas.merge(data, changeTriggerData, how='inner')
+        data = data.drop(labels='comment_node_id', axis=1)
 
         minYear, minMonth, maxYear, maxMonth = date
         """过滤不在的时间"""
         start = minYear * 12 + minMonth
         end = maxYear * 12 + maxMonth
-        prReviewData['label'] = prReviewData['pr_created_at'].apply(lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
-        prReviewData['label_y'] = prReviewData['label'].apply(lambda x: x.tm_year)
-        prReviewData['label_m'] = prReviewData['label'].apply(lambda x: x.tm_mon)
-        data = None
+        data['label'] = data['pr_created_at'].apply(lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+        data['label_y'] = data['label'].apply(lambda x: x.tm_year)
+        data['label_m'] = data['label'].apply(lambda x: x.tm_mon)
+        tempdData = None
         for i in range(start, end):
             y = int((i - i % 12) / 12)
             m = i % 12
@@ -1507,14 +1636,14 @@ class DataProcessUtils:
                 m = 12
                 y = y - 1
             print(y, m)
-            subDf = prReviewData.loc[(prReviewData['label_y'] == y) & (prReviewData['label_m'] == m)].copy(deep=True)
-            if data is None:
-                data = subDf
+            subDf = data.loc[(data['label_y'] == y) & (data['label_m'] == m)].copy(deep=True)
+            if tempdData is None:
+                tempdData = subDf
             else:
-                data = pandas.concat([data, subDf])
+                tempdData = pandas.concat([tempdData, subDf])
 
         # print(data)
-        reviewers = data['review_user_login'].value_counts()
+        reviewers = tempdData['review_user_login'].value_counts()
         return dict(reviewers)
 
     @staticmethod
@@ -1630,10 +1759,6 @@ class DataProcessUtils:
         print("review comment useful:", df_review.shape[0] - df_review.loc[df_review['change_trigger'] == -1].shape[0])
         plt.show()
 
-
-
-
-
 if __name__ == '__main__':
     # DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_rails_data.tsv',
     #                                   projectConfig.getRootPath() + r'\data\train\all' + os.sep, hasHead=True)
@@ -1647,14 +1772,15 @@ if __name__ == '__main__':
     # """从总的commit file文件中分割树独立的commit file文件"""
     # DataProcessUtils.splitProjectCommitFileData('infinispan')
 
-    # projects = ['react']
-    # """分割不同算法的训练集"""
-    # for p in projects:
-    #     DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    #     DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    #     DataProcessUtils.contactIRData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    #     DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    #     DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    projects = ['opencv', 'cakephp', 'yarn', 'akka', 'django', 'react']
+    """分割不同算法的训练集"""
+    for p in projects:
+        DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+        # DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+        # DataProcessUtils.contactIRData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+        # DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+        # DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+        # DataProcessUtils.getReviewerFrequencyDict(p, (2018, 1, 2019, 12))
 
     # projects = ['opencv', 'adobe', 'angular', 'bitcoin', 'cakephp']
     # projects = ['bitcoin']
@@ -1670,6 +1796,6 @@ if __name__ == '__main__':
     #
     # DataProcessUtils.compareDataFrameByPullNumber()
 
-    DataProcessUtils.changeTriggerAnalyzer('django')
-
-    DataProcessUtils.contactCNData("opencv")
+    # DataProcessUtils.changeTriggerAnalyzer('django')
+    #
+    # DataProcessUtils.contactCNData("opencv")

@@ -341,6 +341,8 @@ class StringKeyUtils:
     STR_ALGORITHM_RF_M = 'randomForest_m'
     STR_ALGORITHM_ET_M = 'extraTree_m'
     STR_ALGORITHM_ETS_M = 'extraTrees_m'
+    STR_ALGORITHM_TC = 'tc'
+    STR_ALGORITHM_PB = 'pb'
 
     """issue comment 和 review comment 标签的区分"""
     STR_LABEL_ISSUE_COMMENT = 'label_issue_comment'

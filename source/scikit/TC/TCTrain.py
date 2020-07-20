@@ -246,7 +246,8 @@ class TCTrain:
         """新增人名映射字典"""
         train_data, train_data_y, test_data, test_data_y, convertDict = TCTrain.preProcess(df, date)
 
-        prList = None
+        prList = list(test_data.keys())
+        prList.sort()
 
         recommendList, answerList = TCTrain.RecommendByTC(train_data, train_data_y, test_data,
                                                           test_data_y, recommendNum=recommendNum)
@@ -291,10 +292,13 @@ class TCTrain:
             allSet.add(v)
         for candicate, profile in candicates.items():
             profile.divide(allSet)
-            profile.equalization()
+            # profile.equalization()
         print("user profile cost time:", datetime.now() - t1)
 
-        for pr_num in test_data.keys():
+        prList = list(test_data.keys())
+        prList.sort()
+
+        for pr_num in prList:
             recommendScore = {}
             prSet = WordMultiset()
             prSet.addByTuple(test_data[pr_num])
@@ -322,6 +326,6 @@ if __name__ == '__main__':
     #          (2017, 1, 2018, 6)]
     # dates = [(2017, 1, 2017, 2), (2017, 1, 2017, 3), (2017, 1, 2017, 4), (2017, 1, 2017, 5), (2017, 1, 2017, 6),
     #          (2017, 1, 2017, 7)]
-    projects = ['react']
+    projects = ['opencv', 'cakephp', 'yarn', 'akka', 'django', 'react']
     for p in projects:
         TCTrain.TestAlgorithm(p, dates)

@@ -360,24 +360,24 @@ class MLTrain:
         if featureType == 2 or featureType == 3:
             df = appendTextualFeatureVector(df, project, date, 'pr_number')
 
-        """频率统计每一个reviewer的次数，排除数量过少的reviewer"""
-        freq = {}
-        for data in df.itertuples(index=False):
-            name = data[list(df.columns).index('review_user_login')]
-            if freq.get(name, None) is None:
-                freq[name] = 0
-            """训练集用户次数加一  测试集直接保留 """
-            if not data[list(df.columns).index('label')]:
-                freq[name] += 1
-            else:
-                freq[name] += 1
-
-        num = 5
-        df['freq'] = df['review_user_login'].apply(lambda x: freq[x])
-        df = df.loc[df['freq'] > num].copy(deep=True)
-        df.drop(columns=['freq'], inplace=True)
-        df.reset_index(drop=True, inplace=True)
-        print("after lifter unexperienced user:", df.shape)
+        # """频率统计每一个reviewer的次数，排除数量过少的reviewer"""
+        # freq = {}
+        # for data in df.itertuples(index=False):
+        #     name = data[list(df.columns).index('review_user_login')]
+        #     if freq.get(name, None) is None:
+        #         freq[name] = 0
+        #     """训练集用户次数加一  测试集直接保留 """
+        #     if not data[list(df.columns).index('label')]:
+        #         freq[name] += 1
+        #     else:
+        #         freq[name] += 1
+        #
+        # num = 5
+        # df['freq'] = df['review_user_login'].apply(lambda x: freq[x])
+        # df = df.loc[df['freq'] > num].copy(deep=True)
+        # df.drop(columns=['freq'], inplace=True)
+        # df.reset_index(drop=True, inplace=True)
+        # print("after lifter unexperienced user:", df.shape)
 
         # # # 画出参与人数的频度图
         # MLTrain.getSeriesBarPlot(df['review_user_login'])
@@ -695,5 +695,5 @@ if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['react']
+    projects = ['opencv', 'cakephp', 'yarn', 'akka', 'django', 'react']
     MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0])

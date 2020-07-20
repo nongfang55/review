@@ -217,7 +217,8 @@ class PBTrain:
         """新增人名映射字典"""
         train_data, train_data_y, test_data, test_data_y, convertDict = PBTrain.preProcess(df, date)
 
-        prList = None
+        prList = list(test_data.keys())
+        prList.sort()
 
         recommendList, answerList = PBTrain.RecommendByPB(train_data, train_data_y, test_data,
                                                           test_data_y, recommendNum=recommendNum)
@@ -254,7 +255,10 @@ class PBTrain:
                     candicates[reviewer].add(prSet)
         print("user profile cost time:", datetime.now() - t1)
 
-        for pr_num in test_data.keys():
+        prList = list(test_data.keys())
+        prList.sort()
+
+        for pr_num in prList:
             recommendScore = {}
             prSet = test_data[pr_num]
             """依次计算候选者的相关系数"""

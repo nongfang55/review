@@ -5,6 +5,8 @@ from source.scikit.CN.CNTrain import CNTrain
 from source.scikit.FPS.FPSTrain import FPSTrain
 from source.scikit.IR.IRTrain import IRTrain
 from source.scikit.ML.MLTrain import MLTrain
+from source.scikit.PB.PBTrain import PBTrain
+from source.scikit.TC.TCTrain import TCTrain
 from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.scikit.service.SortAlgorithmUtils import SortAlgorithmUtils
 from source.utils.ExcelHelper import ExcelHelper
@@ -150,6 +152,10 @@ class CBTrain:
             return MLTrain.algorithmBody(date, project, algorithmType=7, recommendNum=recommendNum, featureType=1)
         elif algorithmName == StringKeyUtils.STR_ALGORITHM_CN:
             return CNTrain.algorithmBody(date, project, recommendNum)
+        elif algorithmName == StringKeyUtils.STR_ALGORITHM_TC:
+            return TCTrain.algorithmBody(date, project, recommendNum)
+        elif algorithmName == StringKeyUtils.STR_ALGORITHM_PB:
+            return PBTrain.algorithmBody(date, project, recommendNum)
 
     @staticmethod
     def recoverName(recommendList, answerList, convertDict):
