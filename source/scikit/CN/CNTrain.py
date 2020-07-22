@@ -7,6 +7,8 @@ from datetime import datetime
 from functools import cmp_to_key
 
 import pandas
+import pyecharts
+from pyecharts.options import series_options
 
 from source.config.projectConfig import projectConfig
 from source.data.bean.PullRequest import PullRequest
@@ -17,6 +19,8 @@ from source.scikit.service.DataFrameColumnUtils import DataFrameColumnUtils
 from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.scikit.service.RecommendMetricUtils import RecommendMetricUtils
 from source.utils.ExcelHelper import ExcelHelper
+from source.utils.Gephi import Gephi
+from source.utils.Gexf import Gexf
 from source.utils.StringKeyUtils import StringKeyUtils
 from source.utils.pandas.pandasHelper import pandasHelper
 from collections import deque
@@ -27,19 +31,18 @@ from pyecharts.charts import Graph as EGraph
 
 
 class CNTrain:
-
     """基于CN，对于同一个contributor的所有pr都是一样的结果"""
     PACCache = {}
     PNCCache = {}
-    freq = None   # 是否已经生成过频繁集
-    topKActiveContributor = []    # 各community最活跃的成员
+    freq = None  # 是否已经生成过频繁集
+    topKCommunityActiveUser = []  # 各community最活跃的成员
 
     @staticmethod
     def clean():
         CNTrain.PACCache = {}
         CNTrain.PNCCache = {}
         CNTrain.freq = None  # 是否已经生成过频繁集
-        CNTrain.topKActiveContributor = []  # 各community最活跃的成员
+        CNTrain.topKCommunityActiveUser = []  # 各community最活跃的成员
 
     @staticmethod
     def testCNAlgorithm(project, dates):
@@ -61,7 +64,7 @@ class CNTrain:
             CNTrain.clean()
             startTime = datetime.now()
             recommendList, answerList, prList, convertDict, trainSize = CNTrain.algorithmBody(date, project,
-                                                                                               recommendNum)
+                                                                                              recommendNum)
             """根据推荐列表做评价"""
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -140,7 +143,7 @@ class CNTrain:
 
         """注意： 输入文件中已经带有列名了"""
 
-        """空comment的review包含na信息，但作为结果结果集是有用的，所以只对训练集去掉na"""
+        """空comment的review包含na信息，但作为结果集是有用的，所以只对训练集去掉na"""
         # """处理NAN"""
         # df.dropna(how='any', inplace=True)
         # df.reset_index(drop=True, inplace=True)
@@ -167,6 +170,11 @@ class CNTrain:
         train_data.reset_index(drop=True, inplace=True)
         train_data.fillna(value='', inplace=True)
 
+        """过滤掉评论时间在数据集时间范围内之后的数据"""
+        end_time = str(dates[2]) + "-" + str(dates[3]) + "-" + "01 00:00:00"
+        train_data = train_data[train_data['commented_at'] < end_time]
+        train_data.reset_index(drop=True, inplace=True)
+
         test_data_y = {}
         for pull_number in test_data.drop_duplicates(['pull_number'])['pull_number']:
             reviewers = list(tagDict[pull_number].drop_duplicates(['reviewer'])['reviewer'])
@@ -179,7 +187,6 @@ class CNTrain:
 
         return train_data, train_data_y, test_data, test_data_y, convertDict
 
-
     @staticmethod
     def RecommendByCN(project, date, train_data, train_data_y, test_data, test_data_y, convertDict, recommendNum=5):
         """评论网络推荐算法"""
@@ -188,10 +195,17 @@ class CNTrain:
         testDict = dict(list(test_data.groupby('pull_number')))
 
         """The start time and end time are highly related to the selection of training set"""
+        # 开始时间：数据集开始时间的前一天
         start_time = time.strptime(str(date[0]) + "-" + str(date[1]) + "-" + "01 00:00:00", "%Y-%m-%d %H:%M:%S")
-        start_time = int(time.mktime(start_time))
+        start_time = int(time.mktime(start_time) - 86400)
+
+        # 结束时间：数据集的最后一天
         end_time = time.strptime(str(date[2]) + "-" + str(date[3]) + "-" + "01 00:00:00", "%Y-%m-%d %H:%M:%S")
-        end_time = int(time.mktime(end_time))
+        end_time = int(time.mktime(end_time) - 1)
+
+        # 最后一条评论作为截止时间
+        # comment_time_data = train_data['commented_at'].apply(lambda x: time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+        # end_time = max(comment_time_data.to_list())
 
         print("start building comments networks....")
         start = datetime.now()
@@ -203,7 +217,11 @@ class CNTrain:
             weight = CNTrain.caculateWeight(group, start_time, end_time)
             graph.add_edge(relation[0], relation[1], weight)
         print("finish building comments networks! ! ! cost time: {0}s".format(datetime.now() - start))
-        CNTrain.drawCommentGraph(project, date, graph, convertDict)
+
+        # echarts画图
+        # CNTrain.drawCommentGraph(project, date, graph, convertDict)
+        # gephi社区发现
+        CNTrain.searchTopKByGephi(project, date, graph, convertDict, recommendNum)
 
         for test_pull_number, test_df in testDict.items():
             test_df.reset_index(drop=True, inplace=True)
@@ -213,18 +231,22 @@ class CNTrain:
             if node is not None and node.connectedTo:
                 """PAC推荐"""
                 recommendList.append(CNTrain.recommendByPAC(graph, pr_author, recommendNum))
-            else:
+            elif node is not None:
                 """PNC推荐"""
-                recommendList.append(CNTrain.recommendByPNC(graph, pr_author, recommendNum))
+                recommendList.append(CNTrain.recommendByPNC(train_data, graph, pr_author, recommendNum))
+            else:
+                """Gephi推荐"""
+                recommendList.append(CNTrain.topKCommunityActiveUser)
         return recommendList, answerList
 
     @staticmethod
     def caculateWeight(comment_records, start_time, end_time):
-        weight_lambda = 1
+        weight_lambda = 0.8
         weight = 0
 
         grouped_comment_records = comment_records.groupby(comment_records['pull_number'])
         for pr, comments in grouped_comment_records:
+            comments.reset_index(inplace=True, drop=True)
             """遍历每条评论，计算权重"""
             for cm_idx, cm_row in comments.iterrows():
                 cm_timestamp = time.strptime(cm_row['commented_at'], "%Y-%m-%d %H:%M:%S")
@@ -244,7 +266,7 @@ class CNTrain:
         """用BFS算法找到topK"""
         start = graph.get_node(contributor)
         queue = deque([start])
-        rec_set = []
+        recommendList = []
         topk = recommendNum
         while queue:
             node = queue.popleft()
@@ -252,86 +274,101 @@ class CNTrain:
             node.marked = []
             while node.marked.__len__() < len(node.connectedTo):
                 if topk == 0:
-                    CNTrain.PACCache[contributor] = rec_set
-                    return rec_set
+                    CNTrain.PACCache[contributor] = recommendList
+                    return recommendList
                 tmp = node.best_neighbor()
                 node.mark_edge(tmp)
                 """跳过推荐者已被包含过，或是本人的情况"""
-                if rec_set.__contains__(tmp.id) or tmp.id == contributor:
+                if recommendList.__contains__(tmp.id) or tmp.id == contributor:
                     continue
                 queue.append(tmp)
-                rec_set.append(tmp.id)
+                recommendList.append(tmp.id)
                 topk -= 1
 
+        # """拿topk做补充"""
+        # if recommendList.__len__() < recommendNum:
+        #     recommendList.extend(CNTrain.topKCommunityActiveContributor)
+
         """缓存结果"""
-        CNTrain.PACCache[contributor] = rec_set
-        return rec_set
+        CNTrain.PACCache[contributor] = recommendList[0:recommendNum]
+        return recommendList
 
     @staticmethod
-    def recommendByPNC(graph, contributor, recommendNum):
+    def recommendByPNC(train_data, graph, contributor, recommendNum):
         """For a PNC, since there is no prior knowledge of which developers used to review the submitter’s pull-request"""
-
-        """根据Apriori算法推荐"""
 
         """生成Apriori数据集"""
         if CNTrain.freq is None:
-            apriori_dataset = list(map(lambda x: x.get_neighbors(), graph.node_list.values()))
-            apriori_dataset = [x for x in apriori_dataset if x]
+            grouped_train_data = train_data.groupby(train_data['pull_number'])
+            apriori_dataset = []
+            for pull_number, group in grouped_train_data:
+                reviewers = group['reviewer'].to_list()
+                apriori_dataset.append(list(set(reviewers)))
             te = TransactionEncoder()
             # 进行 one-hot 编码
             te_ary = te.fit(apriori_dataset).transform(apriori_dataset)
             df = pandas.DataFrame(te_ary, columns=te.columns_)
 
             # 利用 Apriori算法 找出频繁项集
-            # TODO 现在min_support已经很低了，但是频繁项集数目还是很少，这里需要再研究下怎么回事
             print("start gen apriori......")
-            freq = apriori(df, min_support=0.05, use_colnames=True)
+            # TODO top-k频繁项集计算
+            freq = apriori(df, min_support=0.01, use_colnames=True)
             CNTrain.freq = freq.sort_values(by="support", ascending=False)
             print("finish gen apriori!!!")
-
-            # 循环遍历freq，从各个community找出最活跃(入度)的topK
-            topKActiveContributor = []
-            # 最多循环recommendNum次
-            for i in range(0, recommendNum):
-                for idx, row in CNTrain.freq.iterrows():
-                    community = list(row['itemsets'])
-                    """community内部按入度排序"""
-                    sorted(community, key=cmp_to_key(lambda x, y: operator.lt(graph.get_node(x).in_cnt, graph.get_node(y).in_cnt)))
-                    for user in community:
-                        if user in topKActiveContributor:
-                            continue
-                        topKActiveContributor.append(user)
-                        break
-                    if topKActiveContributor.__len__() == recommendNum:
-                        break
-            CNTrain.topKActiveContributor = topKActiveContributor
 
         """直接从缓存取结果"""
         if CNTrain.PNCCache.__contains__(contributor):
             return CNTrain.PNCCache[contributor]
 
-        """若contributor未出现在图中，返回各community最活跃的成员作为推荐的reviewer"""
-        node = graph.get_node(contributor)
-        if node is None:
-            return CNTrain.topKActiveContributor
-
-        """若contributor出现在图中，找到和自己review兴趣相近的用户作为reviewer"""
+        """找到和自己review兴趣相近的用户作为reviewer"""
         recommendList = []
         for idx, row in CNTrain.freq.iterrows():
             community = list(row['itemsets'])
-            sorted(community, key=cmp_to_key(lambda x, y: operator.lt(graph.get_node(x).in_cnt, graph.get_node(y).in_cnt)))
+            community = sorted(community,
+                   key=lambda x:graph.get_node(x).in_cnt, reverse=True)
             if contributor in community and community.__len__() > 1:
                 community.remove(contributor)
                 recommendList.extend(community)
 
         # TODO 因为频繁项集数目很少，大部分用户都找不到和自己review兴趣相近的用户，所以这里用topKActive的用户补充
         if recommendList.__len__() < recommendNum:
-            recommendList.extend(CNTrain.topKActiveContributor)
+            """此时可能还没计算topKActiveContributor"""
+            recommendList.extend(CNTrain.topKCommunityActiveUser)
         recommendList = recommendList[0:recommendNum]
 
         """缓存结果"""
         CNTrain.PNCCache[contributor] = recommendList
         return recommendList
+
+    @staticmethod
+    def searchTopKByGephi(project, date, graph, convertDict, recommendNum=5):
+        """利用Gephi发现社区，推荐各社区活跃度最高的人"""
+
+        """生成gephi数据"""
+        file_name = CNTrain.genGephiData(project, date, graph, convertDict)
+        """利用gephi划分社区"""
+        communities = Gephi().getCommunity(graph_file=file_name)
+        # 按照community size排序
+        communities = {k: v for k, v in communities.items() if v.__len__() >= 2}
+        communities = sorted(communities.items(), key=lambda d: d[1].__len__(), reverse=True)
+
+        # 循环遍历freq，从各个community找出最活跃(入度)的topK
+        topKActiveContributor = []
+        for i in range(0, recommendNum):
+            for community in communities:
+                """community内部按入度排序"""
+                community_uids = sorted(community[1],
+                       key=lambda x:graph.get_node(int(x)).in_cnt, reverse=True)
+                for user in community_uids:
+                    user = int(user)
+                    if user in topKActiveContributor:
+                        continue
+                    topKActiveContributor.append(user)
+                    break
+                if topKActiveContributor.__len__() == recommendNum:
+                    break
+
+        CNTrain.topKCommunityActiveUser = topKActiveContributor[0:recommendNum]
 
     @staticmethod
     def drawCommentGraph(project, date, graph, convertDict):
@@ -377,6 +414,37 @@ class CNTrain:
                 legend_opts=opts.LegendOpts(orient="vertical", pos_left="2%", pos_top="20%"),
                 ) \
                 .render(file_name)
+
+
+    @staticmethod
+    def genGephiData(project, date, graph, convertDict):
+        file_name = f'{os.curdir}/gephi/{project}_{date[0]}_{date[1]}_{date[2]}_{date[3]}_network'
+
+        gexf = Gexf("reviewer_recommend", file_name)
+        gexf_graph = gexf.addGraph("directed", "static", file_name)
+
+        tempDict = {k: v for v, k in convertDict.items()}
+
+        """遍历图，weight的最大值，数据归一化"""
+        w_min, w_max = (0, 0)
+        for key, node in graph.node_list.items():
+            for weight in node.connectedTo.values():
+                w_max = max(w_max, weight)
+
+        w_during = w_max - w_min
+        # 边编号
+        e_idx = 0
+        for key, node in graph.node_list.items():
+            gexf_graph.addNode(id=str(node.id), label=tempDict[node.id])
+            for to, weight in node.connectedTo.items():
+                gexf_graph.addNode(id=str(to.id), label=tempDict[to.id])
+                gexf_graph.addEdge(id=e_idx, source=str(node.id), target=str(to.id), weight=10 * (weight - w_min) / w_during)
+                e_idx += 1
+
+        output_file = open(file_name + ".gexf", "wb")
+        gexf.write(output_file)
+        output_file.close()
+        return file_name + ".gexf"
 
 
 if __name__ == '__main__':

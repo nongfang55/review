@@ -1028,7 +1028,7 @@ class DataProcessUtils:
         print("after filter self reviewer:", data.shape)
 
         """过滤nan的情况"""
-        data.dropna(subset=['reviewer'], inplace=True)
+        data.dropna(subset=['reviewer', 'pr_author'], inplace=True)
 
         """过滤机器人的场景  """
         data['isBot'] = data['reviewer'].apply(lambda x: BotUserRecognizer.isBot(x))
@@ -1039,7 +1039,7 @@ class DataProcessUtils:
         if filter_change_trigger:
             """change_trigger只取出pr, reviewer，和data取交集"""
             changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
-            changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+            changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
             changeTriggerData.rename(columns={'user_login': 'pr_author'}, inplace=True)
             changeTriggerData.drop_duplicates(inplace=True)
             data = pandas.merge(data, changeTriggerData, how='inner')
