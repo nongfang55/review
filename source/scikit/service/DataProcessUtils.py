@@ -1571,7 +1571,7 @@ class DataProcessUtils:
 
             data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
             data_review = pandas.merge(data_review, reviewCommentData, left_on='id_y',
-                                       right_on='pull_request_review_id')
+                                       right_on='pull_request_review_id', how='left')
             data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
             """过滤 comment 在closed 后面的场景 2020.6.28"""
             data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
@@ -1581,6 +1581,14 @@ class DataProcessUtils:
             data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
             "GA数据行： repo_full_name, number, review_user_login, pr_created_at, review_created_at, filename"
+
+            """对review comment中有review但是没有comment的人处理 提交时间算review 的 submit time"""
+            def fill_created_at(x):
+                if not isinstance(x['node_id'], str):
+                    return x['submitted_at']
+                else:
+                    return x['created_at_y']
+            data_review['created_at_y'] = data_review.apply(lambda x:fill_created_at(x), axis=1)
             data_review = data_review[['repo_full_name_x', 'number', 'node_id_x', 'created_at_x',
                                        'node_id', 'user_login_y', 'created_at_y']].copy(deep=True)
             data_review.columns = ['repo_full_name', 'pr_number', 'node_id', 'pr_created_at', 'comment_node_id',

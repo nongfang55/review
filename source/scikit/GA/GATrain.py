@@ -15,8 +15,8 @@ from source.utils.ExcelHelper import ExcelHelper
 from source.utils.pandas.pandasHelper import pandasHelper
 import numpy as np
 
-class GATrain:
 
+class GATrain:
     """基于NSGA-II 的多目优化方案"""
 
     @staticmethod
@@ -122,7 +122,6 @@ class GATrain:
 
         return train_data, train_data_y, test_data, test_data_y, convertDict
 
-
     @staticmethod
     def algorithmBody(date, project, recommendNum=5, response_limit_time=8, active_limit_time=10):
 
@@ -153,8 +152,8 @@ class GATrain:
         """新增人名映射字典"""
         train_data, train_data_y, test_data, test_data_y, convertDict = GATrain.preProcess(df, date)
 
-        prList = list(test_data.keys())
-        prList.sort()
+        prList = list(test_data_y.keys())
+        prList.sort(reverse=False)
 
         recommendList, answerList = GATrain.RecommendByGA(train_data, train_data_y, test_data,
                                                           test_data_y, recommendNum=recommendNum,
@@ -176,7 +175,7 @@ class GATrain:
         answerList = []
         testDict = dict(list(test_data.groupby('pr_number')))
         trainDict = dict(list(train_data.groupby('pr_number')))
-        testTuple = sorted(testDict.items(), key=lambda x: x[0], reverse=True)
+        testTuple = sorted(testDict.items(), key=lambda x: x[0], reverse=False)
         now = min(test_data['pr_created_at'])  # 作为窗口时间基准
         now = datetime.strptime(now, "%Y-%m-%d %H:%M:%S")
 
@@ -232,20 +231,23 @@ class GATrain:
             for pr_num, train_df in trainDict.items():
                 # 计算now 和 该 pr 的间隔时间
                 pr_created_at = datetime.strptime(list(train_df['pr_created_at'])[0], "%Y-%m-%d %H:%M:%S")
-                pr_gap_second = (now - pr_created_at).total_seconds()
                 window_gap_second = active_limit_time * 3600 * 24  # 天换算
-                if pr_gap_second <= window_gap_second:
-                    for reviewer in [x[0] for x in train_data_y[pr_num]]:
-                        if ACTScore.get(reviewer, None) is None:
-                            ACTScore[reviewer] = 1
-                        else:
-                            ACTScore[reviewer] += 1
-                else:
-                    for reviewer in [x[0] for x in train_data_y[pr_num]]:
-                        if ACTScore.get(reviewer, None) is None:
-                            ACTScore[reviewer] = 0
-                        else:
-                            ACTScore[reviewer] += 0
+                for reviewer, comment_time in train_data_y[pr_num]:
+                    comment_time = datetime.strptime(comment_time, "%Y-%m-%d %H:%M:%S")
+                    pr_gap_second = (now - comment_time).total_seconds()
+                    # pr_gap_second = (now - pr_created_at).total_seconds()
+                    if window_gap_second >= pr_gap_second >= 0:
+                        for reviewer in [x[0] for x in train_data_y[pr_num]]:
+                            if ACTScore.get(reviewer, None) is None:
+                                ACTScore[reviewer] = 1
+                            else:
+                                ACTScore[reviewer] += 1
+                    else:
+                        for reviewer in [x[0] for x in train_data_y[pr_num]]:
+                            if ACTScore.get(reviewer, None) is None:
+                                ACTScore[reviewer] = 0
+                            else:
+                                ACTScore[reviewer] += 0
             """建立三个分数列向量，便于计算"""
             EXPScoreVector = np.array([[EXPScore[x] for x in candicateList]]).T
             RSPScoreVector = np.array([[RSPScore[x] for x in candicateList]]).T
@@ -266,9 +268,10 @@ class GATrain:
 
 if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
-             (2017, 1, 2018, 6)]
-    projects = ['akka', 'django', 'cakephp']
-    active_limit_time = 10  # 活跃时间，单位为天
+             (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
+             (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
+    projects = ['opencv']
+    active_limit_time = 30  # 活跃时间，单位为天
     response_limit_time = 8  # 回应窗口时间，单位为h
     for p in projects:
         GATrain.TestAlgorithm(p, dates, response_limit_time, active_limit_time)
