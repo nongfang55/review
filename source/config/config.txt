@@ -26,3 +26,4 @@ reviewerNumber=10
 FPSRemoveAuthor=False
 FPSCtypes=False
 changeTriggerByLine=True
+JVMPath=C:\Program Files\Java\jre1.8.0_172\bin\server\jvm.dll

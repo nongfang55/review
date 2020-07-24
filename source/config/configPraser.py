@@ -37,6 +37,7 @@ class configPraser:  # 用于解析config。ini文件
     STR_FPS_CTYPES = 'FPSCtypes'
     STR_COMMIT_FETCH_LOOP = 'commitFetchLoop'
     STR_CHANGE_TRIGGER_BY_LINE = 'changeTriggerByLine'
+    STR_JVM_PATH = 'JVMPath'
 
     cacheDict = {}  # 用于缓存的字典，防止多次访问拖慢速度
 
@@ -220,5 +221,17 @@ class configPraser:  # 用于解析config。ini文件
         else:
             return temp
 
+    @staticmethod
+    def getJVMPath():
+        temp = configPraser.cacheDict.get((configPraser.STR_RECOMMEND, configPraser.STR_JVM_PATH), None)
+        if temp is None:
+            cp = configparser.ConfigParser()
+            cp.read(projectConfig.getConfigPath())
+            res = cp.get(configPraser.STR_RECOMMEND, configPraser.STR_JVM_PATH)
+            configPraser.cacheDict[(configPraser.STR_RECOMMEND, configPraser.STR_JVM_PATH)] = res
+            return res
+        else:
+            return temp
+
 if __name__ == '__main__':
-    print(configPraser.getApiVersion())
+    print(configPraser.getJVMPath())

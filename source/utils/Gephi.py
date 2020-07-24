@@ -4,6 +4,8 @@ import jpype
 import os
 from jpype import JClass
 import xml.dom.minidom
+
+from source.config.configPraser import configPraser
 from source.config.projectConfig import projectConfig
 
 
@@ -14,9 +16,10 @@ class Gephi:
         """使用jpype开启虚拟机（在开启jvm之前要加载类路径）"""
 
         # 依赖jar包路径
-        gephi_jar_path = os.path.join(os.path.abspath('.'), 'D:/review/review/source/utils/gephi-toolkit-0.9.3.jar')
+        gephi_jar_path = projectConfig.getRootPath() + os.sep + 'source' \
+                         + os.sep + 'utils' + os.sep + 'gephi-toolkit-0.9.3.jar'
         # java虚拟机的路径
-        jvm_path = r"C:\Program Files\Java\jdk1.8.0_131\jre\bin\server\jvm.dll"
+        jvm_path = configPraser.getJVMPath()
 
         try:
             # 开启jvm
@@ -26,6 +29,7 @@ class Gephi:
 
         # 初始化lookup
         self.Lookup = self.getClass("org.openide.util.Lookup")
+
 
     def getObject(self, class_path):
         Class = JClass(class_path)
