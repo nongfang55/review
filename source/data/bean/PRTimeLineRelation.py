@@ -114,8 +114,8 @@ class PRTimeLineRelation(BeanBase):
                 commit = item.get(StringKeyUtils.STR_KEY_COMMIT)
                 if commit is not None and isinstance(commit, dict):
                     relation.pull_request_commit = commit.get(StringKeyUtils.STR_KEY_OID, None)
-                    if commit.get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None) is not None:
-                        relation.create_at = datetime.strptime(commit.get(StringKeyUtils.STR_KEY_COMMIT_AUTHOR_DATE_V4),
+                    if commit.get(StringKeyUtils.STR_KEY_COMMIT_COMMITTED_DATE_V4, None) is not None:
+                        relation.create_at = datetime.strptime(commit.get(StringKeyUtils.STR_KEY_COMMIT_COMMITTED_DATE_V4),
                                                                            StringKeyUtils.STR_STYLE_DATA_DATE)
                 return relation
             elif relation.typename == StringKeyUtils.STR_KEY_MERGED_EVENT:

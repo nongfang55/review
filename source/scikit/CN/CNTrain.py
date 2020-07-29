@@ -278,16 +278,16 @@ class CNTrain:
                     return recommendList
                 tmp = node.best_neighbor()
                 node.mark_edge(tmp)
-                """跳过推荐者已被包含过，或是本人的情况"""
-                if recommendList.__contains__(tmp.id) or tmp.id == contributor:
+                """跳过推荐者已被包含过，推荐者reviewe次数<2 或是本人的情况"""
+                if recommendList.__contains__(tmp.id) or tmp.in_cnt < 2 or tmp.id == contributor:
                     continue
                 queue.append(tmp)
                 recommendList.append(tmp.id)
                 topk -= 1
 
-        # """拿topk做补充"""
-        # if recommendList.__len__() < recommendNum:
-        #     recommendList.extend(CNTrain.topKCommunityActiveContributor)
+        """拿topk做补充"""
+        if recommendList.__len__() < recommendNum:
+            recommendList.extend(CNTrain.topKCommunityActiveUser)
 
         """缓存结果"""
         CNTrain.PACCache[contributor] = recommendList[0:recommendNum]
@@ -303,6 +303,8 @@ class CNTrain:
             apriori_dataset = []
             for pull_number, group in grouped_train_data:
                 reviewers = group['reviewer'].to_list()
+                """过滤in_cnt<2的review"""
+                # reviewers = [x for x in reviewers if graph.get_node(x).in_cnt < 2]
                 apriori_dataset.append(list(set(reviewers)))
             te = TransactionEncoder()
             # 进行 one-hot 编码
@@ -348,11 +350,12 @@ class CNTrain:
         file_name = CNTrain.genGephiData(project, date, graph, convertDict)
         """利用gephi划分社区"""
         communities = Gephi().getCommunity(graph_file=file_name)
-        # 按照community size排序
+        """筛选出成员>2的社区"""
         communities = {k: v for k, v in communities.items() if v.__len__() >= 2}
+        # 按照community size排序
         communities = sorted(communities.items(), key=lambda d: d[1].__len__(), reverse=True)
 
-        # 循环遍历freq，从各个community找出最活跃(入度)的topK
+        # 循环遍历communiity，从各个community找出最活跃(入度)的topK
         topKActiveContributor = []
         for i in range(0, recommendNum):
             for community in communities:
@@ -367,6 +370,8 @@ class CNTrain:
                     break
                 if topKActiveContributor.__len__() == recommendNum:
                     break
+            if topKActiveContributor.__len__() == recommendNum:
+                break
 
         CNTrain.topKCommunityActiveUser = topKActiveContributor[0:recommendNum]
 

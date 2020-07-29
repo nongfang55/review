@@ -39,6 +39,7 @@ class projectConfig:
     PATH_TC_DATA = 'data' + os.sep + 'train' + os.sep + 'TC'
     PATH_CN_DATA = 'data' + os.sep + 'train' + os.sep + 'CN'
     PATH_GA_DATA = 'data' + os.sep + 'train' + os.sep + 'GA'
+    PATH_CF_DATA = 'data' + os.sep + 'train' + os.sep + 'CF'
 
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
 
@@ -160,6 +161,10 @@ class projectConfig:
     @staticmethod
     def getCNDataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CN_DATA)
+
+    @staticmethod
+    def getCFDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CF_DATA)
 
     @staticmethod
     def getSEAADataPath():

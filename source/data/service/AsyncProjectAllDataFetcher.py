@@ -417,7 +417,7 @@ class AsyncProjectAllDataFetcher:
             pos += fetchLimit
 
     @staticmethod
-    def checkChangeTriggerResult():
+    def checkChangeTriggerResult(owner, repo):
         """检查PRChangeTrigger是否计算完整"""
         """在切换代理的时候，数据库连接会断开，导致comments信息查不到，会遗漏review comment的情况"""
         """这里检查一遍pr的change_trigger里是否有review_comment数据，如果没有，重新获取一次"""
@@ -434,14 +434,14 @@ class AsyncProjectAllDataFetcher:
         # pr_nodes = list(pr_nodes)
         # pr_nodes = [node[0] for node in pr_nodes]
         """需要获取的prs改为有issue 额 review的timeline的pr"""
-        timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
+        timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
         timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
         timeline_df = timeline_df.loc[(timeline_df['typename'] == 'IssueComment') \
                                       | (timeline_df['typename'] == 'PullRequestReview')].copy(deep=True)
         pr_nodes = list(set(timeline_df['pullrequest_node']))
 
         """2. 读取pr_change_trigger文件"""
-        change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_pr_change_trigger.tsv'
+        change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_pr_change_trigger.tsv'
         change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
         change_nodes = list(set(change_trigger_df['pullrequest_node']))
 
@@ -517,7 +517,7 @@ class AsyncProjectAllDataFetcher:
 
         """设置fetch参数"""
         pos = 0
-        fetchLimit = 200
+        fetchLimit = 400
         size = pr_nodes.__len__()
         Logger.logi("there are {0} prs need to analyze".format(pr_nodes.__len__()))
         t1 = datetime.now()

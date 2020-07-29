@@ -70,6 +70,8 @@ query($ids:[ID!]!) {
               commit {
                 oid
                 authoredDate
+                committedDate
+                pushedDate
 				author {
                   user {
                     login

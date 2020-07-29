@@ -1072,6 +1072,151 @@ class DataProcessUtils:
                                           dataFrame=data)
 
     @staticmethod
+    def contactCFData(projectName, filter_change_trigger=False):
+        """
+        通过 ALL_{projectName}_data_issuecomment
+             ALL_{projectName}_data_review
+             ALL_{projectName}_data_review_comment
+             ALL_{projectName}_data_pullrequest
+             ALL_{projectName}_data_pr_change_file
+             五个文件拼接出CF所需文件
+             CF数据行：
+             repo_full_name   pull_number   pr_author	pr_created_at	reviewer	comment_type	comment_node	comment_at	filename
+        """
+        time1 = datetime.now()
+        pull_request_path = projectConfig.getPullRequestPath()
+        pr_change_file_path = projectConfig.getPRChangeFilePath()
+        review_path = projectConfig.getReviewDataPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+        issue_comment_path = projectConfig.getIssueCommentPath()
+        review_comment_file_path = projectConfig.getReviewCommentDataPath()
+
+        """issue comment 数据库输出 自带抬头"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pr_change_file 数据库输出 自带抬头"""
+        prChangeFileData = pandasHelper.readTSVFile(
+            os.path.join(pr_change_file_path, f'ALL_{projectName}_data_pr_change_file.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review 数据库输出 自带抬头"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review comment数据库输出 自带抬头"""
+        reviewCommentData = pandasHelper.readTSVFile(
+            os.path.join(review_comment_file_path, f'ALL_{projectName}_data_review_comment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        if filter_change_trigger:
+            """ pr_change_trigger 自带抬头"""
+            changeTriggerData = pandasHelper.readTSVFile(
+                os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+                pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+            )
+        print("read file cost time:", datetime.now() - time1)
+
+        # 文件过滤
+        reviewData = reviewData[["pull_number", "id", "user_login", 'submitted_at']].copy(deep=True)
+        reviewData.columns = ['pull_number', 'pull_request_review_id', 'reviewer', 'submitted_at']
+        reviewData.drop_duplicates(inplace=True)
+        reviewData.reset_index(drop=True, inplace=True)
+        print("after fliter review:", reviewData.shape)
+
+        pullRequestData = pullRequestData.loc[pullRequestData['state'] == 'closed'].copy(deep=True)
+        pullRequestData = pullRequestData[
+            ['repo_full_name', 'number', 'created_at', 'closed_at', 'user_login']].copy(deep=True)
+        pullRequestData.columns = ['repo_full_name', 'pull_number', 'pr_created_at', 'pr_closed_at', 'pr_author']
+        pullRequestData.drop_duplicates(inplace=True)
+        pullRequestData.reset_index(drop=True, inplace=True)
+        print("after fliter pr:", pullRequestData.shape)
+
+        prChangeFileData = prChangeFileData[
+            ['pull_number', 'filename']].copy(deep=True)
+        prChangeFileData.drop_duplicates(inplace=True)
+        prChangeFileData.reset_index(drop=True, inplace=True)
+        print("after fliter change_file data:", prChangeFileData.shape)
+
+        issueCommentData = issueCommentData[
+            ['pull_number', 'node_id', 'user_login', 'created_at']].copy(deep=True)
+        issueCommentData.columns = ['pull_number', 'comment_node', 'reviewer', 'comment_at']
+        issueCommentData['comment_type'] = StringKeyUtils.STR_LABEL_ISSUE_COMMENT
+        issueCommentData.drop_duplicates(inplace=True)
+        issueCommentData.reset_index(drop=True, inplace=True)
+        print("after fliter issue comment data:", issueCommentData.shape)
+
+        """读取review_comment"""
+        reviewCommentData = reviewCommentData[
+            ['pull_request_review_id', 'node_id', 'user_login', 'created_at']].copy(deep=True)
+        reviewCommentData.columns = ['pull_request_review_id', 'comment_node', 'reviewer', 'comment_at']
+        reviewCommentData = pandas.merge(reviewData, reviewCommentData, on='pull_request_review_id', how='left')
+        reviewCommentData['reviewer'] = reviewCommentData.apply(
+            lambda row: row['reviewer_x'] if pandas.isna(row['reviewer_y']) else row['reviewer_y'], axis=1)
+        reviewCommentData['comment_at'] = reviewCommentData.apply(
+            lambda row: row['submitted_at'] if pandas.isna(row['comment_at']) else row['comment_at'], axis=1)
+        reviewCommentData = reviewCommentData[
+            ['pull_number', 'comment_node', 'reviewer', 'comment_at']].copy(deep=True)
+        reviewCommentData.columns = ['pull_number', 'comment_node', 'reviewer', 'comment_at']
+        reviewCommentData['comment_type'] = StringKeyUtils.STR_LABEL_REVIEW_COMMENT
+        reviewCommentData.drop_duplicates(inplace=True)
+        reviewCommentData.reset_index(drop=True, inplace=True)
+        print("after fliter review comment data:", reviewCommentData.shape)
+
+        data = pandas.concat([issueCommentData, reviewCommentData], axis=0)
+
+        data = pandas.merge(pullRequestData, data, on='pull_number')
+        """过滤 comment 在closed 后面的场景 2020.6.28"""
+        data = data.loc[data['pr_closed_at'] >= data['comment_at']].copy(deep=True)
+        """过滤作者评论自己的场景"""
+        data = data.loc[data['pr_author'] != data['reviewer']].copy(deep=True)
+        """过滤删除用户的场景"""
+        data.dropna(subset=['reviewer'], inplace=True)
+        """过滤机器人的场景"""
+        data['isBot'] = data['reviewer'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data = data.loc[data['isBot'] == False].copy(deep=True)
+        """选出有用的列"""
+        data = data[['repo_full_name', 'pull_number', 'pr_author', 'pr_created_at', 'reviewer', 'comment_type', 'comment_node', 'comment_at']].copy(deep=True)
+
+        """拼接文件改动"""
+        data = pandas.merge(data, prChangeFileData, on='pull_number')
+        data.drop_duplicates(inplace=True)
+        data.reset_index(drop=True)
+        print(data.shape)
+        print("after merge file change:", data.shape)
+
+        if filter_change_trigger:
+            """过滤无用review"""
+            changeTriggerData['label'] = changeTriggerData.apply(
+                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] >= 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+            changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            data = pandas.merge(data, changeTriggerData, how='inner')
+            print("after fliter by change_trigger:", data.shape)
+
+        data.sort_values(by='pull_number', ascending=False, inplace=True)
+        data.reset_index(drop=True, inplace=True)
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getCFDataPath(),
+                                          targetFileName=f'CF_{projectName}_data', dateCol='pr_created_at',
+                                          dataFrame=data)
+
+    @staticmethod
     def convertLabelListToDataFrame(label_data, pull_list, maxNum):
         # maxNum 为候选者的数量，会有答案不在名单的可能
         ar = numpy.zeros((label_data.__len__(), maxNum), dtype=int)

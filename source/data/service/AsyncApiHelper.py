@@ -355,6 +355,7 @@ class AsyncApiHelper:
                                                     if comment_list_nodes is not None and isinstance(comment_list_nodes
                                                             , list):
                                                         for commentData in comment_list_nodes:
+                                                            commentData[StringKeyUtils.STR_KEY_REPO_FULL_NAME] = AsyncApiHelper.owner + "/" + AsyncApiHelper.repo
                                                             comment = ReviewComment.parserV4.parser(commentData)
                                                             comment.pull_request_review_id = review.id
                                                             comment.pull_request_review_node_id = review.node_id
