@@ -169,24 +169,29 @@ class HyperGraph:
 
         """计算A"""
         """计算DV的逆矩阵和平方根"""
-        DV_sqrt = np.linalg.inv(self.DV)
-        DV_sqrt = np.sqrt(DV_sqrt)
+        DV_inv = np.linalg.inv(self.DV)
+        DV_sqrt = np.sqrt(DV_inv)
 
         """计算DV'x H"""
         A = np.dot(DV_sqrt, self.H)
 
         """计算W x DE-1"""
-        DE_sqrt = np.sqrt(self.DE)
-        W_DE_Sqrt = np.multiply(self.W, DE_sqrt)
+        # 对角矩阵的逆直接把求对角元素倒数即可
+        DE_inv = np.array(list(map(lambda x: 1/x, self.DE)))
+        W_DE_Inv = np.multiply(self.W, DE_inv)
 
         startTime = datetime.now()
         """计算A x (W X DE’)，由于矩阵过大 只能手动计算更新矩阵各列"""
-        for index, la in enumerate(W_DE_Sqrt):
+        for index, la in enumerate(W_DE_Inv):
             A[:, index] = A[:, index] * la
         print("对角矩阵手动计算花费时间:", datetime.now() - startTime)
 
         """计算与(H)T相乘"""
         A = np.dot(A, self.H.T)
+        print(A.shape)
+
+        """计算与DV的逆矩阵和平方根相乘"""
+        A = np.dot(A, DV_sqrt)
         print(A.shape)
 
         """A计算结束之后  把H和W的内存回收"""

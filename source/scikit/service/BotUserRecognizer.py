@@ -12,7 +12,10 @@ class BotUserRecognizer:
     BOT_TABLE = ['stickler-ci', 'codecov-io', 'rails-bot', 'mention-bot',
                  'babel-bot', 'symfony-skeleton-bot', 'akka-ci', 'buildsize',
                  'stale', 'netty-bot', 'codecov', 'label-actions', 'salt-jenkins',
-                 'facebook-github-bot', 'reactjs-bot', 'pull-bot']
+                 'facebook-github-bot', 'reactjs-bot', 'pull-bot', 'googlebot',
+                 'mary-poppins', 'ngbot[bot]', 'ngbot', 'sklearn-lgtm', 'pep8speaks',
+                 'fastlane-bot-helper', 'netkins', 'GordonTheTurtle', 'lightbend-cla-validator',
+                 'sizebot']
 
     @staticmethod
     def isBot(name):

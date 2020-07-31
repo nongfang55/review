@@ -1,4 +1,5 @@
 # coding=gbk
+import math
 import os
 import time
 from datetime import datetime
@@ -10,6 +11,7 @@ from source.scikit.HG.HyperGraph import HyperGraph
 from source.scikit.HG.Node import Node
 from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.utils.ExcelHelper import ExcelHelper
+from source.utils.Gexf import Gexf
 from source.utils.pandas.pandasHelper import pandasHelper
 import numpy as np
 
@@ -85,9 +87,6 @@ class HGTrain:
         """对reviewer名字数字化处理 存储人名映射字典做返回"""
         convertDict = DataProcessUtils.changeStringToNumber(df, ['author_user_login', 'review_user_login'])
 
-        """先对tag做拆分"""
-        tagDict = dict(list(df.groupby('pr_number')))
-
         """对已经有的特征向量和标签做训练集的拆分"""
         train_data = df.loc[df['label'] == False].copy(deep=True)
         test_data = df.loc[df['label']].copy(deep=True)
@@ -100,15 +99,19 @@ class HGTrain:
         train_data.reset_index(drop=True, inplace=True)
         train_data.fillna(value='', inplace=True)
 
+        """先对tag做拆分"""
+        trainDict = dict(list(train_data.groupby('pr_number')))
+        testDict = dict(list(test_data.groupby('pr_number')))
+
         """注意： train_data 和 test_data 中有多个comment和filename的组合"""
         test_data_y = {}
         for pull_number in test_data.drop_duplicates(['pr_number'])['pr_number']:
-            reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
+            reviewers = list(testDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
             test_data_y[pull_number] = reviewers
 
         train_data_y = {}
         for pull_number in train_data.drop_duplicates(['pr_number'])['pr_number']:
-            reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
+            reviewers = list(trainDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
             train_data_y[pull_number] = reviewers
 
         return train_data, train_data_y, test_data, test_data_y, convertDict
@@ -147,7 +150,7 @@ class HGTrain:
         prList.sort()
 
         recommendList, answerList = HGTrain.RecommendByHG(train_data, train_data_y, test_data,
-                                                          test_data_y, recommendNum=recommendNum)
+                                                          test_data_y, date, project, convertDict, recommendNum=recommendNum)
 
         """新增返回测试 训练集大小，用于做统计"""
 
@@ -158,7 +161,7 @@ class HGTrain:
         return recommendList, answerList, prList, convertDict, trainSize
 
     @staticmethod
-    def createTrainDataGraph(train_data, train_data_y, trainPrDis):
+    def createTrainDataGraph(train_data, train_data_y, trainPrDis, prToRevMat, authToRevMat):
         """通过训练集计算出超图 测试对象的顶点的边需要额外加入"""
 
         graph = HyperGraph()
@@ -197,27 +200,37 @@ class HGTrain:
             for reviewer in reviewers:
                 pr_node = graph.get_node_by_content(Node.STR_NODE_TYPE_PR, pr)
                 reviewer_node = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, reviewer)
+                # 权重参考CF的版本
                 graph.add_edge(nodes=[pr_node.id, reviewer_node.id], edgeType=Edge.STR_EDGE_TYPE_PR_REVIEW_RELATION,
-                               weight=1, description=f" pr review relation between pr {pr} and reviewer {reviewer}",
+                               weight=prToRevMat[pr][reviewer], description=f" pr review relation between pr {pr} and reviewer {reviewer}",
                                nodeObjects=[pr_node, reviewer_node])
 
-        """增加pr 和 author的边"""
+        # """增加pr 和 author的边"""
         for pr in prList:
             author = list(set(train_data.loc[train_data['pr_number'] == pr]['author_user_login']))[0]
             pr_node = graph.get_node_by_content(Node.STR_NODE_TYPE_PR, pr)
             author_node = graph.get_node_by_content(Node.STR_NODE_TYPE_AUTHOR, author)
             graph.add_edge(nodes=[pr_node.id, author_node.id], edgeType=Edge.STR_EDGE_TYPE_PR_AUTHOR_RELATION,
-                           weight=1, description=f" pr author relation between pr {pr} and author {author}",
+                           weight=0.00000001, description=f" pr author relation between pr {pr} and author {author}",
                            nodeObjects=[pr_node, author_node])
 
-        """增加 author 和 reviewer 的边"""
-        userList = [x for x in authorList if x in reviewerList]
-        for user in userList:
-            author_node = graph.get_node_by_content(Node.STR_NODE_TYPE_AUTHOR, user)
-            reviewer_node = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, user)
-            graph.add_edge(nodes=[author_node.id, reviewer_node.id], edgeType=Edge.STR_EDGE_TYPE_AUTHOR_REVIEWER_RELATION,
-                           weight=1, description=f"author reviewer relation for {user}",
-                           nodeObjects=[author_node, reviewer_node])
+        # """增加 author 和 reviewer 的边"""
+        # 权重均为1的版本
+        # userList = [x for x in authorList if x in reviewerList]
+        # for user in userList:
+        #     author_node = graph.get_node_by_content(Node.STR_NODE_TYPE_AUTHOR, user)
+        #     reviewer_node = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, user)
+        #     graph.add_edge(nodes=[author_node.id, reviewer_node.id], edgeType=Edge.STR_EDGE_TYPE_AUTHOR_REVIEWER_RELATION,
+        #                    weight=1, description=f"author reviewer relation for {user}",
+        #                    nodeObjects=[author_node, reviewer_node])
+        # 权重参考CN的版本
+        for author, relations in authToRevMat.items():
+            for reviewer, weight in relations.items():
+                author_node = graph.get_node_by_content(Node.STR_NODE_TYPE_AUTHOR, author)
+                reviewer_node = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, reviewer)
+                graph.add_edge(nodes=[author_node.id, reviewer_node.id], edgeType=Edge.STR_EDGE_TYPE_AUTHOR_REVIEWER_RELATION,
+                               weight=weight, description=f"author reviewer relation for {author}",
+                               nodeObjects=[author_node, reviewer_node])
 
         # """更新图的几个矩阵"""
         # graph.updateMatrix()
@@ -268,7 +281,7 @@ class HGTrain:
         return trainPrDis
 
     @staticmethod
-    def RecommendByHG(train_data, train_data_y, test_data, test_data_y, recommendNum=5, K=5, alpha=0.98):
+    def RecommendByHG(train_data, train_data_y, test_data, test_data_y, date, project, convertDict, recommendNum=5, K=5, alpha=0.98):
         """基于超图网络推荐算法
            K 超参数：考虑多少邻近的pr
            alpha 超参数： 类似正则参数
@@ -288,8 +301,15 @@ class HGTrain:
         trainPrDis = HGTrain.getTrainDataPrDistance(train_data, K, pathDict)
         print(" pr distance cost time:", datetime.now() - start)
 
+        """计算review -> request权重"""
+        prToRevMat = HGTrain.buildPrToRevRelation(train_data)
+
+        """计算author -> reviewer权重"""
+        authToRevMat = HGTrain.buildAuthToRevRelation(train_data, date)
+
         """构建超图"""
-        graph = HGTrain.createTrainDataGraph(train_data, train_data_y, trainPrDis)
+        graph = HGTrain.createTrainDataGraph(train_data, train_data_y, trainPrDis, prToRevMat, authToRevMat)
+        HGTrain.toGephiData(project, date, convertDict, graph)
 
         prList = list(set(train_data['pr_number']))
         prList.sort()  # 从小到大排序
@@ -379,6 +399,142 @@ class HGTrain:
         print("total query cost time:", datetime.now() - startTime)
         return recommendList, answerList
 
+    @staticmethod
+    def buildPrToRevRelation(train_data):
+        print("start building request -> reviewer relations....")
+        start = datetime.now()
+        # 开始时间：数据集pr最早的创建时间
+        pr_created_time_data = train_data['pr_created_at'].apply(lambda x: time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+        start_time = min(pr_created_time_data.to_list())
+        # 结束时间：数据集pr最晚的创建时间
+        pr_created_time_data = train_data['pr_created_at'].apply(lambda x: time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+        end_time = max(pr_created_time_data.to_list())
+        prToRevMat = {}
+        grouped_train_data = train_data.groupby([train_data['pr_number'], train_data['review_user_login']])
+        max_weight = 0
+        for relation, group in grouped_train_data:
+            group.reset_index(drop=True, inplace=True)
+            weight = HGTrain.caculateRevToPrWeight(group, start_time, end_time)
+            max_weight = max(weight, max_weight)
+            if not prToRevMat.__contains__(relation[0]):
+                prToRevMat[relation[0]] = {}
+            prToRevMat[relation[0]][relation[1]] = weight
+
+        # 归一化
+        for pr, relations in prToRevMat.items():
+            for rev, weight in relations.items():
+                prToRevMat[pr][rev] = weight/max_weight
+        print("finish building request -> reviewer relations. cost time: {0}s".format(datetime.now() - start))
+        return prToRevMat
+
+    @staticmethod
+    def caculateRevToPrWeight(comment_records, start_time, end_time):
+        """计算reviewer和pr之间的权重"""
+        weight_lambda = 0.8
+        weight = 0
+        comment_records.drop(columns=['filename'], inplace=True)
+        comment_records.drop_duplicates(inplace=True)
+        comment_records.reset_index(inplace=True, drop=True)
+        """遍历每条评论，计算权重"""
+        for cm_idx, cm_row in comment_records.iterrows():
+            cm_timestamp = time.strptime(cm_row['review_created_at'], "%Y-%m-%d %H:%M:%S")
+            cm_timestamp = int(time.mktime(cm_timestamp))
+            """计算t值: the element t(ij,r,n) is a time-sensitive factor """
+            t = (cm_timestamp - start_time) / (end_time - start_time)
+            cm_weight = math.pow(weight_lambda, cm_idx) * t
+            weight += cm_weight
+        return weight
+
+    @staticmethod
+    def buildAuthToRevRelation(train_data, date):
+        print("start building reviewer -> reviewer relations....")
+        start = datetime.now()
+
+        # 开始时间：数据集开始时间的前一天
+        start_time = time.strptime(str(date[0]) + "-" + str(date[1]) + "-" + "01 00:00:00", "%Y-%m-%d %H:%M:%S")
+        start_time = int(time.mktime(start_time) - 86400)
+        # 结束时间：数据集的最后一天
+        end_time = time.strptime(str(date[2]) + "-" + str(date[3]) + "-" + "01 00:00:00", "%Y-%m-%d %H:%M:%S")
+        end_time = int(time.mktime(end_time) - 1)
+
+        authToRevMat = {}
+        grouped_train_data = train_data.groupby([train_data['author_user_login'], train_data['review_user_login']])
+        max_weight = 0
+        for relation, group in grouped_train_data:
+            group.reset_index(drop=True, inplace=True)
+            weight = HGTrain.caculateAuthToRevWeight(group, start_time, end_time)
+            max_weight = max(weight, max_weight)
+            if not authToRevMat.__contains__(relation[0]):
+                authToRevMat[relation[0]] = {}
+            authToRevMat[relation[0]][relation[1]] = weight
+
+        # 归一化
+        for auth, relations in authToRevMat.items():
+            for rev, weight in relations.items():
+                authToRevMat[auth][rev] = weight/max_weight
+
+        print("finish building comments networks! ! ! cost time: {0}s".format(datetime.now() - start))
+        return authToRevMat
+
+    @staticmethod
+    def caculateAuthToRevWeight(comment_records, start_time, end_time):
+        """计算author到reviewer的权重"""
+        weight_lambda = 0.8
+        weight = 0
+
+        comment_records.drop(columns=['filename'], inplace=True)
+        comment_records.drop_duplicates(inplace=True)
+        comment_records.reset_index(inplace=True, drop=True)
+
+        grouped_comment_records = comment_records.groupby(comment_records['pr_number'])
+        for pr, comments in grouped_comment_records:
+            comments.reset_index(inplace=True, drop=True)
+            """遍历每条评论，计算权重"""
+            for cm_idx, cm_row in comments.iterrows():
+                cm_timestamp = time.strptime(cm_row['review_created_at'], "%Y-%m-%d %H:%M:%S")
+                cm_timestamp = int(time.mktime(cm_timestamp))
+                """计算t值: the element t(ij,r,n) is a time-sensitive factor """
+                t = (cm_timestamp - start_time) / (end_time - start_time)
+                cm_weight = math.pow(weight_lambda, cm_idx) * t
+                weight += cm_weight
+        return weight
+
+    @staticmethod
+    def toGephiData(project, date, convertDict, hyper_graph):
+        file_name = f'{os.curdir}/gephi/{project}_{date[0]}_{date[1]}_{date[2]}_{date[3]}_network'
+
+        gexf = Gexf("reviewer_recommend", file_name)
+        gexf_graph = gexf.addGraph("directed", "static", file_name)
+        gexf_graph.addNodeAttribute("type", 'unknown', type='string')
+        gexf_graph.addNodeAttribute("description", '', type='string')
+        gexf_graph.addEdgeAttribute("type", 'unknown', type='string')
+        gexf_graph.addEdgeAttribute("description", '', type='string')
+
+        tempDict = {k: v for v, k in convertDict.items()}
+        edges = hyper_graph.edge_list
+        for key, edge in edges.items():
+            """将边上的点加入到图中"""
+            nodes = edge.connectedTo
+            for node in nodes:
+                node = hyper_graph.get_node_by_key(node)
+                if node.type == Node.STR_NODE_TYPE_PR:
+                    gexf_graph.addNode(id=str(node.contentKey), label=node.description,
+                                       attrs=[{'id': 0, 'value': node.type},
+                                              {'id': 1, 'value': node.description}])
+                if node.type == Node.STR_NODE_TYPE_REVIEWER or node.type == Node.STR_NODE_TYPE_AUTHOR:
+                    gexf_graph.addNode(id=str(node.contentKey), label=tempDict[node.contentKey],
+                                       attrs=[{'id': 0, 'value': node.type},
+                                              {'id': 1, 'value': node.description}])
+            """将边加入图中"""
+            source = hyper_graph.get_node_by_key(edge.connectedTo[0])
+            target = hyper_graph.get_node_by_key(edge.connectedTo[1])
+            gexf_graph.addEdge(id=edge.id, source=str(source.contentKey), target=str(target.contentKey),
+                               weight=edge.weight, attrs=[{'id': 2, 'value': edge.type},
+                                      {'id': 3, 'value': edge.description}])
+        output_file = open(file_name + ".gexf", "wb")
+        gexf.write(output_file)
+        output_file.close()
+        return file_name + ".gexf"
 
 if __name__ == '__main__':
     # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),

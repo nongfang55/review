@@ -96,8 +96,8 @@ class Graph:
         self._nodes = {}
         self._edges = {}
 
-    def addNode(self, id, label, start="", end="", pid="", r="", g="", b=""):
-        self._nodes[id] = Node(self, id, label, start, end, pid, r, g, b)
+    def addNode(self, id, label, start="", end="", pid="", r="", g="", b="", attrs=[]):
+        self._nodes[id] = Node(self, id, label, start, end, pid, r, g, b, attrs)
         return self._nodes[id]
 
     def nodeExists(self, id):
@@ -106,8 +106,8 @@ class Graph:
         else:
             return 0
 
-    def addEdge(self, id, source, target, weight="", start="", end="", label=""):
-        self._edges[id] = Edge(self, id, source, target, weight, start, end, label)
+    def addEdge(self, id, source, target, weight="", start="", end="", label="", attrs=[]):
+        self._edges[id] = Edge(self, id, source, target, weight, start, end, label, attrs)
         return self._edges[id]
 
     def addNodeAttribute(self, title, defaultValue, type="integer", mode="static", force_id=""):
@@ -231,7 +231,7 @@ class Graph:
 
 class Node:
 
-    def __init__(self, graph, id, label, start="", end="", pid="", r="", g="", b=""):
+    def __init__(self, graph, id, label, start="", end="", pid="", r="", g="", b="", attrs=[]):
         self.id = id
         self.label = label
         self.start = start
@@ -242,8 +242,9 @@ class Node:
         if not self.pid == "":
             if not self._graph.nodeExists(self.pid):
                 raise Exception("pid " + self.pid + " node unknown, add nodes to graph first")
-
         self._attributes = []
+        for attr in attrs:
+            self.addAttribute(attr['id'], attr['value'])
 
     # add existing nodesattributes default values : bad idea and unecessary
     # self._graph.addDefaultAttributesToNode(self)
@@ -300,7 +301,7 @@ class Node:
 
 class Edge:
 
-    def __init__(self, graph, id, source, target, weight="", start="", end="", label="", r="", g="", b=""):
+    def __init__(self, graph, id, source, target, weight="", start="", end="", label="", r="", g="", b="", attrs=[]):
 
         self.id = id
         self._graph = graph
@@ -320,6 +321,9 @@ class Edge:
         self.weight = weight
         self.label = label
         self._attributes = []
+        for attr in attrs:
+            self.addAttribute(attr['id'], attr['value'])
+
         # COLOR on edges isn't supported in GEXF
         self.setColor(r, g, b)
 

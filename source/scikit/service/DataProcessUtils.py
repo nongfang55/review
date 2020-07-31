@@ -937,7 +937,7 @@ class DataProcessUtils:
         通过 ALL_{projectName}_data_issuecomment
              ALL_{projectName}_data_review
              ALL_{projectName}_data_review_comment
-             ALL_{projectName}_data_pullrequest 三个文件拼接出CN所需文件
+             ALL_{projectName}_data_pullrequest 四个文件拼接出CN所需文件
         """
         """读取信息"""
         start_time = datetime.now()
@@ -1856,17 +1856,21 @@ class DataProcessUtils:
 
         "HG数据行：repo_full_name, number, author_user_login, review_user_login, comment_node_id, pr_created_at, filename"
         data_issue = data_issue[['repo_full_name_x', 'number', 'node_id_x', 'user_login_x', 'created_at_x',
-                                'node_id_y', 'user_login_y']].copy(deep=True)
+                                'node_id_y', 'user_login_y', 'created_at_y']].copy(deep=True)
         data_issue.columns = ['repo_full_name', 'pr_number', 'node_id', 'author_user_login', 'pr_created_at',
-                              'comment_node_id', 'review_user_login']
+                              'comment_node_id', 'review_user_login', 'review_created_at']
         data_issue.drop_duplicates(inplace=True)
 
         data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
         data_review = pandas.merge(data_review, reviewCommentData, left_on='id_y', right_on='pull_request_review_id',
                                    how='left')
+        """评论时间为na的，用review时间做补充"""
+        data_review['created_at_y'] = data_review.apply(
+            lambda row: row['submitted_at'] if pandas.isna(row['created_at_y']) else row['created_at_y'], axis=1)
+
         data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
         """过滤 comment 在closed 后面的场景 2020.6.28"""
-        data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
+        data_review = data_review.loc[data_review['closed_at'] >= data_review['created_at_y']].copy(deep=True)
         """过滤删除用户场景"""
         data_review.dropna(subset=['user_login_y'], inplace=True)
         """过滤机器人的场景  """
@@ -1874,9 +1878,9 @@ class DataProcessUtils:
         data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
         "HG数据行： repo_full_name, number, author_user_login, review_user_login, comment_node_id, pr_created_at, filename"
         data_review = data_review[['repo_full_name_x', 'number', 'node_id_x', 'user_login_x', 'created_at_x',
-                                  'node_id', 'user_login_y']].copy(deep=True)
+                                  'node_id', 'user_login_y', 'created_at_y']].copy(deep=True)
         data_review.columns = ['repo_full_name', 'pr_number', 'node_id', 'author_user_login', 'pr_created_at',
-                               'comment_node_id', 'review_user_login']
+                               'comment_node_id', 'review_user_login', 'review_created_at']
         data_review.drop_duplicates(inplace=True)
 
         data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
@@ -1904,7 +1908,7 @@ class DataProcessUtils:
 
         """只选出感兴趣的部分"""
         data = data[['repo_full_name', 'pr_number', 'author_user_login', 'review_user_login', 'comment_node_id',
-                     'pr_created_at', 'filename']].copy(deep=True)
+                     'pr_created_at', 'review_created_at', 'filename']].copy(deep=True)
         data.drop_duplicates(inplace=True)
         data.sort_values(by='pr_number', ascending=False, inplace=True)
         data.reset_index(drop=True)
