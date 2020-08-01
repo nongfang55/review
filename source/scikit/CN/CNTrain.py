@@ -122,8 +122,11 @@ class CNTrain:
 
         prList = list(test_data.drop_duplicates(['pull_number'])['pull_number'])
 
-        recommendList, answerList = CNTrain.RecommendByCN(project, date, train_data, train_data_y, test_data,
+        recommendList, answerList, authorList, typeList = CNTrain.RecommendByCN(project, date, train_data, train_data_y, test_data,
                                                           test_data_y, convertDict, recommendNum=recommendNum)
+
+        # """保存推荐结果到本地"""
+        # DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict, authorList, typeList)
 
         """新增返回测试 训练集大小，用于做统计"""
         from source.scikit.combine.CBTrain import CBTrain
@@ -193,6 +196,8 @@ class CNTrain:
         recommendList = []
         answerList = []
         testDict = dict(list(test_data.groupby('pull_number')))
+        authorList = []  # 用于统计最后的推荐结果
+        typeList = []
 
         """The start time and end time are highly related to the selection of training set"""
         # 开始时间：数据集开始时间的前一天
@@ -228,16 +233,20 @@ class CNTrain:
             answerList.append(test_data_y[test_pull_number])
             pr_author = test_df.at[0, 'pr_author']
             node = graph.get_node(pr_author)
+            authorList.append(pr_author)
             if node is not None and node.connectedTo:
                 """PAC推荐"""
                 recommendList.append(CNTrain.recommendByPAC(graph, pr_author, recommendNum))
+                typeList.append('PAC')
             elif node is not None:
                 """PNC推荐"""
                 recommendList.append(CNTrain.recommendByPNC(train_data, graph, pr_author, recommendNum))
+                typeList.append('PNC')
             else:
                 """Gephi推荐"""
                 recommendList.append(CNTrain.topKCommunityActiveUser)
-        return recommendList, answerList
+                typeList.append('Gephi')
+        return recommendList, answerList, authorList, typeList
 
     @staticmethod
     def caculateWeight(comment_records, start_time, end_time):

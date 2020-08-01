@@ -152,7 +152,8 @@ class HGTrain:
         recommendList, answerList = HGTrain.RecommendByHG(train_data, train_data_y, test_data,
                                                           test_data_y, date, project, convertDict, recommendNum=recommendNum)
 
-        """新增返回测试 训练集大小，用于做统计"""
+        """保存推荐结果，用于做统计"""
+        DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict)
 
         """新增返回训练集 测试集大小"""
         trainSize = (train_data.shape[0], test_data.shape[0])
@@ -161,7 +162,7 @@ class HGTrain:
         return recommendList, answerList, prList, convertDict, trainSize
 
     @staticmethod
-    def createTrainDataGraph(train_data, train_data_y, trainPrDis, prToRevMat, authToRevMat):
+    def createTrainDataGraph(train_data, train_data_y, trainPrDis, prToRevMat, authToRevMat, c):
         """通过训练集计算出超图 测试对象的顶点的边需要额外加入"""
 
         graph = HyperGraph()
@@ -191,7 +192,7 @@ class HGTrain:
                 if weight is not None:
                     node_2 = graph.get_node_by_content(Node.STR_NODE_TYPE_PR, p2)
                     graph.add_edge(nodes=[node_1.id, node_2.id], edgeType=Edge.STR_EDGE_TYPE_PR_DIS,
-                                   weight=weight, description=f"pr distance between {p1} and {p2}",
+                                   weight=weight * c, description=f"pr distance between {p1} and {p2}",
                                    queryBeforeAdd=True)
 
         """增加pr和reviewer的边  这里暂时reviewer不合并在一起 weight需要考虑"""
@@ -281,10 +282,12 @@ class HGTrain:
         return trainPrDis
 
     @staticmethod
-    def RecommendByHG(train_data, train_data_y, test_data, test_data_y, date, project, convertDict, recommendNum=5, K=5, alpha=0.98):
+    def RecommendByHG(train_data, train_data_y, test_data, test_data_y, date, project, convertDict, recommendNum=5,
+                      K=5, alpha=0.98, c=1):
         """基于超图网络推荐算法
            K 超参数：考虑多少邻近的pr
            alpha 超参数： 类似正则参数
+           c 超参数： 用于调节pr相似边的相对权值比例
         """
         recommendList = []
         answerList = []
@@ -308,7 +311,7 @@ class HGTrain:
         authToRevMat = HGTrain.buildAuthToRevRelation(train_data, date)
 
         """构建超图"""
-        graph = HGTrain.createTrainDataGraph(train_data, train_data_y, trainPrDis, prToRevMat, authToRevMat)
+        graph = HGTrain.createTrainDataGraph(train_data, train_data_y, trainPrDis, prToRevMat, authToRevMat, c)
         HGTrain.toGephiData(project, date, convertDict, graph)
 
         prList = list(set(train_data['pr_number']))
@@ -385,7 +388,7 @@ class HGTrain:
                 if node.type == Node.STR_NODE_TYPE_REVIEWER:
                     scores[node.contentKey] = f[i][0]
 
-            answer = list(set(test_df['review_user_login']))
+            answer = answer = test_data_y[pr_num]
             answerList.append(answer)
             recommendList.append([x[0] for x in sorted(scores.items(),
                                                        key=lambda d: d[1], reverse=True)[0:recommendNum]])

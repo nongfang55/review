@@ -252,8 +252,8 @@ class FPSAlgorithm:
     @staticmethod
     def LCP_2(path1, path2):
         """计算最长前缀"""
-        list1 = FPSAlgorithm.getSplitFilePath(path1)
-        list2 = FPSAlgorithm.getSplitFilePath(path2)
+        list1 = tuple(FPSAlgorithm.getSplitFilePath(path1))
+        list2 = tuple(FPSAlgorithm.getSplitFilePath(path2))
         pre = 0
         length = min(list1.__len__(), list2.__len__())
         for i in range(0, length):
@@ -349,7 +349,7 @@ class FPSAlgorithm:
         answerList = []
         testDict = dict(list(test_data.groupby('pull_number')))
         trainDict = dict(list(train_data.groupby('pull_number')))
-        testTuple = sorted(testDict.items(), key=lambda x: x[0], reverse=True)
+        testTuple = sorted(testDict.items(), key=lambda x: x[0], reverse=False)
         for test_pull_number, test_df in testTuple:
             scores = {}  # 初始化分数字典
             """添加正确答案"""

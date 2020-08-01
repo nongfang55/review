@@ -147,6 +147,8 @@ class FPSTrain:
         train_data, train_data_y, test_data, test_data_y, convertDict = FPSTrain.preProcess(df, date)
 
         prList = list(test_data.drop_duplicates(['pull_number'])['pull_number'])
+        """2020.8.1 本来FPS的pr顺序是倒序，现在改为正序，便于和其他算法推荐名单比较"""
+        prList.sort()
 
         recommendList, answerList = FPSAlgorithm.RecommendByFPS(train_data, train_data_y, test_data,
                                                                 test_data_y, recommendNum=recommendNum)
@@ -156,6 +158,9 @@ class FPSTrain:
         """新增返回训练集 测试集大小"""
         trainSize = (train_data.shape, test_data.shape)
         print(trainSize)
+
+        # """输出推荐名单到文件"""
+        # DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict)
 
         return recommendList, answerList, prList, convertDict, trainSize
 

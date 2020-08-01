@@ -1057,7 +1057,11 @@ class DataProcessUtils:
 
         if filter_change_trigger:
             """change_trigger只取出pr, reviewer，和data取交集"""
-            changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            changeTriggerData['label'] = changeTriggerData.apply(
+                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
             changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
             changeTriggerData.rename(columns={'user_login': 'pr_author'}, inplace=True)
             changeTriggerData.drop_duplicates(inplace=True)
@@ -1884,6 +1888,8 @@ class DataProcessUtils:
         data_review.drop_duplicates(inplace=True)
 
         data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
+        """过滤nan的情况"""
+        data.dropna(subset=['author_user_login', 'review_user_login'], inplace=True)
         data.drop_duplicates(inplace=True)
         data.reset_index(drop=True, inplace=True)
         print(data.shape)
@@ -2208,6 +2214,209 @@ class DataProcessUtils:
 
         print("review comment useful:", df_review.shape[0] - df_review.loc[df_review['change_trigger'] == -1].shape[0])
         plt.show()
+
+    @staticmethod
+    def changeTriggerResponseTimeAnalyzer(repo):
+        """对change trigger pair数据做统计  并可以根据pair的回应时间做统计"""
+        change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_pr_change_trigger.tsv'
+        change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
+
+        timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
+        timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
+
+        # review_change_filename = projectConfig.getReviewChangeDataPath() + os.sep + f'ALL_data_review_change.tsv'
+        # review_change_df = pandasHelper.readTSVFile(fileName=review_change_filename, header=0)
+
+        review_comment_filename = projectConfig.getReviewCommentDataPath() + os.sep + f'ALL_{repo}_data_review_comment.tsv'
+        review_comment_df = pandasHelper.readTSVFile(fileName=review_comment_filename, header=0)
+
+        review_filename = projectConfig.getReviewDataPath() + os.sep + f'ALL_{repo}_data_review.tsv'
+        review_df = pandasHelper.readTSVFile(fileName=review_filename, header=0)
+
+        review_df = pandas.merge(review_df, review_comment_df, left_on='id', right_on='pull_request_review_id')
+
+        pr_filename = projectConfig.getPullRequestPath() + os.sep + f'ALL_{repo}_data_pullrequest.tsv'
+        pull_request_df = pandasHelper.readTSVFile(pr_filename, pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False)
+
+        prs = list(set(change_trigger_df['pullrequest_node']))
+        print("prs nums:", prs.__len__())
+
+        # """对 review_change_df 做筛选"""
+        # temp_pr_node = change_trigger_df['pullrequest_node'].copy(deep=True)
+        # temp_pr_node.drop_duplicates(inplace=True)
+        # review_change_df = pandas.merge(review_change_df, temp_pr_node, left_on='pull_request_node_id',
+        #                                 right_on='pullrequest_node')
+
+        """对changetrigger 做过滤"""
+        change_trigger_df['label'] = change_trigger_df.apply(
+            lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                    x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+        change_trigger_df = change_trigger_df.loc[change_trigger_df['label'] == True].copy(deep=True)
+
+        # [(reviewer, node_id, gap), (), ()]
+        comment_response_list = []
+        errorCount = 0
+        mergeCommentCase = 0
+        tooLongCase = 0
+        replyCommentCase = 0
+        issueCommentCase = 0
+
+        """过滤之后的change_trigger_df"""
+        filter_change_trigger_df = change_trigger_df.copy(deep=True)
+        filter_change_trigger_df['response_time'] = -1
+
+        for index, row in change_trigger_df.iterrows():
+            # print(row)
+            """这里先过滤作者自己 review 和 comment 的情况"""
+            pr_node = getattr(row, 'pullrequest_node')
+            comment_type = getattr(row, 'comment_type')
+            pr_df = pull_request_df.loc[pull_request_df['node_id'] == pr_node].copy(deep=True)
+            pr_df.reset_index(drop=True, inplace=True)
+            author = pr_df.at[0, 'user_login']
+
+            comment_node_id = getattr(row, 'comment_node')
+            reviewer = getattr(row, 'user_login')
+
+            # """过滤作者和reviewer同一人的场景"""
+            # if author == reviewer:
+            #     continue
+
+            comment_index = None
+            """获得comment的序号"""
+            if comment_type == 'label_issue_comment':
+                try:
+                    comment_df = timeline_df.loc[timeline_df['timelineitem_node'] == comment_node_id]
+                    comment_index = comment_df.index[0]
+                except Exception as e:
+                    print("issue comment case:", issueCommentCase)
+                    issueCommentCase += 1
+                    continue
+            else:
+                try:
+                    """从reivew_df 找review的node"""
+                    review_comment_temp_df = review_df.loc[review_df['node_id_y'] == comment_node_id]
+                    review_comment_temp_df.reset_index(inplace=True, drop=True)
+                    replay_to_id = review_comment_temp_df.at[0, 'in_reply_to_id']
+                    if not numpy.isnan(replay_to_id):
+                        review_comment_temp_df = review_df.loc[review_df['id_y'] == replay_to_id]
+                    review_comment_temp_df.reset_index(inplace=True, drop=True)
+                    review_node = review_comment_temp_df.at[0, 'node_id_x']
+                    comment_df = timeline_df.loc[timeline_df['timelineitem_node'] == review_node]
+                    comment_index = comment_df.index[0]
+                except Exception as e:
+                    print(e)
+                    print("reply to id is none", replyCommentCase)
+                    replyCommentCase += 1
+                    continue
+
+            """这里当初考虑pair的时候没做好， 没有具体到哪个comment是有改动的，现在作为妥协方案，就选下面最近的那个"""
+            change_index = comment_index + 1
+            comment_time = timeline_df.at[comment_index, 'created_at']
+            change_time = timeline_df.at[change_index, 'created_at']
+            change_type = timeline_df.at[change_index, 'typename']
+            try:
+                comment_time = datetime.strptime(comment_time, "%Y-%m-%d %H:%M:%S")
+
+                #     """change time 从commit_df映射"""
+                #     typename = timeline_df.at[change_index, 'typename']
+                #     if typename == 'PullRequestCommit':
+                #         origin = timeline_df.at[change_index, 'origin']
+                #         item = json.loads(origin)
+                #         commit = item.get(StringKeyUtils.STR_KEY_COMMIT)
+                #         if commit is not None and isinstance(commit, dict):
+                #             oid = commit.get('oid')
+                #             if oid is None:
+                #                 raise Exception("oid is None!")
+                #             commit_temp_df = commit_df.loc[commit_df['sha'] == oid]
+                #             commit_temp_df.reset_index(inplace=True, drop=True)
+                #             change_time = commit_temp_df.at[0, 'commit_committer_date']
+
+                change_time = datetime.strptime(change_time, "%Y-%m-%d %H:%M:%S")
+                review_gap_second = (change_time - comment_time).total_seconds()
+                if review_gap_second < 0:
+                    print(review_gap_second)
+                    raise Exception('gap is < 0' + pr_node, ' ', comment_node_id)
+                time_gap = review_gap_second / 60
+
+                """对 ISSUE COMMENT做一次过滤  对于issue comment跟merge的场景 并且反映在5分钟内的做过滤"""
+                if comment_type == 'label_issue_comment' and change_type == 'MergedEvent' and time_gap < 5:
+                    mergeCommentCase += 1
+                    continue
+                """对超长时间 pair做过滤  暂且认为3天"""
+                if time_gap > 60 * 24 * 3:
+                    tooLongCase += 1
+                    continue
+                comment_response_list.append((reviewer, comment_node_id, comment_type, change_type, time_gap))
+                filter_change_trigger_df.loc[index, 'response_time'] = time_gap
+            except Exception as e:
+                print("created time not found in timeline :", errorCount)
+                errorCount += 1
+        print(comment_response_list.__len__())
+        print("merge change case :", mergeCommentCase)
+        print("too long pair case:", tooLongCase)
+
+        """绘图查看时间间隔分布"""
+        X = [x[-1] for x in comment_response_list]
+        r = [x[0] for x in comment_response_list]
+        # plt.hist(X, 100)
+        # plt.show()
+        #
+        # plt.hist(r, 100)
+        # plt.show()
+        #
+        # plt.plot(X, r, 'ro')
+        # plt.show()
+
+        """把过滤的change_trigger保存"""
+        filter_change_trigger_df = filter_change_trigger_df.loc[filter_change_trigger_df['response_time'] > 0].copy(
+            deep=True)
+        filter_change_trigger_df.drop(columns=['label'], inplace=True)
+        filter_change_trigger_df.reset_index(drop=True, inplace=True)
+        print(filter_change_trigger_df.shape)
+        """PRTimeLine表头"""
+        PR_CHANGE_TRIGGER_COLUMNS = ["pullrequest_node", "user_login", "comment_node",
+                                     "comment_type", "change_trigger", "filepath", 'response_time']
+        """初始化目标文件"""
+        target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_pr_change_trigger_filter.tsv'
+        target_content = DataFrame(columns=PR_CHANGE_TRIGGER_COLUMNS)
+        pandasHelper.writeTSVFile(target_filename, target_content, pandasHelper.STR_WRITE_STYLE_APPEND_NEW,
+                                  header=pandasHelper.INT_WRITE_WITH_HEADER)
+
+        """保存"""
+        pandasHelper.writeTSVFile(target_filename, filter_change_trigger_df, pandasHelper.STR_WRITE_STYLE_APPEND_NEW,
+                                  header=pandasHelper.INT_WRITE_WITHOUT_HEADER)
+
+    @staticmethod
+    def recoverName(recommendList, answerList, convertDict):
+        """通过映射字典把人名还原"""
+        tempDict = {k: v for v, k in convertDict.items()}
+        recommendList = [[tempDict[i] for i in x] for x in recommendList]
+        answerList = [[tempDict[i] for i in x] for x in answerList]
+        return recommendList, answerList
+
+    @staticmethod
+    def saveRecommendList(prList, recommendList, answerList, convertDict, authorList=None, typeList=None, key=None):
+        """保存推荐列表到本地，便于观察"""
+        recommendList, answerList = DataProcessUtils.recoverName(recommendList, answerList, convertDict)
+        tempDict = {k: v for v, k in convertDict.items()}
+        if authorList is not None:
+            authorList = [tempDict[x] for x in authorList]
+        col = ['pr', 'r1', 'r2', 'r3', 'r4', 'r5', 'a1', 'a2', 'a3', 'a4', 'a5', 'author', 'type']
+        data = DataFrame(columns=col)
+        for index, pr in enumerate(prList):
+            d = {'pr': pr}
+            for i, r in enumerate(recommendList[index]):
+                d[f'r{i + 1}'] = r
+            for i, a in enumerate(answerList[index]):
+                d[f'a{i + 1}'] = a
+            if authorList is not None:
+                d['author'] = authorList[index]
+            if typeList is not None:
+                d['type'] = typeList[index]
+            data = data.append(d, ignore_index=True)
+        # pandasHelper.writeTSVFile('temp.tsv', data
+        #                           , pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
+        data.to_excel(f'recommendList_{key}.xls', encoding='utf-8', index=False, header=True)
 
 
 if __name__ == '__main__':

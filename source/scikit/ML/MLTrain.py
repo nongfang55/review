@@ -688,6 +688,10 @@ class MLTrain:
 
         trainSize = (train_data.shape[0], test_data.shape[0])
 
+        # """保存推荐结果到本地"""
+        # DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict)
+
+
         return recommendList, answerList, prList, convertDict, trainSize
 
 

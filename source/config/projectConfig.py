@@ -30,6 +30,7 @@ class projectConfig:
     PATH_REVIEW = 'data' + os.sep + 'train' + os.sep + 'reviewData'
     PATH_TIMELINE = 'data' + os.sep + 'train' + os.sep + 'prTimeLineData'
     PATH_REVIEW_COMMENT = 'data' + os.sep + 'train' + os.sep + 'reviewCommentData'
+    PATH_REVIEW_CHANGE = 'data' + os.sep + 'train' + os.sep + 'reviewChangeData'
 
     PATH_FPS_DATA = 'data' + os.sep + 'train' + os.sep + 'FPS'
     PATH_ML_DATA = 'data' + os.sep + 'train' + os.sep + 'ML'
@@ -126,6 +127,10 @@ class projectConfig:
     @staticmethod
     def getCommitFilePath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_COMMIT_FILE)
+
+    @staticmethod
+    def getReviewChangeDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_REVIEW_CHANGE)
 
     @staticmethod
     def getPullRequestPath():

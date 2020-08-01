@@ -4,6 +4,8 @@ from datetime import datetime
 from source.scikit.HG.Edge import Edge
 from source.scikit.HG.Node import Node
 import numpy as np
+import matplotlib.pyplot as plt
+import networkx as nx
 
 
 class HyperGraph:
@@ -201,6 +203,44 @@ class HyperGraph:
         self.W = None
         self.H = None
         self.A = A
+
+    def drawGraphByNetworkX(self):
+        """通过NetworkX 来绘制图"""
+        G = nx.Graph()
+
+        """节点颜色和大小"""
+        node_colour = []
+        node_size = []
+        node_list = []
+
+        """添加顶点"""
+        for i in range(0, self.num_nodes):
+            G.add_node(self.node_id_map[i])
+            node = self.get_node_by_key(self.node_id_map[i])
+            node_list.append(node.id)
+            if node.type == Node.STR_NODE_TYPE_PR:
+                """蓝色  200"""
+                node_size.append(100)
+                node_colour.append("#1f78b4")
+                # node_colour.append('r')
+            elif node.type == Node.STR_NODE_TYPE_REVIEWER:
+                """红色 300"""
+                node_size.append(300)
+                node_colour.append("#e15d41")
+                # node_colour.append('g')
+            elif node.type == Node.STR_NODE_TYPE_AUTHOR:
+                """绿色  300"""
+                node_size.append(300)
+                node_colour.append("#43ce23")
+                # node_colour.append('b')
+
+        """添加边 暂时2的顶点的边"""
+        for i in range(0, self.num_edges):
+            edge = self.get_edge_by_key(self.edge_id_map[i])
+            G.add_edge(edge.connectedTo[0], edge.connectedTo[1])
+
+        nx.draw_networkx(G, with_labels=True, node_color=node_colour, node_size=node_size, nodelist=node_list)
+        plt.show()
 
 
 
