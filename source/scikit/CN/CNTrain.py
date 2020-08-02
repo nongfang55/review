@@ -125,8 +125,9 @@ class CNTrain:
         recommendList, answerList, authorList, typeList = CNTrain.RecommendByCN(project, date, train_data, train_data_y, test_data,
                                                           test_data_y, convertDict, recommendNum=recommendNum)
 
-        # """保存推荐结果到本地"""
-        # DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict, authorList, typeList)
+        """保存推荐结果到本地"""
+        DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict, authorList, typeList,
+                                           key=project + str(date))
 
         """新增返回测试 训练集大小，用于做统计"""
         from source.scikit.combine.CBTrain import CBTrain
