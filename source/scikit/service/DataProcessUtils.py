@@ -612,7 +612,7 @@ class DataProcessUtils:
             """change_trigger只取出pr, reviewer，和data取交集"""
             changeTriggerData['label'] = changeTriggerData.apply(
                 lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
-                            x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
             changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
             # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
             changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
@@ -807,7 +807,7 @@ class DataProcessUtils:
             """change_trigger只取出pr, reviewer，和data取交集"""
             changeTriggerData['label'] = changeTriggerData.apply(
                 lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
-                            x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
             changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
             # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
             changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
@@ -1192,7 +1192,9 @@ class DataProcessUtils:
         data['isBot'] = data['reviewer'].apply(lambda x: BotUserRecognizer.isBot(x))
         data = data.loc[data['isBot'] == False].copy(deep=True)
         """选出有用的列"""
-        data = data[['repo_full_name', 'pull_number', 'pr_author', 'pr_created_at', 'reviewer', 'comment_type', 'comment_node', 'comment_at']].copy(deep=True)
+        data = data[
+            ['repo_full_name', 'pull_number', 'pr_author', 'pr_created_at', 'reviewer', 'comment_type', 'comment_node',
+             'comment_at']].copy(deep=True)
 
         """拼接文件改动"""
         data = pandas.merge(data, prChangeFileData, on='pull_number')
@@ -1486,7 +1488,7 @@ class DataProcessUtils:
             """change_trigger只取出pr, reviewer，和data取交集"""
             changeTriggerData['label'] = changeTriggerData.apply(
                 lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
-                            x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
             changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
             # changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
             changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
@@ -1610,7 +1612,7 @@ class DataProcessUtils:
             """change_trigger只取出pr, reviewer，和data取交集"""
             changeTriggerData['label'] = changeTriggerData.apply(
                 lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
-                            x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
             changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
             # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
             # changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
@@ -1732,12 +1734,14 @@ class DataProcessUtils:
             "GA数据行： repo_full_name, number, review_user_login, pr_created_at, review_created_at, filename"
 
             """对review comment中有review但是没有comment的人处理 提交时间算review 的 submit time"""
+
             def fill_created_at(x):
                 if not isinstance(x['node_id'], str):
                     return x['submitted_at']
                 else:
                     return x['created_at_y']
-            data_review['created_at_y'] = data_review.apply(lambda x:fill_created_at(x), axis=1)
+
+            data_review['created_at_y'] = data_review.apply(lambda x: fill_created_at(x), axis=1)
             data_review = data_review[['repo_full_name_x', 'number', 'node_id_x', 'created_at_x',
                                        'node_id', 'user_login_y', 'created_at_y']].copy(deep=True)
             data_review.columns = ['repo_full_name', 'pr_number', 'node_id', 'pr_created_at', 'comment_node_id',
@@ -1774,7 +1778,6 @@ class DataProcessUtils:
             """和文件改动关联"""
             data = pandas.merge(data, prChangeFileData, left_on='pr_number', right_on='pull_number')
             data.rename(columns={'repo_full_name_x': 'repo_full_name'}, inplace=True)
-
 
             """只选出感兴趣的部分"""
             data = data[['repo_full_name', 'pr_number', 'review_user_login', 'pr_created_at',
@@ -1860,7 +1863,7 @@ class DataProcessUtils:
 
         "HG数据行：repo_full_name, number, author_user_login, review_user_login, comment_node_id, pr_created_at, filename"
         data_issue = data_issue[['repo_full_name_x', 'number', 'node_id_x', 'user_login_x', 'created_at_x',
-                                'node_id_y', 'user_login_y', 'created_at_y']].copy(deep=True)
+                                 'node_id_y', 'user_login_y', 'created_at_y']].copy(deep=True)
         data_issue.columns = ['repo_full_name', 'pr_number', 'node_id', 'author_user_login', 'pr_created_at',
                               'comment_node_id', 'review_user_login', 'review_created_at']
         data_issue.drop_duplicates(inplace=True)
@@ -1882,7 +1885,7 @@ class DataProcessUtils:
         data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
         "HG数据行： repo_full_name, number, author_user_login, review_user_login, comment_node_id, pr_created_at, filename"
         data_review = data_review[['repo_full_name_x', 'number', 'node_id_x', 'user_login_x', 'created_at_x',
-                                  'node_id', 'user_login_y', 'created_at_y']].copy(deep=True)
+                                   'node_id', 'user_login_y', 'created_at_y']].copy(deep=True)
         data_review.columns = ['repo_full_name', 'pr_number', 'node_id', 'author_user_login', 'pr_created_at',
                                'comment_node_id', 'review_user_login', 'review_created_at']
         data_review.drop_duplicates(inplace=True)
@@ -1906,7 +1909,8 @@ class DataProcessUtils:
             data = pandas.merge(data, changeTriggerData, how='inner')
 
             data.sort_values(by=['pr_number', 'review_user_login'], ascending=[True, True], inplace=True)
-            data.drop_duplicates(subset=['pr_number', 'review_user_login', 'comment_node_id'], keep='first', inplace=True)
+            data.drop_duplicates(subset=['pr_number', 'review_user_login', 'comment_node_id'], keep='first',
+                                 inplace=True)
 
         """和文件改动关联"""
         data = pandas.merge(data, prChangeFileData, left_on='pr_number', right_on='pull_number')
@@ -2418,6 +2422,188 @@ class DataProcessUtils:
         #                           , pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
         data.to_excel(f'recommendList_{key}.xls', encoding='utf-8', index=False, header=True)
 
+    @staticmethod
+    def getSplitFilePath(path, sep=StringKeyUtils.STR_SPLIT_SEP_TWO):
+        return path.split(sep)
+
+    @staticmethod
+    def LCS_2(path1, path2):
+        """计算最长后缀"""
+        list1 = DataProcessUtils.getSplitFilePath(path1)
+        list2 = DataProcessUtils.getSplitFilePath(path2)
+        suf = 0
+        length = min(list1.__len__(), list2.__len__())
+        for i in range(0, length):
+            if list1[list1.__len__() - 1 - i] == list2[list2.__len__() - 1 - i]:
+                suf += 1
+            else:
+                break
+        score = suf / max(list1.__len__(), list2.__len__())
+        return score
+
+    @staticmethod
+    def LCP_2(path1, path2):
+        """计算最长前缀"""
+        list1 = tuple(DataProcessUtils.getSplitFilePath(path1))
+        list2 = tuple(DataProcessUtils.getSplitFilePath(path2))
+        pre = 0
+        length = min(list1.__len__(), list2.__len__())
+        for i in range(0, length):
+            if list1[i] == list2[i]:
+                pre += 1
+            else:
+                break
+        # if configPraser.getPrintMode():
+        #     print("Longest common pre:", pre)
+        return pre / max(list1.__len__(), list2.__len__())
+
+    @staticmethod
+    def LCSubseq_2(path1, path2):
+        """计算最大公共子字串"""
+        list1 = DataProcessUtils.getSplitFilePath(path1)
+        list2 = DataProcessUtils.getSplitFilePath(path2)
+
+        com = 0
+        dp = [[0 for i in range(0, list2.__len__() + 1)] for i in range(0, list1.__len__() + 1)]
+        for i in range(1, list1.__len__() + 1):
+            for j in range(1, list2.__len__() + 1):
+                if list1[i - 1] == list2[j - 1]:
+                    dp[i][j] = dp[i - 1][j - 1] + 1
+                else:
+                    dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+        com = dp[list1.__len__()][list2.__len__()]
+        # if configPraser.getPrintMode():
+        #     print("Longest common subString", com)
+        return com / max(list1.__len__(), list2.__len__())
+
+    @staticmethod
+    def LCSubstr_2(path1, path2):
+        """计算连续公共子字串"""
+        list1 = DataProcessUtils.getSplitFilePath(path1)
+        list2 = DataProcessUtils.getSplitFilePath(path2)
+        com = 0
+        dp = [[0 for i in range(0, list2.__len__() + 1)] for i in range(0, list1.__len__() + 1)]
+        for i in range(1, list1.__len__() + 1):
+            for j in range(1, list2.__len__() + 1):
+                if list1[i - 1] == list2[j - 1]:
+                    dp[i][j] = dp[i - 1][j - 1] + 1
+                    com = max(com, dp[i][j])
+                else:
+                    dp[i][j] = 0
+        # if configPraser.getPrintMode():
+        #     print("Longest common subString", com)
+        return com / max(list1.__len__(), list2.__len__())
+
+    @staticmethod
+    def caculatePrDistance(projectName, date, filter_change_trigger=True):
+        """计算某个项目的某个时间段之内的相似度(y1, m1, y2, m2)"""
+        time1 = datetime.now()
+        pull_request_path = projectConfig.getPullRequestPath()
+        pr_change_file_path = projectConfig.getPRChangeFilePath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+        minYear, minMonth, maxYear, maxMonth = date
+
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pr_change_file 数据库输出 自带抬头"""
+        prChangeFileData = pandasHelper.readTSVFile(
+            os.path.join(pr_change_file_path, f'ALL_{projectName}_data_pr_change_file.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        pullRequestData = pullRequestData.loc[pullRequestData['is_pr'] == 1].copy(deep=True)
+
+        if filter_change_trigger:
+            changeTriggerData = changeTriggerData[['pullrequest_node']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            changeTriggerData.reset_index(inplace=True, drop=True)
+            pullRequestData = pandas.merge(pullRequestData, changeTriggerData, left_on='node_id',
+                                           right_on='pullrequest_node')
+
+        pullRequestData['label'] = pullRequestData['created_at'].apply(
+            lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+        pullRequestData['label_y'] = pullRequestData['label'].apply(lambda x: x.tm_year)
+        pullRequestData['label_m'] = pullRequestData['label'].apply(lambda x: x.tm_mon)
+
+        def isInTimeGap(x):
+            d = x['label_y'] * 12 + x['label_m']
+            d1 = minYear * 12 + minMonth
+            d2 = maxYear * 12 + maxMonth
+            return d1 <= d <= d2
+
+        """筛选出目标的pr"""
+        pullRequestData['target'] = pullRequestData.apply(lambda x: isInTimeGap(x), axis=1)
+        pullRequestData = pullRequestData.loc[pullRequestData['target'] == 1]
+        pullRequestData.reset_index(drop=True, inplace=True)
+
+        """连接文件"""
+        data = pandas.merge(pullRequestData, prChangeFileData, left_on='number', right_on='pull_number')
+        prList = list(set(data['number']))
+        prList.sort()
+        prFileDict = dict(list(data.groupby('number')))
+
+        """pr file对"""
+        prFileMap = {}
+        for pr in prList:
+            prFileMap[pr] = list(set(prFileDict[pr]['filename']))
+
+        """(p1, p2, s1)  p1 < p2"""
+
+        cols = ['pr1', 'pr2', 'distance']
+        df_LCS = DataFrame(columns=cols)  # 最长后缀
+        df_LCP = DataFrame(columns=cols)  # 最长前缀
+        df_LCSubseq = DataFrame(columns=cols)  # 最大公共子串
+        df_LCSubstr = DataFrame(columns=cols)  # 连续公共子串
+
+        for index, p1 in enumerate(prList):
+            print("now:", index, " all:", prList.__len__())
+            for p2 in prList:
+                if p1 < p2:
+                    files1 = prFileMap[p1]
+                    files2 = prFileMap[p2]
+
+                    score_LCS = 0
+                    score_LCSubseq = 0
+                    score_LCP = 0
+                    score_LCSubstr = 0
+
+                    for filename1 in files1:
+                        for filename2 in files2:
+                            score_LCS += DataProcessUtils.LCS_2(filename1, filename2)
+                            score_LCSubseq += DataProcessUtils.LCSubseq_2(filename1, filename2)
+                            score_LCP += DataProcessUtils.LCP_2(filename1, filename2)
+                            score_LCSubstr += DataProcessUtils.LCSubstr_2(filename1, filename2)
+
+                    score_LCS /= files1.__len__() * files2.__len__()
+                    score_LCSubseq /= files1.__len__() * files2.__len__()
+                    score_LCP /= files1.__len__() * files2.__len__()
+                    score_LCSubstr /= files1.__len__() * files2.__len__()
+
+                    """分数加到dataframe"""
+                    df_LCS = df_LCS.append({'pr1': p1, 'pr2': p2, 'distance': score_LCS}, ignore_index=True)
+                    df_LCSubseq = df_LCSubseq.append({'pr1': p1, 'pr2': p2, 'distance': score_LCSubseq}, ignore_index=True)
+                    df_LCP = df_LCP.append({'pr1': p1, 'pr2': p2, 'distance': score_LCP}, ignore_index=True)
+                    df_LCSubstr = df_LCSubstr.append({'pr1': p1, 'pr2': p2, 'distance': score_LCSubstr}, ignore_index=True)
+
+        targetPath = projectConfig.getPullRequestDistancePath()
+        pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_LCS.tsv"),
+                                  df_LCS, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
+        pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_LCSubseq.tsv"),
+                                  df_LCSubseq, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
+        pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_LCP.tsv"),
+                                  df_LCP, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
+        pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_LCSubstr.tsv"),
+                                  df_LCSubstr, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
 
 if __name__ == '__main__':
     # DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_rails_data.tsv',
@@ -2461,3 +2647,4 @@ if __name__ == '__main__':
     # DataProcessUtils.contactCNData("opencv", filter_change_trigger=True)
     # DataProcessUtils.contactGAData('opencv', filter_change_trigger=False, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
     DataProcessUtils.contactHGData("opencv", filter_change_trigger=True)
+    # DataProcessUtils.caculatePrDistance("opencv", (2017, 1, 2017, 2), filter_change_trigger=True)

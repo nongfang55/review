@@ -31,6 +31,7 @@ class projectConfig:
     PATH_TIMELINE = 'data' + os.sep + 'train' + os.sep + 'prTimeLineData'
     PATH_REVIEW_COMMENT = 'data' + os.sep + 'train' + os.sep + 'reviewCommentData'
     PATH_REVIEW_CHANGE = 'data' + os.sep + 'train' + os.sep + 'reviewChangeData'
+    PATH_PULL_REQUEST_DISTANCE = 'data' + os.sep + 'train' + os.sep + 'prDistance'
 
     PATH_FPS_DATA = 'data' + os.sep + 'train' + os.sep + 'FPS'
     PATH_ML_DATA = 'data' + os.sep + 'train' + os.sep + 'ML'
@@ -135,6 +136,10 @@ class projectConfig:
     @staticmethod
     def getPullRequestPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_PULL_REQUEST)
+
+    @staticmethod
+    def getPullRequestDistancePath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_PULL_REQUEST_DISTANCE)
 
     @staticmethod
     def getFPSDataPath():

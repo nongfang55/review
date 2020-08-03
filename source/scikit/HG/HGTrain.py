@@ -153,7 +153,7 @@ class HGTrain:
 
         recommendList, answerList, authorList = HGTrain.RecommendByHG(train_data, train_data_y, test_data,
                                                           test_data_y, date, project, convertDict, recommendNum=recommendNum,
-                                                          alpha=alpha, K=K, c=c)
+                                                          alpha=alpha, K=K, c=c, useLocalPrDis=False)
 
         """保存推荐结果，用于做统计"""
         DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict, key=project + str(date),
@@ -242,7 +242,7 @@ class HGTrain:
         return graph
 
     @staticmethod
-    def getTrainDataPrDistance(train_data, K, pathDict, date, prCreatedTimeMap):
+    def getTrainDataPrDistance(train_data, K, pathDict, date, prCreatedTimeMap, disMapList, useLocalPrDis):
         """计算在trainData中各个 pr 之间的距离 通过路径相似度比较
            {(num1, num2) -> s1}  其中num1 < num2
            每个顶点取最相似的 K 个作为连接对象，节约空间
@@ -263,22 +263,28 @@ class HGTrain:
         prList = list(set(data['pr_number']))
         prList.sort()  # 从小到大排序
         scoreMap = {}  # 统计所有pr之间相似度的分数
+
         for index, p1 in enumerate(prList):
             scores = {}  # 记录
             print("now pr:", index, " all:", prList.__len__())
             for p2 in prList:
                 if p1 < p2:
-                    paths1 = list(pathDict[p1]['filename'])
-                    paths2 = list(pathDict[p2]['filename'])
                     score = 0
-                    for filename1 in paths1:
-                        for filename2 in paths2:
-                            # score += FPSAlgorithm.LCP_2(filename1, filename2)
-                            score += FPSAlgorithm.LCS_2(filename1, filename2) + \
-                                 FPSAlgorithm.LCSubseq_2(filename1, filename2) +\
-                                 FPSAlgorithm.LCP_2(filename1, filename2) +\
-                                 FPSAlgorithm.LCSubstr_2(filename1, filename2)
-                    score /= paths1.__len__() * paths2.__len__()
+                    if not useLocalPrDis:
+                        paths1 = list(pathDict[p1]['filename'])
+                        paths2 = list(pathDict[p2]['filename'])
+                        score = 0
+                        for filename1 in paths1:
+                            for filename2 in paths2:
+                                # score += FPSAlgorithm.LCP_2(filename1, filename2)
+                                score += FPSAlgorithm.LCS_2(filename1, filename2) + \
+                                     FPSAlgorithm.LCSubseq_2(filename1, filename2) +\
+                                     FPSAlgorithm.LCP_2(filename1, filename2) +\
+                                     FPSAlgorithm.LCSubstr_2(filename1, filename2)
+                        score /= paths1.__len__() * paths2.__len__()
+                    else:
+                        for i in range(0, 4):
+                            score += disMapList[i][(p1, p2)]
                     # t1 = list(train_data.loc[train_data['pr_number'] == p1]['pr_created_at'])[0]
                     # t2 = list(train_data.loc[train_data['pr_number'] == p2]['pr_created_at'])[0]
                     # t1 = time.strptime(t1, "%Y-%m-%d %H:%M:%S")
@@ -305,7 +311,7 @@ class HGTrain:
 
     @staticmethod
     def RecommendByHG(train_data, train_data_y, test_data, test_data_y, date, project, convertDict, recommendNum=5,
-                      K=20, alpha=0.8, c=1):
+                      K=20, alpha=0.8, c=1, useLocalPrDis=False):
         """基于超图网络推荐算法
            K 超参数：考虑多少邻近的pr
            alpha 超参数： 类似正则参数
@@ -328,11 +334,17 @@ class HGTrain:
             prCreatedTimeMap[pr] = t1
 
         """计算训练集中pr的距离"""
+
+        """尝试读取之前计算的结果"""
+        disMapList = None
+        if useLocalPrDis:
+            disMapList = HGTrain.loadLocalPrDistance(project)
+
         tempData = train_data[['pr_number', 'filename']].copy(deep=True)
         tempData.drop_duplicates(inplace=True)
         tempData.reset_index(inplace=True, drop=True)
         pathDict = dict(list(tempData.groupby('pr_number')))
-        trainPrDis = HGTrain.getTrainDataPrDistance(train_data, K, pathDict, date, prCreatedTimeMap)
+        trainPrDis = HGTrain.getTrainDataPrDistance(train_data, K, pathDict, date, prCreatedTimeMap, disMapList, useLocalPrDis)
         print(" pr distance cost time:", datetime.now() - start)
 
         """计算训练集中reviewer的 review 次数
@@ -390,14 +402,18 @@ class HGTrain:
             for p1 in prList:
                 paths1 = list(pathDict[p1]['filename'])
                 score = 0
-                for filename1 in paths1:
-                    for filename2 in paths2:
-                        score += FPSAlgorithm.LCS_2(filename1, filename2) + \
-                                 FPSAlgorithm.LCSubseq_2(filename1, filename2) +\
-                                 FPSAlgorithm.LCP_2(filename1, filename2) +\
-                                 FPSAlgorithm.LCSubstr_2(filename1, filename2)
-                        # score += FPSAlgorithm.LCP_2(filename1, filename2)
-                score /= paths1.__len__() * paths2.__len__()
+                if not useLocalPrDis:
+                    for filename1 in paths1:
+                        for filename2 in paths2:
+                            score += FPSAlgorithm.LCS_2(filename1, filename2) + \
+                                     FPSAlgorithm.LCSubseq_2(filename1, filename2) +\
+                                     FPSAlgorithm.LCP_2(filename1, filename2) +\
+                                     FPSAlgorithm.LCSubstr_2(filename1, filename2)
+                            # score += FPSAlgorithm.LCP_2(filename1, filename2)
+                    score /= paths1.__len__() * paths2.__len__()
+                else:
+                    for i in range(0, 4):
+                        score += disMapList[i][(pr_num, p1)]
                 # t2 = list(train_data.loc[train_data['pr_number'] == p1]['pr_created_at'])[0]
                 # t2 = time.strptime(t2, "%Y-%m-%d %H:%M:%S")
                 # t2 = int(time.mktime(t2))
@@ -519,6 +535,56 @@ class HGTrain:
             cm_weight = math.pow(weight_lambda, cm_idx) * math.exp(t-1)
             weight += cm_weight
         return weight
+
+    @staticmethod
+    def loadLocalPrDistance(project):
+        prDisDf_LCP = pandasHelper.readTSVFile(projectConfig.getPullRequestDistancePath() + os.sep +
+                                               f"pr_distance_{project}_LCP.tsv",
+                                               header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        prDisDf_LCS = pandasHelper.readTSVFile(projectConfig.getPullRequestDistancePath() + os.sep +
+                                               f"pr_distance_{project}_LCS.tsv",
+                                               header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        prDisDf_LCSubseq = pandasHelper.readTSVFile(projectConfig.getPullRequestDistancePath() + os.sep +
+                                                    f"pr_distance_{project}_LCSubseq.tsv",
+                                                    header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        prDisDf_LCSubstr = pandasHelper.readTSVFile(projectConfig.getPullRequestDistancePath() + os.sep +
+                                                    f"pr_distance_{project}_LCSubstr.tsv",
+                                                    header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+
+        DisMapLCP = {}
+        DisMapLCS = {}
+        DisMapLCSubseq = {}
+        DisMapLCSubstr = {}
+        for row in prDisDf_LCP.itertuples(index=False, name='Pandas'):
+            p1 = row[0]
+            p2 = row[1]
+            dis = row[2]
+            DisMapLCP[(p1, p2)] = dis
+            DisMapLCP[(p2, p1)] = dis
+
+        for row in prDisDf_LCS.itertuples(index=False, name='Pandas'):
+            p1 = row[0]
+            p2 = row[1]
+            dis = row[2]
+            DisMapLCS[(p1, p2)] = dis
+            DisMapLCS[(p2, p1)] = dis
+
+        for row in prDisDf_LCSubseq.itertuples(index=False, name='Pandas'):
+            p1 = row[0]
+            p2 = row[1]
+            dis = row[2]
+            DisMapLCSubseq[(p1, p2)] = dis
+            DisMapLCSubseq[(p2, p1)] = dis
+
+        for row in prDisDf_LCSubstr.itertuples(index=False, name='Pandas'):
+            p1 = row[0]
+            p2 = row[1]
+            dis = row[2]
+            DisMapLCSubstr[(p1, p2)] = dis
+            DisMapLCSubstr[(p2, p1)] = dis
+
+        return [DisMapLCS, DisMapLCP, DisMapLCSubseq, DisMapLCSubstr]
+
 
     @staticmethod
     def buildAuthToRevRelation(train_data, date):
