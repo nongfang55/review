@@ -5,6 +5,7 @@ class Graph:
     def __init__(self):
         self.node_list = {}
         self.num_nodes = 0
+        self.max_weight = 0
 
     def add_node(self, key):
         self.num_nodes = self.num_nodes + 1
@@ -28,6 +29,7 @@ class Graph:
             nt = self.add_node(t)
         self.node_list[t].in_cnt += 1
         self.node_list[f].add_neighbor(self.node_list[t], cost)
+        self.max_weight = max(self.max_weight, cost)
 
     def get_nodes(self):
         return self.node_list.keys()

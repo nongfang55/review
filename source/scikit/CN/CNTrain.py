@@ -8,10 +8,14 @@ from functools import cmp_to_key
 
 import pandas
 import pyecharts
+from gensim import corpora, models
 from pyecharts.options import series_options
 
 from source.config.projectConfig import projectConfig
 from source.data.bean.PullRequest import PullRequest
+from source.nlp.FleshReadableUtils import FleshReadableUtils
+from source.nlp.SplitWordHelper import SplitWordHelper
+from source.nltk import nltkFunction
 from source.scikit.CN.Gragh import Graph
 from source.scikit.FPS.FPSAlgorithm import FPSAlgorithm
 from source.scikit.service.BeanNumpyHelper import BeanNumpyHelper
@@ -132,13 +136,13 @@ class CNTrain:
         train_data, train_data_y, test_data, test_data_y, convertDict = CNTrain.preProcess(df, date)
 
         prList = list(test_data.drop_duplicates(['pull_number'])['pull_number'])
+        prList.sort()
 
         recommendList, answerList, authorList, typeList = CNTrain.RecommendByCN(project, date, train_data, train_data_y, test_data,
                                                           test_data_y, convertDict, recommendNum=recommendNum)
 
         """保存推荐结果到本地"""
-        DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict, authorList, typeList,
-                                           key=project + str(date))
+        DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict, authorList, key=project + str(date))
 
         """新增返回测试 训练集大小，用于做统计"""
         from source.scikit.combine.CBTrain import CBTrain
@@ -162,7 +166,8 @@ class CNTrain:
         # """处理NAN"""
         # df.dropna(how='any', inplace=True)
         # df.reset_index(drop=True, inplace=True)
-        # df.fillna(value='', inplace=True)
+        df['pr_title'].fillna(value='', inplace=True)
+        df['pr_body'].fillna(value='', inplace=True)
 
         """对df添加一列标识训练集和测试集"""
         df['label'] = df['pr_created_at'].apply(
@@ -170,20 +175,81 @@ class CNTrain:
                        time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_mon == dates[3]))
         """对reviewer名字数字化处理 存储人名映射字典做返回"""
         convertDict = DataProcessUtils.changeStringToNumber(df, ['pr_author', 'reviewer'])
-        """先对tag做拆分"""
-        tagDict = dict(list(df.groupby('pull_number')))
 
-        """对已经有的特征向量和标签做训练集的拆分"""
-        train_data = df.loc[df['label'] == False].copy(deep=True)
-        test_data = df.loc[df['label']].copy(deep=True)
+        """用于收集所有文本向量分词"""
+        stopwords = SplitWordHelper().getEnglishStopList()  # 获取通用英语停用词
 
+        textList = []
+        for row in df.itertuples(index=False, name='Pandas'):
+            tempList = []
+            """获取pull request的标题"""
+            pr_title = getattr(row, 'pr_title')
+            pr_title_word_list = [x for x in FleshReadableUtils.word_list(pr_title) if x not in stopwords]
+
+            """初步尝试提取词干效果反而下降了 。。。。"""
+
+            """对单词做提取词干"""
+            pr_title_word_list = nltkFunction.stemList(pr_title_word_list)
+            tempList.extend(pr_title_word_list)
+
+            """pull request的body"""
+            pr_body = getattr(row, 'pr_body')
+            pr_body_word_list = [x for x in FleshReadableUtils.word_list(pr_body) if x not in stopwords]
+            """对单词做提取词干"""
+            pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
+            tempList.extend(pr_body_word_list)
+            textList.append(tempList)
+
+        print(textList.__len__())
+        """对分词列表建立字典 并提取特征数"""
+        dictionary = corpora.Dictionary(textList)
+        print('词典：', dictionary)
+
+        feature_cnt = len(dictionary.token2id)
+        print("词典特征数：", feature_cnt)
+
+        """根据词典建立语料库"""
+        corpus = [dictionary.doc2bow(text) for text in textList]
+        # print('语料库:', corpus)
+        """语料库训练TF-IDF模型"""
+        tfidf = models.TfidfModel(corpus)
+
+        """再次遍历数据，形成向量，向量是稀疏矩阵的形式"""
+        wordVectors = []
+        for i in range(0, df.shape[0]):
+            wordVectors.append(dict(tfidf[dictionary.doc2bow(textList[i])]))
+
+        """对已经有的本文特征向量和标签做训练集和测试集的拆分"""
+        trainData_index = df.loc[df['label'] == False].index
+        testData_index = df.loc[df['label'] == True].index
+
+        """训练集"""
+        train_data = [wordVectors[x] for x in trainData_index]
+        """测试集"""
+        test_data = [wordVectors[x] for x in testData_index]
+        """填充为向量"""
+        train_v_data = DataProcessUtils.convertFeatureDictToDataFrame(train_data, featureNum=feature_cnt)
+        test_v_data = DataProcessUtils.convertFeatureDictToDataFrame(test_data, featureNum=feature_cnt)
+
+        train_data = df.loc[df['label'] == False]
+        train_data.reset_index(drop=True, inplace=True)
+        test_data = df.loc[df['label'] == True]
+        test_data.reset_index(drop=True, inplace=True)
+
+        train_data = train_data.join(train_v_data)
         train_data.drop(columns=['label'], inplace=True)
+
+        test_data = test_data.join(test_v_data)
         test_data.drop(columns=['label'], inplace=True)
 
         """8ii处理NAN"""
         train_data.dropna(how='any', inplace=True)
         train_data.reset_index(drop=True, inplace=True)
         train_data.fillna(value='', inplace=True)
+
+        """先对tag做拆分"""
+        trainDict = dict(list(train_data.groupby('pull_number')))
+        testDict = dict(list(test_data.groupby('pull_number')))
 
         """过滤掉评论时间在数据集时间范围内之后的数据"""
         end_time = str(dates[2]) + "-" + str(dates[3]) + "-" + "01 00:00:00"
@@ -192,12 +258,12 @@ class CNTrain:
 
         test_data_y = {}
         for pull_number in test_data.drop_duplicates(['pull_number'])['pull_number']:
-            reviewers = list(tagDict[pull_number].drop_duplicates(['reviewer'])['reviewer'])
+            reviewers = list(testDict[pull_number].drop_duplicates(['reviewer'])['reviewer'])
             test_data_y[pull_number] = reviewers
 
         train_data_y = {}
         for pull_number in train_data.drop_duplicates(['pull_number'])['pull_number']:
-            reviewers = list(tagDict[pull_number].drop_duplicates(['reviewer'])['reviewer'])
+            reviewers = list(trainDict[pull_number].drop_duplicates(['reviewer'])['reviewer'])
             train_data_y[pull_number] = reviewers
 
         return train_data, train_data_y, test_data, test_data_y, convertDict
@@ -231,33 +297,82 @@ class CNTrain:
         grouped_train_data = train_data.groupby([train_data['pr_author'], train_data['reviewer']])
         for relation, group in grouped_train_data:
             group.reset_index(drop=True, inplace=True)
-            weight = CNTrain.caculateWeight(group, start_time, end_time)
-            graph.add_edge(relation[0], relation[1], weight)
+            cn_weight = CNTrain.caculateWeight(group, start_time, end_time)
+            graph.add_edge(relation[0], relation[1], cn_weight)
         print("finish building comments networks! ! ! cost time: {0}s".format(datetime.now() - start))
+
+        """边权归一化"""
+        for key, node in graph.node_list.items():
+            for to, weight in node.connectedTo.items():
+                node.connectedTo[to] = weight/graph.max_weight
 
         # echarts画图
         # CNTrain.drawCommentGraph(project, date, graph, convertDict)
         # gephi社区发现
         CNTrain.searchTopKByGephi(project, date, graph, convertDict, recommendNum)
+        train_data.drop(columns=['comment_node', 'reviewer', 'commented_at', 'reviewer_association', 'comment_type'], inplace=True)
+        train_data.drop_duplicates(inplace=True)
 
-        for test_pull_number, test_df in testDict.items():
-            test_df.reset_index(drop=True, inplace=True)
-            answerList.append(test_data_y[test_pull_number])
-            pr_author = test_df.at[0, 'pr_author']
-            node = graph.get_node(pr_author)
-            authorList.append(pr_author)
-            if node is not None and node.connectedTo:
-                """PAC推荐"""
-                recommendList.append(CNTrain.recommendByPAC(graph, pr_author, recommendNum))
-                typeList.append('PAC')
-            elif node is not None:
-                """PNC推荐"""
-                recommendList.append(CNTrain.recommendByPNC(train_data, graph, pr_author, recommendNum))
-                typeList.append('PNC')
-            else:
-                """Gephi推荐"""
-                recommendList.append(CNTrain.topKCommunityActiveUser)
-                typeList.append('Gephi')
+        test_data.drop(columns=['comment_node', 'reviewer', 'commented_at', 'reviewer_association', 'comment_type'], inplace=True)
+        test_data.drop_duplicates(inplace=True)
+
+        now = 1
+        total = test_data.shape[0]
+        for targetData in test_data.itertuples(index=False):
+            targetNum = targetData[1]
+            targetAuthor = targetData[4]
+            authorList.append(targetAuthor)
+            recommendScore = {}
+            max_ir_score = 0
+            for trainData in train_data.itertuples(index=False, name='Pandas'):
+                trainNum = trainData[1]
+                reviewers = train_data_y[trainNum]
+
+                """计算相似度不带上最后一个pr number"""
+                score = CNTrain.cos2(targetData[12:targetData.__len__()], trainData[12:trainData.__len__()])
+                for reviewer in reviewers:
+                    if recommendScore.get(reviewer, None) is None:
+                        recommendScore[reviewer] = 0
+                    recommendScore[reviewer] += score
+                    max_ir_score = max(recommendScore[reviewer], max_ir_score)
+
+            for rev, weight in recommendScore.items():
+                author_node = graph.get_node(targetAuthor)
+                if author_node is None:
+                     continue
+                rev_node = graph.get_node(rev)
+                weight /= max_ir_score
+                if author_node.connectedTo.__contains__(rev_node):
+                    recommendScore[rev] = weight + author_node.connectedTo[rev_node]
+                else:
+                    recommendScore[rev] = weight
+
+            targetRecommendList = [x[0] for x in
+                                   sorted(recommendScore.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]]
+            # print(targetRecommendList)
+            recommendList.append(targetRecommendList)
+            answerList.append(test_data_y[targetNum])
+            print("now: {0}, total: {1}".format(now, total))
+            now += 1
+
+        # for test_pull_number, test_df in testTuple:
+        #     test_df.reset_index(drop=True, inplace=True)
+        #     answerList.append(test_data_y[test_pull_number])
+        #     pr_author = test_df.at[0, 'pr_author']
+        #     node = graph.get_node(pr_author)
+        #     authorList.append(pr_author)
+            # if node is not None and node.connectedTo:
+            #     """PAC推荐"""
+            #     recommendList.append(CNTrain.recommendByPAC(graph, pr_author, recommendNum))
+            #     typeList.append('PAC')
+            # elif node is not None:
+            #     """PNC推荐"""
+            #     recommendList.append(CNTrain.recommendByPNC(train_data, graph, pr_author, recommendNum))
+            #     typeList.append('PNC')
+            # else:
+            #     """Gephi推荐"""
+            #     recommendList.append(CNTrain.topKCommunityActiveUser)
+            #     typeList.append('Gephi')
         return recommendList, answerList, authorList, typeList
 
     @staticmethod
@@ -277,6 +392,27 @@ class CNTrain:
                 cm_weight = math.pow(weight_lambda, cm_idx) * t
                 weight += cm_weight
         return weight
+
+    @staticmethod
+    def cos2(tuple1, tuple2):
+        if tuple1.__len__() != tuple2.__len__():
+            raise Exception("tuple length not equal!")
+        """计算两个元组的余弦"""
+        """先计算模长"""
+        l1 = 0
+        for v in tuple1:
+            l1 += v * v
+        l2 = 0
+        for v in tuple2:
+            l2 += v * v
+        mul = 0
+        """计算向量相乘"""
+        len = tuple1.__len__()
+        for i in range(0, len):
+            mul += tuple1[i] * tuple2[i]
+        if mul == 0:
+            return 0
+        return mul / (math.sqrt(l1) * math.sqrt(l2))
 
     @staticmethod
     def recommendByPAC(graph, contributor, recommendNum):
@@ -477,7 +613,7 @@ if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['react']
+    projects = ['cakephp']
     for p in projects:
         projectName = p
         CNTrain.testCNAlgorithm(projectName, dates, filter_train=True, filter_test=True)

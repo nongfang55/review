@@ -993,9 +993,9 @@ class DataProcessUtils:
 
         """过滤pr不需要的字段"""
         pullRequestData = pullRequestData[
-            ['repo_full_name', 'number', 'node_id', 'user_login', 'created_at', 'author_association',
+            ['repo_full_name', 'number', 'title', 'body', 'node_id', 'user_login', 'created_at', 'author_association',
              'closed_at']].copy(deep=True)
-        pullRequestData.columns = ['repo_full_name', 'pull_number', 'pullrequest_node', 'pr_author', 'pr_created_at',
+        pullRequestData.columns = ['repo_full_name', 'pull_number', 'pr_title', 'pr_body', 'pullrequest_node', 'pr_author', 'pr_created_at',
                                    'pr_author_association', 'closed_at']
         pullRequestData.drop_duplicates(inplace=True)
         pullRequestData.reset_index(drop=True, inplace=True)
@@ -1069,7 +1069,6 @@ class DataProcessUtils:
                         x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
             changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
             changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
-            changeTriggerData.rename(columns={'user_login': 'pr_author'}, inplace=True)
             changeTriggerData.drop_duplicates(inplace=True)
             data = pandas.merge(data, changeTriggerData, how='inner')
             print("after filter by change_trigger:", data.shape)
