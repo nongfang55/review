@@ -9,27 +9,38 @@ class PRTimeLineUtils:
     @staticmethod
     def splitTimeLine(prTimeLineItems):
         """把一条完整的时间线分割  返回为一系列的review和相关的commit等event"""
+        """注：现在时间线是倒序的 2020.8.5"""
 
-        reviewPair = []  # review -> [{reviewNode: changeNodes}, {}, ...]
+        reviewPair = []  # review -> [{(changeNode, changeNode)): reviewNodes}, {}, ...]
 
-        pair_review_node = None
-        pair_change_nodes = None
-
+        pair_review_node_list = []
+        pair_change_node_list = []
+        last_item = None
         for item in prTimeLineItems:
-            if item.typename in PRTimeLineUtils.getReviewType():
-                if pair_review_node is not None:
-                    reviewPair.append((pair_review_node, pair_change_nodes))
-                pair_review_node = item
-                pair_change_nodes = []
-            elif item.typename in PRTimeLineUtils.getChangeType() and pair_review_node is not None:
-                pair_change_nodes.append(item)
-            elif item.typename not in PRTimeLineUtils.getChangeType() and pair_review_node is not None:
-                reviewPair.append((pair_review_node, pair_change_nodes))
-                pair_review_node = None
-                pair_change_nodes = None
+            if item.typename in PRTimeLineUtils.getChangeType() and (last_item is not None and last_item.typename in PRTimeLineUtils.getReviewType()):
+                """如果遇到了change类型，且上一条是comment，创建新的pair"""
+                # push pair
+                # 注：对于change_node_list为空的pair也保留，否则会漏掉无效评论
+                if pair_change_node_list.__len__() > 0 or pair_review_node_list.__len__() > 0:
+                    reviewPair.append((pair_change_node_list, pair_review_node_list))
+                # 创建新pair
+                pair_review_node_list = []
+                pair_change_node_list = [item]
+            elif item.typename in PRTimeLineUtils.getChangeType() and (last_item is None or (last_item is not None and last_item.typename in PRTimeLineUtils.getChangeType())):
+                """如果遇到了change类型，且上一条是change，放入change_node_list"""
+                pair_change_node_list.append(item)
+            elif item.typename in PRTimeLineUtils.getReviewType() and pair_change_node_list.__len__() > 0:
+                """如果遇到了comment类型，且change_list不为空，放入review_node_list"""
+                pair_review_node_list.append(item)
+            elif item.typename in PRTimeLineUtils.getReviewType() and pair_change_node_list.__len__() == 0:
+                """如果遇到了comment类型，且change_list为空，仍然放入review_node_list"""
+                pair_review_node_list.append(item)
+            last_item = item
 
-        if pair_change_nodes is not None:
-            reviewPair.append((pair_review_node, pair_change_nodes))
+        # 注：对于change_node_list为空的pair也保留，否则会漏掉无效评论
+        if pair_change_node_list.__len__() > 0 or pair_review_node_list.__len__() > 0:
+            reviewPair.append((pair_change_node_list, pair_review_node_list))
+
         return reviewPair
 
     @staticmethod

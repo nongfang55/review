@@ -134,51 +134,62 @@ class AsyncProjectAllDataFetcher:
                 pr_node_id = item.get(StringKeyUtils.STR_KEY_PULL_REQUEST_NODE)
             origin = item.get(StringKeyUtils.STR_KEY_ORIGIN)
             prTimeLineRelation = PRTimeLineRelation.Parser.parser(origin)
+            if prTimeLineRelation is None:
+                continue
             prTimeLineRelation.position = item.get(StringKeyUtils.STR_KEY_POSITION, None)
             prTimeLineRelation.pull_request_node = item.get(StringKeyUtils.STR_KEY_PULL_REQUEST_NODE, None)
             prTimeLineItems.append(prTimeLineRelation)
 
-        """解析pr时间线，找出触发过change_trigger的comment"""
+        """将timeline items逆序"""
+        prTimeLineItems.reverse()
+
+        """解析pr时间线，找出和changes相关联的comment"""
         changeTriggerComments = []
         ReviewChangeRelations = []
         pairs = PRTimeLineUtils.splitTimeLine(prTimeLineItems)
         for pair in pairs:
-            review = pair[0]
-            changes = pair[1]
+            changes = pair[0]
+            reviews = pair[1]
 
-            reviewChangeRelationList = ReviewChangeRelation.parserV4.parser(pair)
-            ReviewChangeRelations.extend(reviewChangeRelationList)
+            # 数据存储的暂时不做
+            # reviewChangeRelationList = ReviewChangeRelation.parserV4.parser(pair)
+            # ReviewChangeRelations.extend(reviewChangeRelationList)
 
-            """若issueComment且后面有紧跟着的change，则认为该issueComment触发了change_trigger"""
-            if (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT) and changes.__len__() > 0:
-                change_trigger_issue_comment = {
-                    "pullrequest_node": pr_node_id,
-                    "user_login": review.user_login,
-                    "comment_node": review.timeline_item_node,
-                    "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
-                    "change_trigger": 1,
-                    "filepath": None
-                }
-                changeTriggerComments.append(change_trigger_issue_comment)
-                continue
-            elif (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT) and changes.__len__() == 0:
-                change_trigger_issue_comment = {
-                    "pullrequest_node": pr_node_id,
-                    "user_login": review.user_login,
-                    "comment_node": review.timeline_item_node,
-                    "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
-                    "change_trigger": -1,
-                    "filepath": None
-                }
-                changeTriggerComments.append(change_trigger_issue_comment)
-                continue
-            """若为普通review，则看后面紧跟着的commit是否和reviewCommit有文件重合的改动"""
-            change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTriggerByBlob(pr_node_id, pair, mysql, statistic)
-            if change_trigger_review_comments is not None:
-                changeTriggerComments.extend(change_trigger_review_comments)
-            if reviewChangeRelationList.__len__() > 0:
-                ReviewChangeRelations.extend(reviewChangeRelationList)
+            hasUsefulIssueComment = False
+            for review in reviews:
+                """对于出现在pair中的第一条issue comment, 直接认为它是有效的
+                   如果都认为有效,issue_comment就全都有效了
+                """
+                if (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT):
+                    if hasUsefulIssueComment or changes.__len__() == 0:
+                        change_trigger_issue_comment = {
+                            "pullrequest_node": pr_node_id,
+                            "user_login": review.user_login,
+                            "comment_node": review.timeline_item_node,
+                            "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
+                            "change_trigger": -1,
+                            "filepath": None
+                        }
+                    else:
+                        if (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT) and changes.__len__() > 0:
+                            change_trigger_issue_comment = {
+                                "pullrequest_node": pr_node_id,
+                                "user_login": review.user_login,
+                                "comment_node": review.timeline_item_node,
+                                "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
+                                "change_trigger": 1,
+                                "filepath": None
+                            }
+                    changeTriggerComments.append(change_trigger_issue_comment)
+                    hasUsefulIssueComment = True
+                    continue
 
+                """若为普通review，则看后面紧跟着的一系列commit是否和reviewCommit有文件重合的改动"""
+                change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTriggerByBlob(pr_node_id, changes, review, mysql, statistic)
+                if change_trigger_review_comments is not None:
+                    changeTriggerComments.extend(change_trigger_review_comments)
+                # if reviewChangeRelationList.__len__() > 0:
+                #     ReviewChangeRelations.extend(reviewChangeRelationList)
         await AsyncSqlHelper.storeBeanDateList(ReviewChangeRelations, mysql)
 
         """计数"""
@@ -494,6 +505,32 @@ class AsyncProjectAllDataFetcher:
             pos += fetchLimit
 
     @staticmethod
+    def testChangeTriggerAnalyzer(owner, repo, pull_request_node):
+        AsyncApiHelper.setRepo(owner, repo)
+
+        """读取PRTimeline，获取需要分析change_trigger的pr列表"""
+        pr_timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
+        pr_timeline_df = pandasHelper.readTSVFile(fileName=pr_timeline_filename,
+                                                  header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        pr_nodes = list(set(list(pr_timeline_df['pullrequest_node'])))
+        pr_nodes.sort()
+
+        """按照爬取限制取子集"""
+        pr_timeline_items = pr_timeline_df[pr_timeline_df['pullrequest_node'] == pull_request_node]
+        """对子集按照pull_request_node分组"""
+        grouped_timeline = pr_timeline_items.groupby((['pullrequest_node']))
+        """将分组结果保存为字典{pr->pr_timeline_items}"""
+        formated_data = []
+        for pr, group in grouped_timeline:
+            record = group.to_dict(orient='records')
+            record = sorted(record, key=lambda x: int(x.get(StringKeyUtils.STR_KEY_POSITION)))
+            formated_data.append(record)
+
+        """分析这些pr的timeline"""
+        pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(formated_data)
+        print("finish!")
+
+    @staticmethod
     def getPRChangeTriggerData(owner, repo):
         """ 根据
             ALL_{repo}_data_prtimeline.tsv
@@ -535,7 +572,7 @@ class AsyncProjectAllDataFetcher:
             formated_data = []
             for pr, group in grouped_timeline:
                 record = group.to_dict(orient='records')
-                record = sorted(record, key = lambda x:x.get(StringKeyUtils.STR_KEY_POSITION))
+                record = sorted(record, key = lambda x:int(x.get(StringKeyUtils.STR_KEY_POSITION)))
                 formated_data.append(record)
 
             """分析这些pr的timeline"""
@@ -583,4 +620,20 @@ if __name__ == '__main__':
     # pandasHelper.writeTSVFile(target_filename, df)
 
     # 全量获取pr change_trigger信息，写入prTimeData文件夹
-    AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
+    # projects = [("saltstack", "salt"),
+    #             ("scikit-learn", "scikit-learn"),
+    #             ("pandas-dev", "pandas"),
+    #             ("vercel", "next.js"),
+    #             ("moby", "moby"),
+    #             ("rapid7", "metasploit-framework"),
+    #             ("Baystation12", "Baystation12"),
+    #             ("fastlane", "fastlane")]
+
+    # AsyncProjectAllDataFetcher.getNoOriginLineReviewComment('vercel', 'next.js', 500, 6000)
+    projects = [("opencv", "opencv")]
+    for project in projects:
+        AsyncProjectAllDataFetcher.getPRChangeTriggerData(project[0], project[1])
+        # AsyncProjectAllDataFetcher.checkChangeTriggerResult(project[0], project[1])
+    for i in range(0, 5):
+        winsound.PlaySound('SystemAsterisk', winsound.SND_ALIAS)
+    # AsyncProjectAllDataFetcher.testChangeTriggerAnalyzer("rapid7", "metasploit-framework", "MDExOlB1bGxSZXF1ZXN0MjA0MDg1Nzky")

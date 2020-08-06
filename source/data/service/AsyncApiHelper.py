@@ -1169,10 +1169,10 @@ class AsyncApiHelper:
         return change_trigger_comments
 
     @staticmethod
-    async def analyzeReviewChangeTriggerByBlob(pr_node_id, pair, mysql, statistic):
+    async def analyzeReviewChangeTriggerByBlob(pr_node_id, changes, review, mysql, statistic):
+        """changes目前是逆序的,做分析要先换回来"""
+        changes.reverse()
 
-        review = pair[0]
-        changes = pair[1]
         t1 = datetime.now()
         """从数据库获取review comments(注：一个review 可能会关联多个comment，每个comment会指定一个文件和对应代码行)"""
         comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timeline_item_node, mysql)
