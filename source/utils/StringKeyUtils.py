@@ -160,6 +160,7 @@ class StringKeyUtils:
     STR_KEY_FILES = 'files'
     STR_KEY_MESSAGE_BODY_V4 = 'messageBody'
     STR_KEY_COMMIT_AUTHOR_DATE_V4 = 'authoredDate'
+    STR_KEY_COMMIT_COMMITTED_DATE_V4 = 'committedDate'
     STR_KEY_HAS_FILE_FETCHED = 'has_file_fetched'
     STR_KEY_TREE_OID = 'tree_oid'
     STR_KEY_TREE = 'tree'
@@ -335,6 +336,7 @@ class StringKeyUtils:
     STR_ALGORITHM_RF = 'randomForest'
     STR_ALGORITHM_IR = 'ir'
     STR_ALGORITHM_CN = 'cn'
+    STR_ALGORITHM_CF = 'cf'
 
     """∂‡±Í«©"""
     STR_ALGORITHM_DT_M = 'decisionTree_m'
