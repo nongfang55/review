@@ -45,7 +45,7 @@ class CNTrain:
         CNTrain.topKCommunityActiveUser = []  # 各community最活跃的成员
 
     @staticmethod
-    def testCNAlgorithm(project, dates):
+    def testCNAlgorithm(project, dates, filter_train=False, filter_test=False):
         """整合 训练数据"""
         recommendNum = 5  # 推荐数量
         excelName = f'outputCN_{project}.xls'
@@ -64,7 +64,9 @@ class CNTrain:
             CNTrain.clean()
             startTime = datetime.now()
             recommendList, answerList, prList, convertDict, trainSize = CNTrain.algorithmBody(date, project,
-                                                                                              recommendNum)
+                                                                                              recommendNum,
+                                                                                              filter_train=filter_train,
+                                                                                              filter_test=filter_test)
             """根据推荐列表做评价"""
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -91,7 +93,7 @@ class CNTrain:
                                            fmeasureks)
 
     @staticmethod
-    def algorithmBody(date, project, recommendNum=5):
+    def algorithmBody(date, project, recommendNum=5, filter_train=False, filter_test=False):
 
         """提供单个日期和项目名称
            返回推荐列表和答案
@@ -107,7 +109,16 @@ class CNTrain:
                 y = y - 1
 
             # print(y, m)
-            filename = projectConfig.getCNDataPath() + os.sep + f'CN_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            if i < date[2] * 12 + date[3]:
+                if filter_train:
+                    filename = projectConfig.getCNDataPath() + os.sep + f'CN_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                else:
+                    filename = projectConfig.getCNDataPath() + os.sep + f'CN_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            else:
+                if filter_test:
+                    filename = projectConfig.getCNDataPath() + os.sep + f'CN_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                else:
+                    filename = projectConfig.getCNDataPath() + os.sep + f'CN_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
             """数据自带head"""
             if df is None:
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
@@ -469,4 +480,4 @@ if __name__ == '__main__':
     projects = ['react']
     for p in projects:
         projectName = p
-        CNTrain.testCNAlgorithm(projectName, dates)
+        CNTrain.testCNAlgorithm(projectName, dates, filter_train=True, filter_test=True)

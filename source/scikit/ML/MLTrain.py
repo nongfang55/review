@@ -596,7 +596,7 @@ class MLTrain:
         return [recommendList, answer]
 
     @staticmethod
-    def testMLAlgorithmsByMultipleLabels(projects, dates, algorithms=None):
+    def testMLAlgorithmsByMultipleLabels(projects, dates, algorithms=None,  filter_train=False, filter_test=False):
         """
            多标签测试算法接口，把流程相似的算法统一
         """
@@ -627,7 +627,9 @@ class MLTrain:
                         recommendList, answerList, prList, convertDict, trainSize = MLTrain.algorithmBody(date, project,
                                                                                                algorithmType,
                                                                                                recommendNum,
-                                                                                               featureType)
+                                                                                               featureType,
+                                                                                               filter_train=filter_train,
+                                                                                               filter_test=filter_test)
                         """根据推荐列表做评价"""
                         topk, mrr, precisionk, recallk, fmeasurek = \
                             DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -655,7 +657,7 @@ class MLTrain:
                                                        fmeasureks)
 
     @staticmethod
-    def algorithmBody(date, project, algorithmType, recommendNum=5, featureType=3):
+    def algorithmBody(date, project, algorithmType, recommendNum=5, featureType=3,  filter_train=False, filter_test=False):
         df = None
         """对需求文件做合并 """
         for i in range(date[0] * 12 + date[1], date[2] * 12 + date[3] + 1):  # 拆分的数据做拼接
@@ -665,8 +667,16 @@ class MLTrain:
                 m = 12
                 y = y - 1
 
-            print(y, m)
-            filename = projectConfig.getMLDataPath() + os.sep + f'ML_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            if i < date[2] * 12 + date[3]:
+                if filter_train:
+                    filename = projectConfig.getMLDataPath() + os.sep + f'ML_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                else:
+                    filename = projectConfig.getMLDataPath() + os.sep + f'ML_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            else:
+                if filter_test:
+                    filename = projectConfig.getMLDataPath() + os.sep + f'ML_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                else:
+                    filename = projectConfig.getMLDataPath() + os.sep + f'ML_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
             """数据自带head"""
             if df is None:
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
@@ -699,5 +709,5 @@ if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['opencv', 'cakephp', 'yarn', 'akka', 'django', 'react']
-    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0])
+    projects = ['opencv']
+    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0],  filter_train=True, filter_test=True)

@@ -399,7 +399,8 @@ class DataProcessUtils:
         print(f"write over: {target_file_name}, cost time:", datetime.now() - time1)
 
     @staticmethod
-    def contactFPSData(projectName, label=StringKeyUtils.STR_LABEL_REVIEW_COMMENT):
+    def contactFPSData(projectName, label=StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                       filter_change_trigger=True):
         """
         2020.6.23
         新增标识符label  分别区别 review comment、 issue comment 和 all的情况
@@ -524,8 +525,10 @@ class DataProcessUtils:
         targetFileName = f'FPS_{projectName}_data'
         if label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
             targetFileName = f'FPS_ISSUE_{projectName}_data'
-        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT and not filter_change_trigger:
             targetFileName = f'FPS_ALL_{projectName}_data'
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT and filter_change_trigger:
+            targetFileName = f'FPS_ALL_{projectName}_data_change_trigger'
 
         """按照不同类型做连接"""
         if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
@@ -609,16 +612,17 @@ class DataProcessUtils:
             #     if change_trigger_records.empty:
             #         unuseful_review_idx.append(index)
             # data = data.drop(labels=unuseful_review_idx, axis=0)
-            """change_trigger只取出pr, reviewer，和data取交集"""
-            changeTriggerData['label'] = changeTriggerData.apply(
-                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
-                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
-            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
-            # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
-            changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
-            changeTriggerData.drop_duplicates(inplace=True)
-            changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x'}, inplace=True)
-            data = pandas.merge(data, changeTriggerData, how='inner')
+            if filter_change_trigger:
+                """change_trigger只取出pr, reviewer，和data取交集"""
+                changeTriggerData['label'] = changeTriggerData.apply(
+                    lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                            x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+                changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+                # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+                changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+                changeTriggerData.drop_duplicates(inplace=True)
+                changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x'}, inplace=True)
+                data = pandas.merge(data, changeTriggerData, how='inner')
             data = data.drop(labels='node_id_x', axis=1)
 
             data.columns = ['repo_full_name', 'pull_number', 'pr_created_at', 'review_user_login', 'commit_sha',
@@ -638,7 +642,7 @@ class DataProcessUtils:
         return int(time.mktime(time.strptime(s, "%Y-%m-%d %H:%M:%S")))
 
     @staticmethod
-    def contactMLData(projectName, label=StringKeyUtils.STR_LABEL_REVIEW_COMMENT):
+    def contactMLData(projectName, label=StringKeyUtils.STR_LABEL_REVIEW_COMMENT, filter_change_trigger=False):
         """
         对于 label == review comment
         通过 ALL_{projectName}_data_pr_review_commit_file
@@ -697,7 +701,9 @@ class DataProcessUtils:
         targetFileName = f'ML_{projectName}_data'
         if label == StringKeyUtils.STR_LABEL_ISSUE_COMMENT:
             targetFileName = f'ML_ISSUE_{projectName}_data'
-        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT:
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT and filter_change_trigger:
+            targetFileName = f'ML_ALL_{projectName}_data_change_trigger'
+        elif label == StringKeyUtils.STR_LABEL_ALL_COMMENT and not filter_change_trigger:
             targetFileName = f'ML_ALL_{projectName}_data'
 
         print("read file cost time:", datetime.now() - time1)
@@ -1070,9 +1076,14 @@ class DataProcessUtils:
 
         data = data.drop(labels='pullrequest_node', axis=1)
 
+        if filter_change_trigger:
+            targetFileName = f'CN_{projectName}_data'
+        else:
+            targetFileName = f'CN_{projectName}_data_change_trigger'
+
         """按照时间分成小片"""
         DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getCNDataPath(),
-                                          targetFileName=f'CN_{projectName}_data', dateCol='pr_created_at',
+                                          targetFileName=targetFileName, dateCol='pr_created_at',
                                           dataFrame=data)
 
     @staticmethod
@@ -2622,7 +2633,7 @@ if __name__ == '__main__':
     # """分割不同算法的训练集"""
     # for p in projects:
     #     DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    # DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    # DataProcessUtils.contactMLData("opencv", label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=False)
     # DataProcessUtils.contactIRData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
     # DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
     # DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
@@ -2644,7 +2655,8 @@ if __name__ == '__main__':
 
     # DataProcessUtils.changeTriggerAnalyzer('django')
     #
-    # DataProcessUtils.contactCNData("opencv", filter_change_trigger=True)
+    DataProcessUtils.contactMLData("opencv", filter_change_trigger=True)
     # DataProcessUtils.contactGAData('opencv', filter_change_trigger=False, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    DataProcessUtils.contactHGData("opencv", filter_change_trigger=True)
+    # DataProcessUtils.contactHGData("opencv", filter_change_trigger=True)
     # DataProcessUtils.caculatePrDistance("opencv", (2017, 1, 2017, 2), filter_change_trigger=True)
+    # DataProcessUtils.contactFPSData("opencv", label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=False)

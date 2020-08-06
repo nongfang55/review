@@ -20,7 +20,11 @@ from source.utils.pandas.pandasHelper import pandasHelper
 class FPSTrain:
 
     @staticmethod
-    def TestAlgorithm(project, dates):
+    def TestAlgorithm(project, dates, filter_train=False, filter_test=False):
+        """  2020.8.6
+        增加两个参数  filter_train 和  filter_test
+         分别用来区别是否使用change trigger过滤的数据集"""
+
         """整合 训练数据"""
         recommendNum = 5  # 推荐数量
         excelName = f'outputFPS_{project}.xlsx'
@@ -38,7 +42,7 @@ class FPSTrain:
         for date in dates:
             startTime = datetime.now()
             # FPSTrain.algorithmBody(date, project, recommendNum)
-            recommendList, answerList, prList, convertDict, trainSize = FPSTrain.algorithmBody(date, project, recommendNum)
+            recommendList, answerList, prList, convertDict, trainSize = FPSTrain.algorithmBody(date, project, recommendNum, filter_train=True, filter_test=filter_test)
             """根据推荐列表做评价"""
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -117,7 +121,7 @@ class FPSTrain:
         return train_data, train_data_y, test_data, test_data_y, convertDict
 
     @staticmethod
-    def algorithmBody(date, project, recommendNum=5):
+    def algorithmBody(date, project, recommendNum=5, filter_train=True, filter_test=True):
 
         """提供单个日期和项目名称
            返回推荐列表和答案
@@ -133,7 +137,16 @@ class FPSTrain:
                 y = y - 1
 
             # print(y, m)
-            filename = projectConfig.getFPSDataPath() + os.sep + f'FPS_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            if i < date[2] * 12 + date[3]:
+                if filter_train:
+                    filename = projectConfig.getFPSDataPath() + os.sep + f'FPS_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                else:
+                    filename = projectConfig.getFPSDataPath() + os.sep + f'FPS_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            else:
+                if filter_test:
+                    filename = projectConfig.getFPSDataPath() + os.sep + f'FPS_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                else:
+                    filename = projectConfig.getFPSDataPath() + os.sep + f'FPS_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
             """数据自带head"""
             if df is None:
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
@@ -166,13 +179,13 @@ class FPSTrain:
 
 
 if __name__ == '__main__':
-    dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
-             (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
-             (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
+    # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+    #          (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
+    #          (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
     # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
     #          (2017, 1, 2018, 6)]
     # dates = [(2017, 1, 2017, 2), (2017, 1, 2017, 3), (2017, 1, 2017, 4), (2017, 1, 2017, 5), (2017, 1, 2017, 6),
     #          (2017, 1, 2017, 7)]
     projects = ['react']
     for p in projects:
-        FPSTrain.TestAlgorithm(p, dates)
+        FPSTrain.TestAlgorithm(p, dates, filter_train=False, filter_test=True)
