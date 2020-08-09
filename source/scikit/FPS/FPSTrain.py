@@ -20,14 +20,14 @@ from source.utils.pandas.pandasHelper import pandasHelper
 class FPSTrain:
 
     @staticmethod
-    def TestAlgorithm(project, dates, filter_train=False, filter_test=False):
+    def TestAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False):
         """  2020.8.6
         增加两个参数  filter_train 和  filter_test
          分别用来区别是否使用change trigger过滤的数据集"""
 
         """整合 训练数据"""
         recommendNum = 5  # 推荐数量
-        excelName = f'outputFPS_{project}.xlsx'
+        excelName = f'outputFPS_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
         sheetName = 'result'
 
         """计算累积数据"""
@@ -36,13 +36,22 @@ class FPSTrain:
         precisionks = []
         recallks = []
         fmeasureks = []
+        recommend_positive_success_pr_ratios = []  # pr 中有推荐成功人选的比例
+        recommend_positive_success_time_ratios = []  # 推荐pr * 人次 中有推荐成功人选的频次比例
+        recommend_negative_success_pr_ratios = []  # pr 中有推荐人选Hit 但被滤掉的pr的比例
+        recommend_negative_success_time_ratios = []  # 推荐pr * 人次中有推荐人选Hit 但是被滤掉的pr的比例
+        recommend_positive_fail_pr_ratios = []  # pr 中有推荐人选推荐错误的pr比例
+        recommend_positive_fail_time_ratios = []  # pr 中有pr * 人次有推荐错误的频次比例
+        recommend_negative_fail_pr_ratios = []  # pr 中有推荐人选不知道是否正确的比例
+        recommend_negative_fail_time_ratios = []  # pr中有pr * 人次有不知道是否正确的比例
+        error_analysis_datas = None
 
         """初始化excel文件"""
         ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
         for date in dates:
             startTime = datetime.now()
             # FPSTrain.algorithmBody(date, project, recommendNum)
-            recommendList, answerList, prList, convertDict, trainSize = FPSTrain.algorithmBody(date, project, recommendNum, filter_train=True, filter_test=filter_test)
+            recommendList, answerList, prList, convertDict, trainSize = FPSTrain.algorithmBody(date, project, recommendNum, filter_train=filter_train, filter_test=filter_test)
             """根据推荐列表做评价"""
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -53,8 +62,58 @@ class FPSTrain:
             recallks.append(recallk)
             fmeasureks.append(fmeasurek)
 
+            error_analysis_data = None
+            if error_analysis:
+                y = date[2]
+                m = date[3]
+                filename = projectConfig.getFPSDataPath() + os.sep + f'FPS_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date, prList,
+                                                                                         convertDict, filename, 'review_user_login',
+                                                                                         'pull_number')
+                # recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio, recommend_negative_success_pr_ratio, \
+                # recommend_negative_success_time_ratio, recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio, \
+                # recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio = DataProcessUtils.errorAnalysis(
+                #     recommendList, answerList, filter_answer_list, recommendNum)
+                # error_analysis_data = [recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio,
+                #                        recommend_negative_success_pr_ratio, recommend_negative_success_time_ratio,
+                #                        recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio,
+                #                        recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio]
+
+                recommend_positive_success_pr_ratio, recommend_negative_success_pr_ratio, recommend_positive_fail_pr_ratio, \
+                recommend_negative_fail_pr_ratio = DataProcessUtils.errorAnalysis(
+                    recommendList, answerList, filter_answer_list, recommendNum)
+                error_analysis_data = [recommend_positive_success_pr_ratio,
+                                       recommend_negative_success_pr_ratio,
+                                       recommend_positive_fail_pr_ratio,
+                                       recommend_negative_fail_pr_ratio]
+
+                # recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                # recommend_positive_success_time_ratios.append(recommend_positive_success_time_ratio)
+                # recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                # recommend_negative_success_time_ratios.append(recommend_negative_success_time_ratio)
+                # recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                # recommend_positive_fail_time_ratios.append(recommend_positive_fail_time_ratio)
+                # recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+                # recommend_negative_fail_time_ratios.append(recommend_negative_fail_time_ratio)
+
+                recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+
+            if error_analysis_data:
+                # error_analysis_datas = [recommend_positive_success_pr_ratios, recommend_positive_success_time_ratios,
+                #                         recommend_negative_success_pr_ratios, recommend_negative_success_time_ratios,
+                #                         recommend_positive_fail_pr_ratios, recommend_positive_fail_time_ratios,
+                #                         recommend_negative_fail_pr_ratios, recommend_negative_fail_time_ratios]
+                error_analysis_datas = [recommend_positive_success_pr_ratios,
+                                        recommend_negative_success_pr_ratios,
+                                        recommend_positive_fail_pr_ratios,
+                                        recommend_negative_fail_pr_ratios]
+
             """结果写入excel"""
-            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date)
+            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date,
+                                        error_analysis_data)
 
             """文件分割"""
             content = ['']
@@ -64,9 +123,13 @@ class FPSTrain:
 
             print("cost time:", datetime.now() - startTime)
 
+
+        """推荐错误可视化"""
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'FPS')
+
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
-                                           fmeasureks)
+                                           fmeasureks, error_analysis_datas)
 
     @staticmethod
     def preProcess(df, dates):

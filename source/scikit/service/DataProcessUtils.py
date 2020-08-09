@@ -214,7 +214,53 @@ class DataProcessUtils:
         return topk, mrr, precisionk, recallk, fmeasurek
 
     @staticmethod
-    def saveResult(filename, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date):
+    def errorAnalysis(recommendList, answer, filter_answer, recommendNum):
+
+        """评价推荐表现"""
+
+        # """计算推荐命中实际也正确的场景"""
+        # [recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio] = RecommendMetricUtils. \
+        #     positiveSuccess(recommendList, answer, filter_answer, recommendNum)
+        #
+        # [recommend_negative_success_pr_ratio, recommend_negative_success_time_ratio] = RecommendMetricUtils. \
+        #     negativeSuccess(recommendList, answer, filter_answer, recommendNum)
+        #
+        # [recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio] = RecommendMetricUtils. \
+        #     positiveFail(recommendList, answer, filter_answer, recommendNum)
+        #
+        # [recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio] = RecommendMetricUtils. \
+        #     negativeFail(recommendList, answer, filter_answer, recommendNum)
+        #
+        # return [recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio,
+        #         recommend_negative_success_pr_ratio, recommend_negative_success_time_ratio,
+        #         recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio,
+        #         recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio]
+
+        """计算推荐命中实际也正确的场景"""
+        recommend_positive_success_pr_ratio = RecommendMetricUtils. \
+            positiveSuccess2(recommendList, answer, filter_answer, recommendNum)
+
+        recommend_negative_success_pr_ratio = RecommendMetricUtils. \
+            negativeSuccess2(recommendList, answer, filter_answer, recommendNum)
+
+        recommend_positive_fail_pr_ratio = RecommendMetricUtils. \
+            positiveFail2(recommendList, answer, filter_answer, recommendNum)
+
+        recommend_negative_fail_pr_ratio = RecommendMetricUtils. \
+            negativeFail2(recommendList, answer, filter_answer, recommendNum)
+
+        # return [recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio,
+        #         recommend_negative_success_pr_ratio, recommend_negative_success_time_ratio,
+        #         recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio,
+        #         recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio]
+
+        return [recommend_positive_success_pr_ratio, recommend_negative_success_pr_ratio,
+                recommend_positive_fail_pr_ratio, recommend_negative_fail_pr_ratio]
+
+
+
+    @staticmethod
+    def saveResult(filename, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date, error_analysis_data=None):
         """时间和准确率"""
         content = None
         if date[3] == 1:
@@ -251,9 +297,26 @@ class DataProcessUtils:
         ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
         content = ['', ''] + fmeasurek
         ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        if error_analysis_data is not None:
+            # label = ['recommend_positive_success_pr_ratio', 'recommend_positive_success_time_ratio',
+            #          'recommend_negative_success_pr_ratio', 'recommend_negative_success_time_ratio',
+            #          'recommend_positive_fail_pr_ratio', 'recommend_positive_fail_time_ratio',
+            #          'recommend_negative_fail_pr_ratio', 'recommend_negative_fail_time_ratio']
+            label = ['recommend_positive_success_pr_ratio',
+                     'recommend_negative_success_pr_ratio',
+                     'recommend_positive_fail_pr_ratio',
+                     'recommend_negative_fail_pr_ratio']
+            for index, data in enumerate(error_analysis_data):
+                content = ['', '', label[index]]
+                ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+                content = ['', '', 1, 2, 3, 4, 5]
+                ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+                content = ['', ''] + data
+                ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
 
     @staticmethod
-    def saveFinallyResult(filename, sheetName, topks, mrrs, precisionks, recallks, fmeasureks):
+    def saveFinallyResult(filename, sheetName, topks, mrrs, precisionks, recallks, fmeasureks,
+                          error_analysis_datas=None):
         """用于最后的几个月结果算平均做汇总"""
 
         """时间和准确率"""
@@ -289,6 +352,22 @@ class DataProcessUtils:
         ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
         content = ['']
         ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+        if error_analysis_datas is not None:
+            # label = ['recommend_positive_success_pr_ratio', 'recommend_positive_success_time_ratio',
+            #          'recommend_negative_success_pr_ratio', 'recommend_negative_success_time_ratio',
+            #          'recommend_positive_fail_pr_ratio', 'recommend_positive_fail_time_ratio',
+            #          'recommend_negative_fail_pr_ratio', 'recommend_negative_fail_time_ratio']
+            label = ['recommend_positive_success_pr_ratio',
+                     'recommend_negative_success_pr_ratio',
+                     'recommend_positive_fail_pr_ratio',
+                     'recommend_negative_fail_pr_ratio']
+            for index, data in enumerate(error_analysis_datas):
+                content = ['', '', label[index]]
+                ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+                content = ['', '', 1, 2, 3, 4, 5]
+                ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
+                content = ['', ''] + DataProcessUtils.getAvgScore(data)
+                ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
 
     @staticmethod
     def getAvgScore(scores):
@@ -810,17 +889,18 @@ class DataProcessUtils:
             rawData.reset_index(drop=True, inplace=True)
             print(rawData.shape)
 
-            """change_trigger只取出pr, reviewer，和data取交集"""
-            changeTriggerData['label'] = changeTriggerData.apply(
-                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
-                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
-            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
-            # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
-            changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
-            changeTriggerData.drop_duplicates(inplace=True)
-            changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x',
-                                              'user_login': "review_user_login"}, inplace=True)
-            rawData = pandas.merge(rawData, changeTriggerData, how='inner')
+            if filter_change_trigger:
+                """change_trigger只取出pr, reviewer，和data取交集"""
+                changeTriggerData['label'] = changeTriggerData.apply(
+                    lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                            x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+                changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+                # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+                changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+                changeTriggerData.drop_duplicates(inplace=True)
+                changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x',
+                                                  'user_login': "review_user_login"}, inplace=True)
+                rawData = pandas.merge(rawData, changeTriggerData, how='inner')
             rawData = rawData.drop(labels='node_id_x', axis=1)
 
             "pr_number, review_user_login, pr_created_at, pr_commits, pr_additions, pr_deletions" \
@@ -1076,9 +1156,9 @@ class DataProcessUtils:
         data = data.drop(labels='pullrequest_node', axis=1)
 
         if filter_change_trigger:
-            targetFileName = f'CN_{projectName}_data'
-        else:
             targetFileName = f'CN_{projectName}_data_change_trigger'
+        else:
+            targetFileName = f'CN_{projectName}_data'
 
         """按照时间分成小片"""
         DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getCNDataPath(),
@@ -2601,9 +2681,11 @@ class DataProcessUtils:
 
                     """分数加到dataframe"""
                     df_LCS = df_LCS.append({'pr1': p1, 'pr2': p2, 'distance': score_LCS}, ignore_index=True)
-                    df_LCSubseq = df_LCSubseq.append({'pr1': p1, 'pr2': p2, 'distance': score_LCSubseq}, ignore_index=True)
+                    df_LCSubseq = df_LCSubseq.append({'pr1': p1, 'pr2': p2, 'distance': score_LCSubseq},
+                                                     ignore_index=True)
                     df_LCP = df_LCP.append({'pr1': p1, 'pr2': p2, 'distance': score_LCP}, ignore_index=True)
-                    df_LCSubstr = df_LCSubstr.append({'pr1': p1, 'pr2': p2, 'distance': score_LCSubstr}, ignore_index=True)
+                    df_LCSubstr = df_LCSubstr.append({'pr1': p1, 'pr2': p2, 'distance': score_LCSubstr},
+                                                     ignore_index=True)
 
         targetPath = projectConfig.getPullRequestDistancePath()
         pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_LCS.tsv"),
@@ -2734,6 +2816,104 @@ class DataProcessUtils:
                            rev_recommend_total_cnt_dict.get(user, 0),
                            rev_recommend_should_cnt_dict.get(user, 0)]
                 ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+
+    @staticmethod
+    def getAnswerListFromChangeTriggerData(project, date, prList, convertDict, filename, review_key, pr_key):
+        """依据给定的项目名称和日期和prList  给出对应的answerList"""
+        y = date[2]
+        m = date[3]
+        df = None
+        """数据自带head"""
+        df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
+        df.reset_index(inplace=True, drop=True)
+
+        """对df添加一列标识训练集和测试集"""
+        df['label'] = df['pr_created_at'].apply(
+            lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_year == y and
+                       time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_mon == m))
+
+        """先对tag做拆分"""
+        tagDict = dict(list(df.groupby(pr_key)))
+
+        """对已经有的特征向量和标签做训练集的拆分"""
+        test_data = df.loc[df['label']].copy(deep=True)
+
+        test_data.drop(columns=['label'], inplace=True)
+
+        test_data_y = []
+        for pull_number in prList:
+            if pull_number not in tagDict.keys():
+                test_data_y.append([])
+            else:
+                reviewers = list(tagDict[pull_number].drop_duplicates([review_key])[review_key])
+                reviewers = [convertDict[x] for x in reviewers]
+                test_data_y.append(reviewers)
+
+        return test_data_y
+
+    @staticmethod
+    def recommendErrorAnalyzer(error_analysis_data, project, label=None):
+        recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio, \
+        recommend_negative_success_pr_ratio, recommend_negative_success_time_ratio, \
+        recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio, \
+        recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio = error_analysis_data
+
+        """绘制频次的柱状图"""
+        for i in range(0, 5):
+            plt.subplot(3, 5, i+1)
+            labels = ['PT', 'NT', 'PF', 'NF']
+            x = [DataProcessUtils.getAvgScore(recommend_positive_success_time_ratio)[i],
+                 DataProcessUtils.getAvgScore(recommend_negative_success_time_ratio)[i],
+                 DataProcessUtils.getAvgScore(recommend_positive_fail_time_ratio)[i],
+                 DataProcessUtils.getAvgScore(recommend_negative_fail_time_ratio)[i]]
+            # 显示百分比
+            plt.pie(x, labels=labels, autopct='%3.2f%%')
+            plt.title(f"k={i+1} (time)")
+            # 设置x,y的刻度一样，使其饼图为正圆
+            plt.axis('equal')
+
+        """绘制 pr 比例的走势图"""
+        labels = ['PT', 'NT', 'PF', 'NF']
+        for i in range(0, 4):
+            x = range(1, 6)
+            y = []
+            for m in x:
+                y.append(DataProcessUtils.getAvgScore(error_analysis_data[2*i])[m-1] * 100)
+            plt.subplot(3, 2, i+3)
+            plt.bar(x=x, height=y)
+            plt.title(f"{labels[i]} (pr)")
+            for a, b in zip(x, y):
+                plt.text(a, b, '%3.4f%%' % b, ha='center', va='bottom', fontsize=9)
+
+        plt.suptitle(project)
+        plt.savefig(f"{project}_{label}.png")
+        # plt.show()
+        plt.close()
+
+
+    @staticmethod
+    def recommendErrorAnalyzer2(error_analysis_data, project, label=None):
+        recommend_positive_success_pr_ratio, recommend_negative_success_pr_ratio, \
+        recommend_positive_fail_pr_ratio, recommend_negative_fail_pr_ratio = error_analysis_data
+
+        """绘制频次的柱状图"""
+        for i in range(0, 5):
+            plt.subplot(2, 3, i+1)
+            labels = ['PT', 'NT', 'PF', 'NF']
+            x = [DataProcessUtils.getAvgScore(recommend_positive_success_pr_ratio)[i],
+                 DataProcessUtils.getAvgScore(recommend_negative_success_pr_ratio)[i],
+                 DataProcessUtils.getAvgScore(recommend_positive_fail_pr_ratio)[i],
+                 DataProcessUtils.getAvgScore(recommend_negative_fail_pr_ratio)[i]]
+            # 显示百分比
+            plt.pie(x, labels=labels, autopct='%3.2f%%')
+            plt.title(f"k={i+1} (pr)")
+            # 设置x,y的刻度一样，使其饼图为正圆
+            plt.axis('equal')
+
+        plt.suptitle(project)
+        plt.savefig(f"{project}_{label}.png")
+        plt.show()
+        plt.close()
 
 if __name__ == '__main__':
     # DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_rails_data.tsv',

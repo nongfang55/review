@@ -596,7 +596,7 @@ class MLTrain:
         return [recommendList, answer]
 
     @staticmethod
-    def testMLAlgorithmsByMultipleLabels(projects, dates, algorithms=None,  filter_train=False, filter_test=False):
+    def testMLAlgorithmsByMultipleLabels(projects, dates, algorithms=None,  filter_train=False, filter_test=False, error_analysis=False):
         """
            多标签测试算法接口，把流程相似的算法统一
         """
@@ -604,7 +604,7 @@ class MLTrain:
 
         for algorithmType in algorithms:
             for project in projects:
-                excelName = f'output{algorithmType}_{project}_ML.xlsx'
+                excelName = f'output{algorithmType}_{project}_ML_{filter_train}_{filter_test}_{error_analysis}.xlsx'
                 recommendNum = 5  # 推荐数量
                 sheetName = 'result'
                 """初始化excel文件"""
@@ -622,6 +622,15 @@ class MLTrain:
                     precisionks = []
                     recallks = []
                     fmeasureks = []
+                    recommend_positive_success_pr_ratios = []  # pr 中有推荐成功人选的比例
+                    recommend_positive_success_time_ratios = []  # 推荐pr * 人次 中有推荐成功人选的频次比例
+                    recommend_negative_success_pr_ratios = []  # pr 中有推荐人选Hit 但被滤掉的pr的比例
+                    recommend_negative_success_time_ratios = []  # 推荐pr * 人次中有推荐人选Hit 但是被滤掉的pr的比例
+                    recommend_positive_fail_pr_ratios = []  # pr 中有推荐人选推荐错误的pr比例
+                    recommend_positive_fail_time_ratios = []  # pr 中有pr * 人次有推荐错误的频次比例
+                    recommend_negative_fail_pr_ratios = []  # pr 中有推荐人选不知道是否正确的比例
+                    recommend_negative_fail_time_ratios = []  # pr中有pr * 人次有不知道是否正确的比例
+                    error_analysis_datas = None
 
                     for date in dates:
                         recommendList, answerList, prList, convertDict, trainSize = MLTrain.algorithmBody(date, project,
@@ -640,9 +649,60 @@ class MLTrain:
                         recallks.append(recallk)
                         fmeasureks.append(fmeasurek)
 
+                        error_analysis_data = None
+                        if error_analysis:
+                            y = date[2]
+                            m = date[3]
+                            filename = projectConfig.getMLDataPath() + os.sep + f'ML_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                            filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date,
+                                                                                                     prList,
+                                                                                                     convertDict, filename,
+                                                                                                     'review_user_login',
+                                                                                                     'pr_number')
+                            # recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio, recommend_negative_success_pr_ratio, \
+                            # recommend_negative_success_time_ratio, recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio, \
+                            # recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio = DataProcessUtils.errorAnalysis(
+                            #     recommendList, answerList, filter_answer_list, recommendNum)
+                            # error_analysis_data = [recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio,
+                            #                        recommend_negative_success_pr_ratio, recommend_negative_success_time_ratio,
+                            #                        recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio,
+                            #                        recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio]
+
+                            recommend_positive_success_pr_ratio, recommend_negative_success_pr_ratio, recommend_positive_fail_pr_ratio, \
+                            recommend_negative_fail_pr_ratio = DataProcessUtils.errorAnalysis(
+                                recommendList, answerList, filter_answer_list, recommendNum)
+                            error_analysis_data = [recommend_positive_success_pr_ratio,
+                                                   recommend_negative_success_pr_ratio,
+                                                   recommend_positive_fail_pr_ratio,
+                                                   recommend_negative_fail_pr_ratio]
+
+                            # recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                            # recommend_positive_success_time_ratios.append(recommend_positive_success_time_ratio)
+                            # recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                            # recommend_negative_success_time_ratios.append(recommend_negative_success_time_ratio)
+                            # recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                            # recommend_positive_fail_time_ratios.append(recommend_positive_fail_time_ratio)
+                            # recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+                            # recommend_negative_fail_time_ratios.append(recommend_negative_fail_time_ratio)
+
+                            recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                            recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                            recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                            recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+
+                        if error_analysis_data:
+                            # error_analysis_datas = [recommend_positive_success_pr_ratios, recommend_positive_success_time_ratios,
+                            #                         recommend_negative_success_pr_ratios, recommend_negative_success_time_ratios,
+                            #                         recommend_positive_fail_pr_ratios, recommend_positive_fail_time_ratios,
+                            #                         recommend_negative_fail_pr_ratios, recommend_negative_fail_time_ratios]
+                            error_analysis_datas = [recommend_positive_success_pr_ratios,
+                                                    recommend_negative_success_pr_ratios,
+                                                    recommend_positive_fail_pr_ratios,
+                                                    recommend_negative_fail_pr_ratios]
                         """结果写入excel"""
                         DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek,
-                                                    date)
+                                                    date,
+                                                    error_analysis_data)
 
                         """文件分割"""
                         content = ['']
@@ -652,9 +712,12 @@ class MLTrain:
 
                     print("cost time:", datetime.now() - startTime)
 
+                    """推荐错误可视化"""
+                    DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'ML_{algorithmType}')
+
                     """计算历史累积数据"""
                     DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
-                                                       fmeasureks)
+                                                       fmeasureks, error_analysis_datas)
 
     @staticmethod
     def algorithmBody(date, project, algorithmType, recommendNum=5, featureType=3,  filter_train=False, filter_test=False):

@@ -49,10 +49,15 @@ class CNTrain:
         CNTrain.topKCommunityActiveUser = []  # 各community最活跃的成员
 
     @staticmethod
-    def testCNAlgorithm(project, dates, filter_train=False, filter_test=False):
+    def testCNAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False):
         """整合 训练数据"""
+        """2020.8.7 新增参数 filter_data 和 error_analysis
+           filter_train 判断是否使用 changetrigger过滤的训练数据
+           filter_test 判断是否使用 changetrigger过滤的验证数据
+           error_analysis 表示是否开启chang_trigger过滤答案的错误统计机制
+        """
         recommendNum = 5  # 推荐数量
-        excelName = f'outputCN_{project}.xls'
+        excelName = f'outputCN_{project}_{filter_train}_{filter_test}_{error_analysis}.xls'
         sheetName = 'result'
 
         """计算累积数据"""
@@ -61,6 +66,15 @@ class CNTrain:
         precisionks = []
         recallks = []
         fmeasureks = []
+        recommend_positive_success_pr_ratios = []  # pr 中有推荐成功人选的比例
+        recommend_positive_success_time_ratios = []  # 推荐pr * 人次 中有推荐成功人选的频次比例
+        recommend_negative_success_pr_ratios = []  # pr 中有推荐人选Hit 但被滤掉的pr的比例
+        recommend_negative_success_time_ratios = []  # 推荐pr * 人次中有推荐人选Hit 但是被滤掉的pr的比例
+        recommend_positive_fail_pr_ratios = []  # pr 中有推荐人选推荐错误的pr比例
+        recommend_positive_fail_time_ratios = []  # pr 中有pr * 人次有推荐错误的频次比例
+        recommend_negative_fail_pr_ratios = []  # pr 中有推荐人选不知道是否正确的比例
+        recommend_negative_fail_time_ratios = []  # pr中有pr * 人次有不知道是否正确的比例
+        error_analysis_datas = None
 
         """初始化excel文件"""
         ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
@@ -81,8 +95,58 @@ class CNTrain:
             recallks.append(recallk)
             fmeasureks.append(fmeasurek)
 
+            error_analysis_data = None
+            if error_analysis:
+                y = date[2]
+                m = date[3]
+                filename = projectConfig.getCNDataPath() + os.sep + f'CN_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date, prList,
+                                                                                         convertDict, filename,
+                                                                                         'reviewer', 'pull_number')
+                # recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio, recommend_negative_success_pr_ratio, \
+                # recommend_negative_success_time_ratio, recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio, \
+                # recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio = DataProcessUtils.errorAnalysis(
+                #     recommendList, answerList, filter_answer_list, recommendNum)
+                # error_analysis_data = [recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio,
+                #                        recommend_negative_success_pr_ratio, recommend_negative_success_time_ratio,
+                #                        recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio,
+                #                        recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio]
+
+                recommend_positive_success_pr_ratio, recommend_negative_success_pr_ratio, recommend_positive_fail_pr_ratio,\
+                recommend_negative_fail_pr_ratio = DataProcessUtils.errorAnalysis(
+                    recommendList, answerList, filter_answer_list, recommendNum)
+                error_analysis_data = [recommend_positive_success_pr_ratio,
+                                       recommend_negative_success_pr_ratio,
+                                       recommend_positive_fail_pr_ratio,
+                                       recommend_negative_fail_pr_ratio]
+
+                # recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                # recommend_positive_success_time_ratios.append(recommend_positive_success_time_ratio)
+                # recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                # recommend_negative_success_time_ratios.append(recommend_negative_success_time_ratio)
+                # recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                # recommend_positive_fail_time_ratios.append(recommend_positive_fail_time_ratio)
+                # recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+                # recommend_negative_fail_time_ratios.append(recommend_negative_fail_time_ratio)
+
+                recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+
+            if error_analysis_data:
+                # error_analysis_datas = [recommend_positive_success_pr_ratios, recommend_positive_success_time_ratios,
+                #                         recommend_negative_success_pr_ratios, recommend_negative_success_time_ratios,
+                #                         recommend_positive_fail_pr_ratios, recommend_positive_fail_time_ratios,
+                #                         recommend_negative_fail_pr_ratios, recommend_negative_fail_time_ratios]
+                error_analysis_datas = [recommend_positive_success_pr_ratios,
+                                        recommend_negative_success_pr_ratios,
+                                        recommend_positive_fail_pr_ratios,
+                                        recommend_negative_fail_pr_ratios]
+
             """结果写入excel"""
-            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date)
+            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date,
+                                        error_analysis_data)
 
             """文件分割"""
             content = ['']
@@ -92,9 +156,12 @@ class CNTrain:
 
             print("cost time:", datetime.now() - startTime)
 
+        """推荐错误可视化"""
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'CN')
+
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
-                                           fmeasureks)
+                                           fmeasureks, error_analysis_datas)
 
     @staticmethod
     def algorithmBody(date, project, recommendNum=5, filter_train=False, filter_test=False):
@@ -138,15 +205,17 @@ class CNTrain:
         prList = list(test_data.drop_duplicates(['pull_number'])['pull_number'])
         prList.sort()
 
-        recommendList, answerList, authorList, typeList = CNTrain.RecommendByCN(project, date, train_data, train_data_y, test_data,
-                                                          test_data_y, convertDict, recommendNum=recommendNum)
+        recommendList, answerList, authorList, typeList = CNTrain.RecommendByCN(project, date, train_data, train_data_y,
+                                                                                test_data,
+                                                                                test_data_y, convertDict,
+                                                                                recommendNum=recommendNum)
 
         """保存推荐结果到本地"""
         DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict, authorList, key=project + str(date))
 
-        """新增返回测试 训练集大小，用于做统计"""
-        from source.scikit.combine.CBTrain import CBTrain
-        recommendList, answerList = CBTrain.recoverName(recommendList, answerList, convertDict)
+        # """新增返回测试 训练集大小，用于做统计"""
+        # from source.scikit.combine.CBTrain import CBTrain
+        # recommendList, answerList = CBTrain.recoverName(recommendList, answerList, convertDict)
         """新增返回训练集 测试集大小"""
         trainSize = (train_data.shape, test_data.shape)
         print(trainSize)
