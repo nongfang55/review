@@ -2615,6 +2615,126 @@ class DataProcessUtils:
         pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_LCSubstr.tsv"),
                                   df_LCSubstr, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
 
+    @staticmethod
+    def selectPeriodChangeTrigger(projectName, start, end):
+        # 读取pull request文件
+        pull_request_path = projectConfig.getPullRequestPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+        # """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+        """去重"""
+        changeTriggerData.drop_duplicates(inplace=True)
+
+        """筛选指定number的pr"""
+        pullRequestData = pullRequestData.loc[pullRequestData['is_pr'] == 1].copy(deep=True)
+        pullRequestData = pullRequestData[(pullRequestData['number'] >= start) & (pullRequestData['number'] <= end)]
+        pullRequestData = pullRequestData[['node_id', 'user_login']]
+        pullRequestData.columns = ['pullrequest_node', 'pr_author']
+
+        """用node和change_trigger合并,去掉范围外的change_trigger"""
+        data = pandas.merge(changeTriggerData, pullRequestData, on=['pullrequest_node'])
+        #
+        # """过滤na"""
+        # data.dropna(subset=['user_login'], inplace=True)
+        #
+        # """去掉自己评论自己的case"""
+        # data = data[data['user_login'] != data['pr_author']]
+        # data.drop(columns=['pr_author'], inplace=True)
+        #
+        # """过滤机器人的场景  """
+        # data['isBot'] = data['user_login'].apply(lambda x: BotUserRecognizer.isBot(x))
+        # data = data.loc[data['isBot'] == False].copy(deep=True)
+        # data.drop(columns=['isBot'], inplace=True)
+
+        pandasHelper.writeTSVFile(os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+                                  data)
+
+    @staticmethod
+    def findUnUsefulUser(projectName, algorithm, dates, filter_train=False, filter_test=False):
+        """
+        寻找评论注水较多的用户
+        """
+        excelName = f'{projectName}_user_statistics_{algorithm}_{filter_train}_{filter_test}.xls'
+        sheetName = 'result'
+        content = ['用户名', '有效评论率', '推荐有效率', '有效评论数', '总评论数', '有效推荐数', '总被推荐数', '应被推荐数']
+        ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=content)
+
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False,
+
+        )
+        """按照user_login分组"""
+        users = []
+        rev_total_cnt_dict = {}
+        rev_useful_cnt_dict = {}
+        grouped_change_trigger = changeTriggerData.groupby((['user_login']))
+        for user, group in grouped_change_trigger:
+            group['label'] = group.apply(
+                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] >= 0), axis=1)
+            useful_cnt = group.loc[group['label'] == True].shape[0]
+            rev_useful_cnt_dict[user] = useful_cnt
+            rev_total_cnt_dict[user] = group.shape[0]
+            users.append(user)
+
+        rev_recommend_total_cnt_dict = {}
+        rev_recommend_useful_cnt_dict = {}
+        rev_recommend_should_cnt_dict = {}
+        """查找时间范围内所有的推荐结果, 统计这些用户被推荐的次数以及推荐错的次数"""
+        for date in dates:
+            recommend_list_file_path = projectConfig.getAlgorithmPath() + os.sep + f'{algorithm}/recommendList_{projectName}{str(date)}{filter_train}{filter_test}.xls'
+            row_idx = 1
+            recommend_case = ExcelHelper().readExcelRow(recommend_list_file_path, "Sheet1", startRow=row_idx)
+            while recommend_case[0] != '':
+                recommendList = recommend_case[1:6]
+                answerList = recommend_case[6:11]
+                for reviewer in recommendList:
+                    if rev_recommend_total_cnt_dict.get(reviewer, None) is None:
+                        rev_recommend_total_cnt_dict[reviewer] = 0
+                    rev_recommend_total_cnt_dict[reviewer] += 1
+                    if reviewer in answerList:
+                        if rev_recommend_useful_cnt_dict.get(reviewer, None) is None:
+                            rev_recommend_useful_cnt_dict[reviewer] = 0
+                        rev_recommend_useful_cnt_dict[reviewer] += 1
+                for answer in answerList:
+                    if rev_recommend_should_cnt_dict.get(answer, None) is None:
+                        rev_recommend_should_cnt_dict[answer] = 0
+                    rev_recommend_should_cnt_dict[answer] += 1
+                row_idx += 1
+                try:
+                    recommend_case = ExcelHelper().readExcelRow(recommend_list_file_path, "Sheet1", startRow=row_idx)
+                except IndexError:
+                    break
+
+        for user in users:
+            """只输出review次数>10的用户"""
+            if rev_total_cnt_dict[user] > 10:
+                if rev_recommend_total_cnt_dict.get(user, 0) == 0:
+                    rev_rec_ratio = 0
+                else:
+                    rev_rec_ratio = rev_recommend_useful_cnt_dict.get(user, 0)*100/rev_recommend_total_cnt_dict[user]
+                content = [user,
+                           rev_useful_cnt_dict.get(user, 0)*100/rev_total_cnt_dict[user],
+                           rev_rec_ratio,
+                           rev_useful_cnt_dict.get(user, 0),
+                           rev_total_cnt_dict[user],
+                           rev_recommend_useful_cnt_dict.get(user, 0),
+                           rev_recommend_total_cnt_dict.get(user, 0),
+                           rev_recommend_should_cnt_dict.get(user, 0)]
+                ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+
 if __name__ == '__main__':
     # DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_rails_data.tsv',
     #                                   projectConfig.getRootPath() + r'\data\train\all' + os.sep, hasHead=True)
@@ -2659,3 +2779,11 @@ if __name__ == '__main__':
     # DataProcessUtils.contactHGData("opencv", filter_change_trigger=True)
     # DataProcessUtils.caculatePrDistance("opencv", (2017, 1, 2017, 2), filter_change_trigger=True)
     # DataProcessUtils.contactFPSData("opencv", label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=False)
+
+    # DataProcessUtils.selectPeriodChangeTrigger("scikit-learn", 8100, 12900)
+    # DataProcessUtils.changeTriggerAnalyzer("scikit-learn")
+    # DataProcessUtils.changeTriggerAnalyzer("babel")
+
+    DataProcessUtils.findUnUsefulUser("opencv", "CN", [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+             (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
+             (2017, 1, 2018, 11), (2017, 1, 2018, 12)], True, True)
