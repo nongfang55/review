@@ -21,14 +21,31 @@ class IRTrain:
     """作为基于信息检索的reviewer推荐"""
 
     @staticmethod
-    def testIRAlgorithm(project, dates):  # 多个case, 元组代表总共的时间跨度,最后一个月用于测试
+    def testIRAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False):  # 多个case, 元组代表总共的时间跨度,最后一个月用于测试
         """
            algorithm : 基于信息检索
         """
 
         recommendNum = 5  # 推荐数量
-        excelName = f'outputIR_{project}.xlsx'
+        excelName = f'outputIR_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
         sheetName = 'result'
+
+
+        """计算累积数据"""
+        topks = []
+        mrrs = []
+        precisionks = []
+        recallks = []
+        fmeasureks = []
+        recommend_positive_success_pr_ratios = []  # pr 中有推荐成功人选的比例
+        recommend_positive_success_time_ratios = []  # 推荐pr * 人次 中有推荐成功人选的频次比例
+        recommend_negative_success_pr_ratios = []  # pr 中有推荐人选Hit 但被滤掉的pr的比例
+        recommend_negative_success_time_ratios = []  # 推荐pr * 人次中有推荐人选Hit 但是被滤掉的pr的比例
+        recommend_positive_fail_pr_ratios = []  # pr 中有推荐人选推荐错误的pr比例
+        recommend_positive_fail_time_ratios = []  # pr 中有pr * 人次有推荐错误的频次比例
+        recommend_negative_fail_pr_ratios = []  # pr 中有推荐人选不知道是否正确的比例
+        recommend_negative_fail_time_ratios = []  # pr中有pr * 人次有不知道是否正确的比例
+        error_analysis_datas = None
 
         """初始化excel文件"""
         ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
@@ -41,6 +58,62 @@ class IRTrain:
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
 
+            topks.append(topk)
+            mrrs.append(mrr)
+            precisionks.append(precisionk)
+            recallks.append(recallk)
+            fmeasureks.append(fmeasurek)
+
+            error_analysis_data = None
+            if error_analysis:
+                y = date[2]
+                m = date[3]
+                filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date, prList,
+                                                                                         convertDict, filename,
+                                                                                         'review_user_login',
+                                                                                         'pr_number')
+                # recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio, recommend_negative_success_pr_ratio, \
+                # recommend_negative_success_time_ratio, recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio, \
+                # recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio = DataProcessUtils.errorAnalysis(
+                #     recommendList, answerList, filter_answer_list, recommendNum)
+                # error_analysis_data = [recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio,
+                #                        recommend_negative_success_pr_ratio, recommend_negative_success_time_ratio,
+                #                        recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio,
+                #                        recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio]
+
+                recommend_positive_success_pr_ratio, recommend_negative_success_pr_ratio, recommend_positive_fail_pr_ratio, \
+                recommend_negative_fail_pr_ratio = DataProcessUtils.errorAnalysis(
+                    recommendList, answerList, filter_answer_list, recommendNum)
+                error_analysis_data = [recommend_positive_success_pr_ratio,
+                                       recommend_negative_success_pr_ratio,
+                                       recommend_positive_fail_pr_ratio,
+                                       recommend_negative_fail_pr_ratio]
+
+                # recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                # recommend_positive_success_time_ratios.append(recommend_positive_success_time_ratio)
+                # recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                # recommend_negative_success_time_ratios.append(recommend_negative_success_time_ratio)
+                # recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                # recommend_positive_fail_time_ratios.append(recommend_positive_fail_time_ratio)
+                # recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+                # recommend_negative_fail_time_ratios.append(recommend_negative_fail_time_ratio)
+
+                recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+
+            if error_analysis_data:
+                # error_analysis_datas = [recommend_positive_success_pr_ratios, recommend_positive_success_time_ratios,
+                #                         recommend_negative_success_pr_ratios, recommend_negative_success_time_ratios,
+                #                         recommend_positive_fail_pr_ratios, recommend_positive_fail_time_ratios,
+                #                         recommend_negative_fail_pr_ratios, recommend_negative_fail_time_ratios]
+                error_analysis_datas = [recommend_positive_success_pr_ratios,
+                                        recommend_negative_success_pr_ratios,
+                                        recommend_positive_fail_pr_ratios,
+                                        recommend_negative_fail_pr_ratios]
+
             """结果写入excel"""
             DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date)
 
@@ -50,6 +123,14 @@ class IRTrain:
             content = ['训练集', '测试集']
             ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
             print("cost time:", datetime.now() - startTime)
+
+        """推荐错误可视化"""
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'IR')
+
+        """计算历史累积数据"""
+        DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
+                                           fmeasureks, error_analysis_datas)
+
 
     @staticmethod
     def algorithmBody(date, project, recommendNum=5):
@@ -277,5 +358,10 @@ if __name__ == '__main__':
     # dates = [(2018, 4, 2018, 5), (2018, 4, 2018, 7), (2018, 4, 2018, 10), (2018, 4, 2019, 1),
     #          (2018, 4, 2019, 4)]
     # dates = [(2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 8)]
-    dates = [(2018, 1, 2018, 3)]
-    IRTrain.testIRAlgorithm('opencv', dates)
+    # dates = [(2017, 1, 2017, 2)]
+    dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+             (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
+             (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
+    projects = ['babel', 'symfony']
+    for p in projects:
+        IRTrain.testIRAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True)
