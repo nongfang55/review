@@ -22,12 +22,14 @@ class Graph:
     def __contains__(self, n):
         return n in self.node_list
 
-    def add_edge(self, f, t, cost=0):
+    def add_edge(self, f, t, cost=0, r_cnt=0):
         if f not in self.node_list:
             nf = self.add_node(f)
         if t not in self.node_list:
             nt = self.add_node(t)
         self.node_list[t].in_cnt += 1
+        self.node_list[t].reviewer_cnt += r_cnt
+        self.node_list[f].author_cnt += 1
         self.node_list[f].add_neighbor(self.node_list[t], cost)
         self.max_weight = max(self.max_weight, cost)
 

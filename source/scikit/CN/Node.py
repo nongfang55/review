@@ -5,6 +5,8 @@ class Node:
         self.rankedEdges = []
         self.marked = []
         self.in_cnt = 0
+        self.author_cnt = 0
+        self.reviewer_cnt = 0
 
     def add_neighbor(self, nbr, weight=0):
         """从这个顶点添加一个连接到另一个"""

@@ -69,10 +69,11 @@ class Gephi:
         """社区发现"""
         modularityClass = self.getClass('org.gephi.statistics.plugin.Modularity')
         modularityObject = modularityClass()
-        modularityObject.setRandom(False)
+        modularityObject.setRandom(True)
         modularityObject.setUseWeight(True)
-        modularityObject.setResolution(0.5)
+        modularityObject.setResolution(1)
         modularityObject.execute(graphModel)
+        modularity = modularityObject.getModularity()
 
         """导出graph"""
         csvExporter = exportController.getExporter("gexf")
@@ -104,7 +105,7 @@ class Gephi:
         """删除中间结果"""
         os.remove(out_file)
 
-        return community
+        return community, modularity
 
 
 if __name__ == '__main__':

@@ -44,6 +44,9 @@ class projectConfig:
     PATH_CF_DATA = 'data' + os.sep + 'train' + os.sep + 'CF'
     PATH_HG_DATA = 'data' + os.sep + 'train' + os.sep + 'HG'
     PATH_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'AC'
+    PATH_CN_IR_DATA = 'data' + os.sep + 'train' + os.sep + 'CN_IR'
+
+    PATH_ALGORITHM = 'source' + os.sep + 'scikit' + os.sep
 
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
 
@@ -179,6 +182,10 @@ class projectConfig:
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CN_DATA)
 
     @staticmethod
+    def getCN_IRDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig. PATH_CN_IR_DATA)
+
+    @staticmethod
     def getCFDataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CF_DATA)
 
@@ -209,6 +216,10 @@ class projectConfig:
     @staticmethod
     def getLogPath():
         return projectConfig.getRootPath() + os.sep + 'log'
+
+    @staticmethod
+    def getAlgorithmPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_ALGORITHM)
 
 
 if __name__ == "__main__":

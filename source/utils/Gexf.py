@@ -269,7 +269,7 @@ class Node:
                 attributeXML = etree.SubElement(attributesXML, "attvalue")
                 attributeXML.set("for", str(atts["id"]))
 
-                attributeXML.set("value", atts["value"])
+                attributeXML.set("value", str(atts["value"]))
 
                 if not atts["start"] == "":
                     attributeXML.set("start", atts["start"])
@@ -285,12 +285,7 @@ class Node:
 
             return nodeXML
         except Exception as e:
-            print
-            self.label
-            print
-            self._attributes
-            print
-            e
+            print(e)
             exit()
 
     def setColor(self, r, g, b):
