@@ -220,6 +220,10 @@ class StringKeyUtils:
     STR_KEY_PARENT_NODE_ID = 'parent_node_id'
     STR_KEY_CHILD_NODE_ID = 'child_node_id'
 
+    '''UserFollowRelation 可能会用到'''
+    STR_KEY_FOLLOWING_LOGIN = 'following_login'
+    STR_KEY_TOTAL_COUNT_V4 = 'totalCount'
+
     '''v4 接口可能会用到的'''
     STR_KEY_ERRORS = 'errors'
     STR_KEY_TYPE_NAME_JSON = '__typename'

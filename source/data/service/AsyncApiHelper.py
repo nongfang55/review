@@ -25,6 +25,7 @@ from source.data.bean.Review import Review
 from source.data.bean.ReviewComment import ReviewComment
 from source.data.bean.TreeEntry import TreeEntry
 from source.data.bean.User import User
+from source.data.bean.UserFollowRelation import UserFollowRelation
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
 from source.data.service.BeanParserHelper import BeanParserHelper
 from source.data.service.GraphqlHelper import GraphqlHelper
@@ -124,6 +125,15 @@ class AsyncApiHelper:
             if resultJson.get(StringKeyUtils.STR_KEY_ERRORS) is not None:
                 return True
         return False
+
+    @staticmethod
+    async def parserUserFollowingList(resultJson):
+        try:
+            res = None
+            res = UserFollowRelation.parserV4.parser(resultJson)
+            return res
+        except Exception as e:
+            print(e)
 
     @staticmethod
     async def downloadInformation(pull_number, semaphore, mysql, statistic):
@@ -1881,6 +1891,31 @@ class AsyncApiHelper:
             print("blob cost time:", datetime.now() - t1)
 
             return blobText
+
+    @staticmethod
+    async def downloadUserFollowList(userLogin, semaphore, mysql, statistic):
+        async with semaphore:
+            async with aiohttp.ClientSession() as session:
+                try:
+                    beanList = []  # 用来收集需要存储的bean类
+                    """先获取pull request信息"""
+                    args = {"login": userLogin}
+                    api = AsyncApiHelper.getGraphQLApi()
+                    query = GraphqlHelper.getFollowingListByLogin()
+                    resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
+                    print(resultJson)
+
+                    followingList = await AsyncApiHelper.parserUserFollowingList(resultJson)
+                    beanList.extend(followingList)
+
+                    await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
+                    # 做了同步处理
+                    statistic.lock.acquire()
+                    statistic.usefulCommitNumber += 1
+                    print(f" usefulCommitCount:{statistic.usefulCommitNumber}")
+                    statistic.lock.release()
+                except Exception as e:
+                    print(e)
 
     @staticmethod
     async def downloadCommits(projectName, oid, semaphore, mysql, statistic):
