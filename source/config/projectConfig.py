@@ -43,6 +43,7 @@ class projectConfig:
     PATH_GA_DATA = 'data' + os.sep + 'train' + os.sep + 'GA'
     PATH_CF_DATA = 'data' + os.sep + 'train' + os.sep + 'CF'
     PATH_HG_DATA = 'data' + os.sep + 'train' + os.sep + 'HG'
+    PATH_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'AC'
 
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
 
@@ -152,6 +153,10 @@ class projectConfig:
     @staticmethod
     def getIRDataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_IR_DATA)
+
+    @staticmethod
+    def getACDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_AC_DATA)
 
     @staticmethod
     def getPBDataPath():
