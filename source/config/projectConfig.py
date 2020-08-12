@@ -45,6 +45,7 @@ class projectConfig:
     PATH_HG_DATA = 'data' + os.sep + 'train' + os.sep + 'HG'
     PATH_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'AC'
     PATH_CN_IR_DATA = 'data' + os.sep + 'train' + os.sep + 'CN_IR'
+    PATH_CHREV_DATA = 'data' + os.sep + 'train' + os.sep + 'CHREV'
 
     PATH_ALGORITHM = 'source' + os.sep + 'scikit' + os.sep
 
@@ -172,6 +173,10 @@ class projectConfig:
     @staticmethod
     def getTCDataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_TC_DATA)
+
+    @staticmethod
+    def getCHREVDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CHREV_DATA)
 
     @staticmethod
     def getCADataPath():

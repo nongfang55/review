@@ -17,17 +17,14 @@ from source.utils.ExcelHelper import ExcelHelper
 from source.utils.pandas.pandasHelper import pandasHelper
 
 
-class IRTrain:
-    """作为基于信息检索的reviewer推荐"""
+class CHREVTrain:
+    """算法 CHREV 推荐"""
 
     @staticmethod
-    def testIRAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False):  # 多个case, 元组代表总共的时间跨度,最后一个月用于测试
-        """
-           algorithm : 基于信息检索
-        """
-
+    def testCHREVAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False):
+        # 多个case, 元组代表总共的时间跨度,最后一个月用于测试
         recommendNum = 5  # 推荐数量
-        excelName = f'outputIR_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
+        excelName = f'outputCHREV_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
         sheetName = 'result'
 
 
@@ -53,10 +50,9 @@ class IRTrain:
             startTime = datetime.now()
             """根据推荐列表做评价"""
 
-            recommendList, answerList, prList, convertDict, trainSize = IRTrain.algorithmBody(date, project, recommendNum,
-                                                                                              filter_train=filter_train,
-                                                                                              filter_test=filter_test)
-
+            recommendList, answerList, prList, convertDict, trainSize = CHREVTrain.algorithmBody(date, project, recommendNum,
+                                                                                                 filter_test=filter_test,
+                                                                                                 filter_train=filter_train)
 
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -71,7 +67,7 @@ class IRTrain:
             if error_analysis:
                 y = date[2]
                 m = date[3]
-                filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                filename = projectConfig.getCHREVDataPath() + os.sep + f'CHREV_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
                 filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date, prList,
                                                                                          convertDict, filename,
                                                                                          'review_user_login',
@@ -128,7 +124,7 @@ class IRTrain:
             print("cost time:", datetime.now() - startTime)
 
         """推荐错误可视化"""
-        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'IR')
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'CHREV')
 
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
@@ -154,14 +150,14 @@ class IRTrain:
 
             if i < date[2] * 12 + date[3]:
                 if filter_train:
-                    filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                    filename = projectConfig.getCHREVDataPath() + os.sep + f'CHREV_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
                 else:
-                    filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+                    filename = projectConfig.getCHREVDataPath() + os.sep + f'CHREV_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
             else:
                 if filter_test:
-                    filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                    filename = projectConfig.getCHREVDataPath() + os.sep + f'CHREV_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
                 else:
-                    filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+                    filename = projectConfig.getCHREVDataPath() + os.sep + f'CHREV_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
 
             if df is None:
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
@@ -172,12 +168,13 @@ class IRTrain:
         df.reset_index(inplace=True, drop=True)
         """df做预处理"""
         """预处理新增返回测试pr列表 2020.4.11"""
-        train_data, train_data_y, test_data, test_data_y, convertDict = IRTrain.preProcess(df, date)
+        train_data, train_data_y, test_data, test_data_y, convertDict = CHREVTrain.preProcess(df, date)
 
-        prList = list(test_data['pr_number'])
+        prList = list(set(test_data['pr_number']))
+        prList.sort()
 
         """根据算法获得推荐列表"""
-        recommendList, answerList = IRTrain.RecommendByIR(train_data, train_data_y, test_data,
+        recommendList, answerList = CHREVTrain.RecommendByCHREV(train_data, train_data_y, test_data,
                                                           test_data_y, recommendNum=recommendNum)
         trainSize = (train_data.shape[0], test_data.shape[0])
         return recommendList, answerList, prList, convertDict, trainSize
@@ -190,6 +187,8 @@ class IRTrain:
         """
         """注意： 输入文件中已经带有列名了"""
 
+        """issue comment 和  review comment关注的"""
+
         """处理NAN"""
         df.dropna(how='any', inplace=True)
         df.reset_index(drop=True, inplace=True)
@@ -200,180 +199,180 @@ class IRTrain:
             lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_year == dates[2] and
                        time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_mon == dates[3]))
 
-        """先对输入数据做精简 只留下感兴趣的数据"""
-        df = df[['pr_number', 'pr_title', 'pr_body', 'review_user_login', 'label']].copy(deep=True)
-
-        print("before filter:", df.shape)
-        df.drop_duplicates(inplace=True)
-        print("after filter:", df.shape)
         """对人名字做数字处理"""
         convertDict = DataProcessUtils.changeStringToNumber(df, ['review_user_login'])
+        df['comment_at'] = df['comment_at'].apply(lambda x: time.strptime(x, "%Y-%m-%d %H:%M:%S"))
+        """对 comment_at 处理增加具体天数的标识"""
+        df['day'] = df['comment_at'].apply(lambda x: 10000 * x.tm_year + 100 * x.tm_mon + x.tm_mday)  # 20200821
+
         """先对tag做拆分"""
-        tagDict = dict(list(df.groupby('pr_number')))
+        temp_df = df.copy(deep=True)
+        temp_df.drop(columns=['filename'], inplace=True)
+        temp_df.drop_duplicates(inplace=True)
+        tagDict = dict(list(temp_df.groupby('pr_number')))
+
         """先尝试所有信息团在一起"""
-        df = df[['pr_number', 'pr_title', 'pr_body', 'label']].copy(deep=True)
+        df = df[['pr_number', 'filename', 'label']].copy(deep=True)
         df.drop_duplicates(inplace=True)
         df.reset_index(drop=True, inplace=True)
 
-        """用于收集所有文本向量分词"""
-        stopwords = SplitWordHelper().getEnglishStopList()  # 获取通用英语停用词
+        """对已经有的特征向量和标签做训练集的拆分"""
+        train_data = df.loc[df['label'] == False].copy(deep=True)
+        test_data = df.loc[df['label']].copy(deep=True)
 
-        textList = []
-        for row in df.itertuples(index=False, name='Pandas'):
-            tempList = []
-            """获取pull request的标题"""
-            pr_title = getattr(row, 'pr_title')
-            pr_title_word_list = [x for x in FleshReadableUtils.word_list(pr_title) if x not in stopwords]
-
-            """初步尝试提取词干效果反而下降了 。。。。"""
-
-            """对单词做提取词干"""
-            pr_title_word_list = nltkFunction.stemList(pr_title_word_list)
-            tempList.extend(pr_title_word_list)
-
-            """pull request的body"""
-            pr_body = getattr(row, 'pr_body')
-            pr_body_word_list = [x for x in FleshReadableUtils.word_list(pr_body) if x not in stopwords]
-            """对单词做提取词干"""
-            pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
-            tempList.extend(pr_body_word_list)
-            textList.append(tempList)
-
-        print(textList.__len__())
-        """对分词列表建立字典 并提取特征数"""
-        dictionary = corpora.Dictionary(textList)
-        print('词典：', dictionary)
-
-        feature_cnt = len(dictionary.token2id)
-        print("词典特征数：", feature_cnt)
-
-        """根据词典建立语料库"""
-        corpus = [dictionary.doc2bow(text) for text in textList]
-        # print('语料库:', corpus)
-        """语料库训练TF-IDF模型"""
-        tfidf = models.TfidfModel(corpus)
-
-        """再次遍历数据，形成向量，向量是稀疏矩阵的形式"""
-        wordVectors = []
-        for i in range(0, df.shape[0]):
-            wordVectors.append(dict(tfidf[dictionary.doc2bow(textList[i])]))
-
-        """对已经有的本文特征向量和标签做训练集和测试集的拆分"""
-
-        trainData_index = df.loc[df['label'] == False].index
-        testData_index = df.loc[df['label'] == True].index
-
-        """训练集"""
-        train_data = [wordVectors[x] for x in trainData_index]
-        """测试集"""
-        test_data = [wordVectors[x] for x in testData_index]
-        """填充为向量"""
-        train_data = DataProcessUtils.convertFeatureDictToDataFrame(train_data, featureNum=feature_cnt)
-        test_data = DataProcessUtils.convertFeatureDictToDataFrame(test_data, featureNum=feature_cnt)
-        train_data['pr_number'] = list(df.loc[df['label'] == False]['pr_number'])
-        test_data['pr_number'] = list(df.loc[df['label'] == True]['pr_number'])
+        train_data.drop(columns=['label'], inplace=True)
+        test_data.drop(columns=['label'], inplace=True)
 
         """问题转化为多标签问题
-            train_data_y   [{pull_number:[r1, r2, ...]}, ... ,{}]
+            train_data_y   [{pull_number:[(r1, d1), (r2, d2), ...]}, ... ,{}]
         """
 
         train_data_y = {}
         for pull_number in df.loc[df['label'] == False]['pr_number']:
-            reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
+            tempDf = tagDict[pull_number]
+            reviewers = []
+            for row in tempDf.itertuples(index=False, name='Pandas'):
+                r = getattr(row, 'review_user_login')
+                comment_node_id = getattr(row, 'comment_node_id')
+                day = getattr(row, 'day')
+                reviewers.append((r, comment_node_id, day))
             train_data_y[pull_number] = reviewers
 
         test_data_y = {}
         for pull_number in df.loc[df['label'] == True]['pr_number']:
-            reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
+            tempDf = tagDict[pull_number]
+            reviewers = []
+            for row in tempDf.itertuples(index=False, name='Pandas'):
+                r = getattr(row, 'review_user_login')
+                comment_node_id = getattr(row, 'comment_node_id')
+                day = getattr(row, 'day')
+                reviewers.append((r, comment_node_id, day))
             test_data_y[pull_number] = reviewers
 
         """train_data ,test_data 最后一列是pr number test_data_y 的形式是dict"""
         return train_data, train_data_y, test_data, test_data_y, convertDict
 
     @staticmethod
-    def RecommendByIR(train_data, train_data_y, test_data, test_data_y, recommendNum=5):
-        """使用信息检索  
+    def getPackageLevelPath(filename, level):
+        """给定一个路径，返回回退对应等级的路径"""
+        paths = filename.split('/')
+        length = paths.__len__()
+        if level >= length:
+            return ""
+        else:
+            f = ""
+            for i in range(0, length - level):
+                if i != 0:
+                    f += '/'
+                f += paths[i]
+            return f
+
+    @staticmethod
+    def filterPrByPath(df, f):
+        """通过路径f 返回df中涉及的pr列表"""
+        temp_df = df.copy(deep=True)
+        temp_df['label'] = temp_df['filename'].apply(lambda x: x.find(f) == 0)
+        temp_df = temp_df.loc[temp_df['label'] == 1]
+        prs = list(set(temp_df['pr_number']))
+        return prs
+
+
+    @staticmethod
+    def RecommendByCHREV(train_data, train_data_y, test_data, test_data_y, recommendNum=5):
+        """使用CHREV 
            并且是多标签分类
         """""
 
         recommendList = []  # 最后多个case推荐列表
         answerList = []
 
-        for targetData in test_data.itertuples(index=False):  # 对每一个case做推荐
-            """itertuples 具有大量列的时候返回常规元组 >255"""
-            targetNum = targetData[-1]
-            recommendScore = {}
-            for trainData in train_data.itertuples(index=False, name='Pandas'):
-                trainNum = trainData[-1]
-                reviewers = train_data_y[trainNum]
+        prList = list(set(test_data['pr_number']))
+        prList.sort()
+        testDict = dict(list(test_data.groupby('pr_number')))
 
-                """计算相似度不带上最后一个pr number"""
-                score = IRTrain.cos2(targetData[0:targetData.__len__()-2], trainData[0:trainData.__len__()-2])
-                for reviewer in reviewers:
-                    if recommendScore.get(reviewer, None) is None:
-                        recommendScore[reviewer] = 0
-                    recommendScore[reviewer] += score
+        pathLocalMap = {}  # f -> [pr]
+        xFactorMap = {}  # (f, r) -> score
 
-            targetRecommendList = [x[0] for x in
-                                   sorted(recommendScore.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]]
-            # print(targetRecommendList)
-            recommendList.append(targetRecommendList)
-            answerList.append(test_data_y[targetNum])
+        for test_pull_number in prList:
+            test_df = testDict[test_pull_number]
+            """添加正确答案"""
+            answerList.append(list(set([x[0] for x in test_data_y[test_pull_number]])))
+            # answerList.append(test_data_y[test_pull_number])
 
+            """获取涉及的文件路径"""
+            files = list(set(test_df['filename']))
+            recommendCase = []
+
+            """package level 代表路径的深度，0代表最深的路径"""
+            packageLevel = 0
+            while recommendCase.__len__() < recommendNum:
+                """可能会出现新文件的情况，可能需要多次推荐"""
+                scores = {}
+                for file in files:
+                    f = CHREVTrain.getPackageLevelPath(file, packageLevel)
+                    """获取路径f 在历史上出现的pr"""
+                    prs = pathLocalMap.get(f, None)
+                    if prs is None:
+                        prs = CHREVTrain.filterPrByPath(train_data, f)
+                        pathLocalMap[f] = prs
+
+                    """计算文件f 的RF元组"""
+                    RF_C = 0  # 历史上面的在f上面的评论数量
+                    RF_W = 0  # 历史上在f上面的workday
+                    RF_T = 0  # 历史上面f上面评论最近的日子
+
+                    workLoad = set()
+
+                    RE = {}  # reviewer-exprtise Map
+
+                    for p2 in prs:
+                        comments = train_data_y[p2]
+                        RF_C += comments.__len__()
+                        for comment in comments:
+                            reviewer = comment[0]
+                            day = comment[2]
+                            if RE.get(reviewer, None) is None:
+                                RE[reviewer] = [0, set(), 0]  # 在f上面评论的数量， workDay列表, 最大的workday
+                            workLoad.add(day)
+                            RF_T = max(RF_T, day)
+
+                            """更新 RE 列表"""
+                            RE[reviewer][1].add(day)
+                            RE[reviewer][0] += 1
+                            RE[reviewer][2] = max(RE[reviewer][2], day)
+
+                    RF_W = workLoad.__len__()
+
+                    """计算每个开发者的分数"""
+                    for r, [RE_C, RE_W, RE_T] in RE.items():
+                        score = 0
+                        score += RE_C / RF_C
+                        score += RE_W.__len__() / RF_W
+                        if RE_T == RF_T:
+                            score += 1
+                        else:
+                            time1 = datetime(year=int(RF_T / 10000), month=int((RF_T % 10000) / 100), day=int(RF_T % 100))
+                            time2 = datetime(year=int(RE_T / 10000), month=int((RE_T % 10000) / 100), day=int(RE_T % 100))
+                            gap = (time1 - time2).total_seconds() / (3600 * 24)
+                            score += 1 / gap
+                        if scores.get(r, None) is None:
+                            scores[r] = 0
+                        scores[r] += score
+
+                recommends = [x[0] for x in sorted(scores.items(), key=lambda d: d[1], reverse=True)]
+                for r in recommends:
+                    if r not in recommendCase and recommendCase.__len__() < recommendNum:
+                        recommendCase.append(r)
+                packageLevel += 1
+
+            recommendList.append(recommendCase)
         return [recommendList, answerList]
 
-    @staticmethod
-    def cos(dict1, dict2):
-        """计算两个代码稀疏矩阵字典的计算余弦"""
-        if isinstance(dict1, dict) and isinstance(dict2, dict):
-            """先计算模长"""
-            l1 = 0
-            for v in dict1.values():
-                l1 += v * v
-            l2 = 0
-            for v in dict2.values():
-                l2 += v * v
-
-            mul = 0
-            """计算向量相乘"""
-            for key in dict1.keys():
-                if dict2.get(key, None) is not None:
-                    mul += dict1[key] * dict2[key]
-
-            if mul == 0:
-                return 0
-            return mul / (sqrt(l1) * sqrt(l2))
-
-    @staticmethod
-    def cos2(tuple1, tuple2):
-        if tuple1.__len__() != tuple2.__len__():
-            raise Exception("tuple length not equal!")
-        """计算两个元组的余弦"""
-        """先计算模长"""
-        l1 = 0
-        for v in tuple1:
-            l1 += v * v
-        l2 = 0
-        for v in tuple2:
-            l2 += v * v
-        mul = 0
-        """计算向量相乘"""
-        len = tuple1.__len__()
-        for i in range(0, len):
-            mul += tuple1[i] * tuple2[i]
-        if mul == 0:
-            return 0
-        return mul / (sqrt(l1) * sqrt(l2))
-
-
 if __name__ == '__main__':
-    # dates = [(2018, 4, 2018, 5), (2018, 4, 2018, 7), (2018, 4, 2018, 10), (2018, 4, 2019, 1),
-    #          (2018, 4, 2019, 4)]
-    # dates = [(2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 8)]
-    # dates = [(2017, 1, 2017, 2)]
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['babel', 'symfony']
+    # dates = [(2017, 1, 2017, 2)]
+    projects = ['opencv']
     for p in projects:
-        IRTrain.testIRAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True)
+        CHREVTrain.testCHREVAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True)
