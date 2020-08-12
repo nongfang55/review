@@ -27,7 +27,7 @@ class AsyncSqlExecuteHelper:
     async def initpool(self, loop):
         try:
             __pool = await aiomysql.create_pool(minsize=5, maxsize=10,
-                                                host=configPraser.getDataBaseHost(), port=3306,
+                                                host=configPraser.getDataBaseHost(), port=int(configPraser.getDataBasePort()),
                                                 user=configPraser.getDataBaseUserName(),
                                                 password=configPraser.getDataBasePassword(),
                                                 db=configPraser.getDataBase(), autocommit=True, loop=loop)

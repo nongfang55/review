@@ -38,6 +38,7 @@ class configPraser:  # 用于解析config。ini文件
     STR_COMMIT_FETCH_LOOP = 'commitFetchLoop'
     STR_CHANGE_TRIGGER_BY_LINE = 'changeTriggerByLine'
     STR_JVM_PATH = 'JVMPath'
+    STR_PORT = 'port'
 
     cacheDict = {}  # 用于缓存的字典，防止多次访问拖慢速度
 
@@ -70,6 +71,12 @@ class configPraser:  # 用于解析config。ini文件
         cp = configparser.ConfigParser()
         cp.read(projectConfig.getConfigPath())
         return cp.get(configPraser.STR_DATABASE, configPraser.STR_HOST)
+
+    @staticmethod
+    def getDataBasePort():
+        cp = configparser.ConfigParser()
+        cp.read(projectConfig.getConfigPath())
+        return cp.get(configPraser.STR_DATABASE, configPraser.STR_PORT)
 
     @staticmethod
     def getPrintMode():
