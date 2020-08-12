@@ -2136,6 +2136,138 @@ class DataProcessUtils:
                                           dataFrame=data)
 
     @staticmethod
+    def contactXFData(projectName, filter_change_trigger=False):
+        """
+        对于 label == review comment and issue comment
+             ALL_{projectName}_data_pullrequest
+             ALL_{projectName}_data_issuecomment
+             ALL_{projectName}_data_review
+             ALL_{projectName}_data_review_comment
+             三个文件拼出PB所需的信息量文件
+        """
+
+        targetFileName = None
+        if filter_change_trigger:
+            targetFileName = f'XF_ALL_{projectName}_data_change_trigger'
+        else:
+            targetFileName = f'XF_ALL_{projectName}_data'
+
+        """读取信息对应的信息"""
+        data_train_path = projectConfig.getDataTrainPath()
+        issue_comment_path = projectConfig.getIssueCommentPath()
+        pull_request_path = projectConfig.getPullRequestPath()
+        review_path = projectConfig.getReviewDataPath()
+        review_comment_path = projectConfig.getReviewCommentDataPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+        pr_change_file_path = projectConfig.getPRChangeFilePath()
+
+        """issue commit 数据库输出 自带抬头"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review 数据库输出 自带抬头"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review comment 数据库输出 自带抬头"""
+        reviewCommentData = pandasHelper.readTSVFile(
+            os.path.join(review_comment_path, f'ALL_{projectName}_data_review_comment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pr_change_file 数据库输出 自带抬头"""
+        prChangeFileData = pandasHelper.readTSVFile(
+            os.path.join(pr_change_file_path, f'ALL_{projectName}_data_pr_change_file.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """思路  上面两部分依次做凭借， 最后加上文件"""
+        data_issue = pandas.merge(pullRequestData, issueCommentData, left_on='number', right_on='pull_number')
+        """过滤 comment 在closed 后面的场景 2020.6.28"""
+        data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
+        data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)
+        """过滤删除用户的场景"""
+        data_issue.dropna(subset=['user_login_y'], inplace=True)
+        """过滤机器人的场景"""
+        data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
+        "PR数据行： number, review_user_login, pr_created_at, comment_at, filename"
+        data_issue = data_issue[['number', 'user_login_x', 'created_at_x', 'node_id_y', 'user_login_y', 'created_at_y']].copy(deep=True)
+        data_issue.columns = ['pr_number', 'author_user_login', 'pr_created_at', 'comment_node_id', 'review_user_login', 'comment_at']
+        data_issue.drop_duplicates(inplace=True)
+
+        data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
+        data_review = pandas.merge(data_review, reviewCommentData, left_on='id_y', right_on='pull_request_review_id',
+                                   how='left')
+        """评论时间为na的，用review时间做补充"""
+        data_review['created_at_y'] = data_review.apply(
+            lambda row: row['submitted_at'] if pandas.isna(row['created_at_y']) else row['created_at_y'], axis=1)
+
+        data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
+        """过滤 comment 在closed 后面的场景 2020.6.28"""
+        data_review = data_review.loc[data_review['closed_at'] >= data_review['created_at_y']].copy(deep=True)
+        """过滤删除用户场景"""
+        data_review.dropna(subset=['user_login_y'], inplace=True)
+        """过滤机器人的场景  """
+        data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
+        "HG数据行： number, review_user_login, pr_created_at, comment_at, filename"
+        data_review = data_review[['number', 'user_login_x', 'created_at_x', 'node_id', 'user_login_y', 'created_at_y']].copy(deep=True)
+        data_review.columns = ['pr_number', 'author_user_login', 'pr_created_at', 'comment_node_id', 'review_user_login', 'comment_at']
+        data_review.drop_duplicates(inplace=True)
+
+        data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
+        data.drop_duplicates(inplace=True)
+        data.reset_index(drop=True, inplace=True)
+        print(data.shape)
+
+        if filter_change_trigger:
+            """change_trigger只取出pr, reviewer，和data取交集"""
+            changeTriggerData['label'] = changeTriggerData.apply(
+                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+            changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            changeTriggerData.rename(columns={'comment_node': 'comment_node_id'}
+                                     , inplace=True)
+            data = pandas.merge(data, changeTriggerData, how='inner')
+        # data = data.drop(labels='comment_node_id', axis=1)
+
+        """连接改动文件"""
+        """拼接 文件改动"""
+        data = pandas.merge(data, prChangeFileData, left_on='pr_number', right_on='pull_number')
+
+        """只选出感兴趣的部分"""
+        data = data[
+            ['pr_number', 'author_user_login', 'pr_created_at', 'review_user_login', 'comment_node_id',
+             'comment_at', 'filename']].copy(deep=True)
+        data.drop_duplicates(inplace=True)
+        data.sort_values(by='pr_number', ascending=False, inplace=True)
+        data.reset_index(drop=True)
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getXFDataPath(),
+                                          targetFileName=targetFileName, dateCol='pr_created_at',
+                                          dataFrame=data)
+
+    @staticmethod
     def contactHGData(projectName, filter_change_trigger=False):
         """
         对于 label == review comment and issue comment
