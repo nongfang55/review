@@ -124,7 +124,7 @@ class ACTrain:
 
 
         """推荐错误可视化"""
-        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'AC')
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'AC_{filter_train}_{filter_test}')
 
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,

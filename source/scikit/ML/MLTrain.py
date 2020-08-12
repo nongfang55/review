@@ -604,7 +604,7 @@ class MLTrain:
 
         for algorithmType in algorithms:
             for project in projects:
-                excelName = f'output{algorithmType}_{project}_ML_{filter_train}_{filter_test}_{error_analysis}.xlsx'
+                excelName = f'output_{project}_ML_{algorithmType}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
                 recommendNum = 5  # 推荐数量
                 sheetName = 'result'
                 """初始化excel文件"""
@@ -713,7 +713,7 @@ class MLTrain:
                     print("cost time:", datetime.now() - startTime)
 
                     """推荐错误可视化"""
-                    DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'ML_{algorithmType}')
+                    DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'ML_{algorithmType}_{filter_train}_{filter_test}')
 
                     """计算历史累积数据"""
                     DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,

@@ -123,9 +123,8 @@ class FPSTrain:
 
             print("cost time:", datetime.now() - startTime)
 
-
         """推荐错误可视化"""
-        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'FPS')
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'FPS_{filter_train}_{filter_test}')
 
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
@@ -249,6 +248,6 @@ if __name__ == '__main__':
     #          (2017, 1, 2018, 6)]
     # dates = [(2017, 1, 2017, 2), (2017, 1, 2017, 3), (2017, 1, 2017, 4), (2017, 1, 2017, 5), (2017, 1, 2017, 6),
     #          (2017, 1, 2017, 7)]
-    projects = ['django']
+    projects = ['cakephp', 'opencv', 'akka', 'xmbc', 'symfony', 'babel']
     for p in projects:
         FPSTrain.TestAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True)

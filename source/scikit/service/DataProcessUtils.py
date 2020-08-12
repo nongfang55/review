@@ -2935,6 +2935,30 @@ class DataProcessUtils:
                                   df_LCSubstr, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
 
     @staticmethod
+    def fillAlgorithmResultExcelHelper():
+        """指定某个文件夹，根据指定的文件和算法列表自动填充excel
+           2020.8.12 实在受不了了
+        """
+        """项目列表"""
+        projectList = ['opencv', 'cakephp', 'xbmc', 'symfony', 'akka', 'babel',
+                       'django', 'brew', 'netty', 'scikit-learn', 'moby', 'metasploit-framework',
+                       'Baystation12']
+        algorithmList = ['FPS', 'IR', 'RF', 'CN', 'AC']
+        """算法名字对应文件的映射
+           注： ML 算法文件名字做了略微修改
+        """
+        algorithmFileLabelMap = {'FPS': 'FPS', 'IR': 'IR', 'RF': 'ML_0',
+                                 'CN': 'CN', 'AC': 'AC'}
+        sheetMap = ['TopK', 'PT', 'NT', 'PF', 'NF']
+
+        """阅读结果数据的文件路径"""
+        readPath = r'C:\Users\ThinkPad\Desktop\统计依据\数据'
+
+        """Excel 文件初始化"""
+
+
+
+    @staticmethod
     def getAnswerListFromChangeTriggerData(project, date, prList, convertDict, filename, review_key, pr_key):
         """依据给定的项目名称和日期和prList  给出对应的answerList"""
         y = date[2]
@@ -3046,15 +3070,15 @@ if __name__ == '__main__':
     # """从总的commit file文件中分割树独立的commit file文件"""
     # DataProcessUtils.splitProjectCommitFileData('infinispan')
 
-    projects = ['opencv']
+    projects = ['brew', 'django']
     """分割不同算法的训练集"""
     for p in projects:
         for t in [True, False]:
-            DataProcessUtils.contactCDRData(p, filter_change_trigger=t)
-            # DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-            # DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-            # DataProcessUtils.contactCNData(p, filter_change_trigger=t)
-            # DataProcessUtils.contactACData(p, filter_change_trigger=t)
+            DataProcessUtils.contactIRData(p, filter_change_trigger=t, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+            DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+            DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+            DataProcessUtils.contactCNData(p, filter_change_trigger=t)
+            DataProcessUtils.contactACData(p, filter_change_trigger=t)
 
     # DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
     # DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)

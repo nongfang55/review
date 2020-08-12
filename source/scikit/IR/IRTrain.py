@@ -53,7 +53,9 @@ class IRTrain:
             startTime = datetime.now()
             """根据推荐列表做评价"""
 
-            recommendList, answerList, prList, convertDict, trainSize = IRTrain.algorithmBody(date, project, recommendNum)
+            recommendList, answerList, prList, convertDict, trainSize = IRTrain.algorithmBody(date, project, recommendNum,
+                                                                                              filter_train=filter_train,
+                                                                                              filter_test=filter_test)
 
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -125,7 +127,7 @@ class IRTrain:
             print("cost time:", datetime.now() - startTime)
 
         """推荐错误可视化"""
-        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'IR')
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'IR_{filter_train}_{filter_test}')
 
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
@@ -133,7 +135,7 @@ class IRTrain:
 
 
     @staticmethod
-    def algorithmBody(date, project, recommendNum=5):
+    def algorithmBody(date, project, recommendNum=5, filter_train=False, filter_test=False):
 
         """提供单个日期和项目名称
            返回推荐列表和答案
@@ -149,8 +151,17 @@ class IRTrain:
 
             print(y, m)
 
-            filename = projectConfig.getIRDataPath() + os.sep \
-                       + f'IR_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            if i < date[2] * 12 + date[3]:
+                if filter_train:
+                    filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                else:
+                    filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            else:
+                if filter_test:
+                    filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                else:
+                    filename = projectConfig.getIRDataPath() + os.sep + f'IR_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+
             if df is None:
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
             else:
@@ -362,6 +373,6 @@ if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['babel', 'symfony']
+    projects = ['cakephp', 'opencv', 'akka', 'xmbc', 'symfony', 'babel']
     for p in projects:
         IRTrain.testIRAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True)
