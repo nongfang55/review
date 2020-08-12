@@ -604,7 +604,7 @@ class MLTrain:
 
         for algorithmType in algorithms:
             for project in projects:
-                excelName = f'output_{project}_ML_{algorithmType}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
+                excelName = f'outputML_{algorithmType}_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
                 recommendNum = 5  # 推荐数量
                 sheetName = 'result'
                 """初始化excel文件"""
@@ -772,5 +772,5 @@ if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['opencv']
-    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0],  filter_train=True, filter_test=True)
+    projects = ['django', 'brew', 'netty', 'scikit-learn']
+    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0],  filter_train=False, filter_test=False, error_analysis=True)

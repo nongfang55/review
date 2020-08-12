@@ -2935,7 +2935,7 @@ class DataProcessUtils:
                                   df_LCSubstr, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
 
     @staticmethod
-    def fillAlgorithmResultExcelHelper():
+    def fillAlgorithmResultExcelHelper(filter_train=False, filter_test=False, error_analysis=True):
         """指定某个文件夹，根据指定的文件和算法列表自动填充excel
            2020.8.12 实在受不了了
         """
@@ -2951,12 +2951,76 @@ class DataProcessUtils:
                                  'CN': 'CN', 'AC': 'AC'}
         sheetMap = ['TopK', 'PT', 'NT', 'PF', 'NF']
 
+        """指标列表"""
+        metricList = ['AVG_TopKAccuracy', 'recommend_positive_success_pr_ratio', 'recommend_negative_success_pr_ratio',
+                      'recommend_positive_fail_pr_ratio', 'recommend_negative_fail_pr_ratio']
+
         """阅读结果数据的文件路径"""
         readPath = r'C:\Users\ThinkPad\Desktop\统计依据\数据'
 
+        recommendNumList = [1, 3, 5]
+
+        """文件名称"""
+        excelName = f'推荐算法数据统计_{filter_train}_{filter_test}_{error_analysis}.xlsx'
+
         """Excel 文件初始化"""
+        ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetMap[0])
+        for sheetName in sheetMap:
+            ExcelHelper().addSheet(filename=excelName, sheetName=sheetName)
 
+        """依照每个sheet来增加excel的内容"""
+        for metric_index, sheetName in enumerate(sheetMap):
+            metric = metricList[metric_index]
 
+            """初始化行"""
+            inital_line = []
+            inital_line.append("")
+            for i in range(0, 3):
+                for m in algorithmList:
+                    inital_line.append(m)
+                inital_line.append("")
+                inital_line.append("")
+
+            ExcelHelper().appendExcelRow(excelName, sheetName, inital_line, style=ExcelHelper.getNormalStyle())
+
+            for project in projectList:
+                """对应的行数"""
+                line = []
+                line.append(project)
+                for recommendNum in recommendNumList:
+                    for algorithm in algorithmList:
+                        line.append(DataProcessUtils.readSingleResultFromExcel(path=readPath, algorithm_label=algorithmFileLabelMap[algorithm],
+                                                                               project=project, filter_train=filter_train,filter_test=filter_test,
+                                                                               error_analysis=error_analysis, metric=metric, recommendNum=recommendNum))
+                    line.append("")
+                    line.append("")
+                ExcelHelper().appendExcelRow(excelName, sheetName, line, style=ExcelHelper.getNormalStyle())
+
+    @staticmethod
+    def readSingleResultFromExcel(path, algorithm_label, project, filter_train, filter_test, error_analysis,
+                                  metric, recommendNum):
+        sheetName = 'result'
+        """从指定路径的指定文件中读取数据"""
+        isFind = False
+        fileName = f'output{algorithm_label}_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
+        fileName = os.path.join(path, fileName)
+        if not os.path.exists(fileName):
+            return "NA"
+        sheet = ExcelHelper().readExcelSheet(fileName, sheetName)
+        rowNum = sheet.nrows - 1
+        while not isFind:
+            # print(rowNum)
+            line = sheet.row_values(rowNum)
+            if isinstance(line, list) and line.__len__() > 0:
+                if line[2] == metric:
+                    isFind = True
+                    break
+            rowNum -= 1
+        """数字占一行"""
+        rowNum += 2
+        content = sheet.row_values(rowNum)
+        result = content[1 + recommendNum]
+        return result
 
     @staticmethod
     def getAnswerListFromChangeTriggerData(project, date, prList, convertDict, filename, review_key, pr_key):
@@ -3070,15 +3134,18 @@ if __name__ == '__main__':
     # """从总的commit file文件中分割树独立的commit file文件"""
     # DataProcessUtils.splitProjectCommitFileData('infinispan')
 
-    projects = ['brew', 'django']
-    """分割不同算法的训练集"""
-    for p in projects:
-        for t in [True, False]:
-            DataProcessUtils.contactIRData(p, filter_change_trigger=t, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-            DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-            DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-            DataProcessUtils.contactCNData(p, filter_change_trigger=t)
-            DataProcessUtils.contactACData(p, filter_change_trigger=t)
+    DataProcessUtils.fillAlgorithmResultExcelHelper(filter_train=False, filter_test=False, error_analysis=True)
+
+    # projects = ['opencv', 'cakephp', 'akka', 'symfony', 'xbmc', 'babel', 'brew', 'django']
+    # projects = ['netty', 'scikit-learn']
+    # # """分割不同算法的训练集"""
+    # for p in projects:
+    #     for t in [True, False]:
+    #         DataProcessUtils.contactIRData(p, filter_change_trigger=t, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    #         DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+    #         DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+    #         DataProcessUtils.contactCNData(p, filter_change_trigger=t)
+    #         DataProcessUtils.contactACData(p, filter_change_trigger=t)
 
     # DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
     # DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)

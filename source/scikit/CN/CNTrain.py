@@ -53,7 +53,7 @@ class CNTrain:
            error_analysis 表示是否开启chang_trigger过滤答案的错误统计机制
         """
         recommendNum = 5  # 推荐数量
-        excelName = f'outputCN_{project}_{filter_train}_{filter_test}_{error_analysis}.xls'
+        excelName = f'outputCN_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
         sheetName = 'result'
 
         """计算累积数据"""
@@ -549,4 +549,4 @@ if __name__ == '__main__':
     projects = ['react']
     for p in projects:
         projectName = p
-        CNTrain.testCNAlgorithm(projectName, dates, filter_train=True, filter_test=True)
+        CNTrain.testCNAlgorithm(projectName, dates, filter_train=False, filter_test=False, error_analysis=True)
