@@ -713,7 +713,7 @@ class MLTrain:
                     print("cost time:", datetime.now() - startTime)
 
                     """推荐错误可视化"""
-                    DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'ML_{algorithmType}')
+                    DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'ML_{algorithmType}_{filter_train}_{filter_test}')
 
                     """计算历史累积数据"""
                     DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
@@ -772,5 +772,5 @@ if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['opencv']
-    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0],  filter_train=True, filter_test=True)
+    projects = ['django', 'brew', 'netty', 'scikit-learn']
+    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0],  filter_train=False, filter_test=False, error_analysis=True)

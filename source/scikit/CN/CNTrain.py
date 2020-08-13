@@ -65,7 +65,7 @@ class CNTrain:
            error_analysis 表示是否开启chang_trigger过滤答案的错误统计机制
         """
         recommendNum = 5  # 推荐数量
-        excelName = f'outputCN_{project}_{filter_train}_{filter_test}_{error_analysis}.xls'
+        excelName = f'outputCN_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
         sheetName = 'result'
 
         """计算累积数据"""
@@ -168,6 +168,65 @@ class CNTrain:
 
             """结果写入excel"""
             DataProcessUtils.saveResult_Community_Version(excelName, sheetName, communities_data, date)
+
+            error_analysis_data = None
+            if error_analysis:
+                y = date[2]
+                m = date[3]
+                filename = projectConfig.getCNDataPath() + os.sep + f'CN_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date, prList,
+                                                                                         convertDict, filename,
+                                                                                         'reviewer', 'pull_number')
+                # recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio, recommend_negative_success_pr_ratio, \
+                # recommend_negative_success_time_ratio, recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio, \
+                # recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio = DataProcessUtils.errorAnalysis(
+                #     recommendList, answerList, filter_answer_list, recommendNum)
+                # error_analysis_data = [recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio,
+                #                        recommend_negative_success_pr_ratio, recommend_negative_success_time_ratio,
+                #                        recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio,
+                #                        recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio]
+
+                recommend_positive_success_pr_ratio, recommend_negative_success_pr_ratio, recommend_positive_fail_pr_ratio,\
+                recommend_negative_fail_pr_ratio = DataProcessUtils.errorAnalysis(
+                    recommendList, answerList, filter_answer_list, recommendNum)
+                error_analysis_data = [recommend_positive_success_pr_ratio,
+                                       recommend_negative_success_pr_ratio,
+                                       recommend_positive_fail_pr_ratio,
+                                       recommend_negative_fail_pr_ratio]
+
+                # recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                # recommend_positive_success_time_ratios.append(recommend_positive_success_time_ratio)
+                # recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                # recommend_negative_success_time_ratios.append(recommend_negative_success_time_ratio)
+                # recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                # recommend_positive_fail_time_ratios.append(recommend_positive_fail_time_ratio)
+                # recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+                # recommend_negative_fail_time_ratios.append(recommend_negative_fail_time_ratio)
+
+                recommend_positive_success_pr_ratios.append(recommend_positive_success_pr_ratio)
+                recommend_negative_success_pr_ratios.append(recommend_negative_success_pr_ratio)
+                recommend_positive_fail_pr_ratios.append(recommend_positive_fail_pr_ratio)
+                recommend_negative_fail_pr_ratios.append(recommend_negative_fail_pr_ratio)
+
+            if error_analysis_data:
+                # error_analysis_datas = [recommend_positive_success_pr_ratios, recommend_positive_success_time_ratios,
+                #                         recommend_negative_success_pr_ratios, recommend_negative_success_time_ratios,
+                #                         recommend_positive_fail_pr_ratios, recommend_positive_fail_time_ratios,
+                #                         recommend_negative_fail_pr_ratios, recommend_negative_fail_time_ratios]
+                error_analysis_datas = [recommend_positive_success_pr_ratios,
+                                        recommend_negative_success_pr_ratios,
+                                        recommend_positive_fail_pr_ratios,
+                                        recommend_negative_fail_pr_ratios]
+
+            """结果写入excel"""
+            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date,
+                                        error_analysis_data))
+
+            """文件分割"""
+            content = ['']
+            ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+            content = ['训练集', '测试集']
+            ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
 
             print("cost time:", datetime.now() - startTime)
 

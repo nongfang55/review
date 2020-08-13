@@ -25,6 +25,10 @@ class GraphqlHelper:
         return GraphqlHelper.STR_KEY_QUERY_PR_TIMELINE
 
     @staticmethod
+    def getFollowingListByLogin():
+        return GraphqlHelper.STR_KEY_QUERY_FOLLOWING_LIST
+
+    @staticmethod
     def getPrInformationByNumber():
         return GraphqlHelper.STR_KEY_QUERY_PR_ALL
 
@@ -468,5 +472,22 @@ query($ids:[ID!]!) {
      }
 
     }
+  }
+}"""
+
+    STR_KEY_QUERY_FOLLOWING_LIST = """query($login:String!) { 
+  user(login:$login) {
+     name
+     login
+     following(first:100) {
+       totalCount
+       edges {
+         cursor
+         node {
+            login 
+            name
+         }
+       }
+     } 
   }
 }"""

@@ -20,6 +20,7 @@ from source.data.bean.ReviewChangeRelation import ReviewChangeRelation
 from source.data.bean.ReviewComment import ReviewComment
 from source.data.bean.TreeEntry import TreeEntry
 from source.data.bean.User import User
+from source.data.bean.UserFollowRelation import UserFollowRelation
 from source.database.SqlExecuteHelper import SqlExecuteHelper
 from source.database.SqlUtils import SqlUtils
 
@@ -69,6 +70,8 @@ class AsyncSqlHelper:
             return SqlUtils.STR_TABLE_NAME_TREE_ENTRY
         elif isinstance(bean, Blob):
             return SqlUtils.STR_TABLE_NAME_GIT_BLOB
+        elif isinstance(bean, UserFollowRelation):
+            return SqlUtils.STR_TABLE_NAME_USER_FOLLOW_RELATION
         else:
             return None
 

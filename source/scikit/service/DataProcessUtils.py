@@ -1726,6 +1726,13 @@ class DataProcessUtils:
                 pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
             )
 
+        if filter_change_trigger:
+            """ pr_change_trigger 自带抬头"""
+            changeTriggerData = pandasHelper.readTSVFile(
+                os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+                pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+            )
+
         if label == StringKeyUtils.STR_LABEL_REVIEW_COMMENT:
             """过滤状态非关闭的pr review"""
             prReviewData = prReviewData.loc[prReviewData['pr_state'] == 'closed'].copy(deep=True)
@@ -2658,6 +2665,119 @@ class DataProcessUtils:
     #     return dict(reviewers)
 
     @staticmethod
+    def contactCDRData(projectName, filter_change_trigger=False):
+        """
+        算法  CoreDevRec
+        通过 ALL_{projectName}_data_pullrequest
+             ALL_{projectName}_data_review
+             ALL_{projectName}_data_issuecomment 三个文件
+        """
+
+        """
+          选择特征  
+        """
+
+        time1 = datetime.now()
+        issue_comment_path = projectConfig.getIssueCommentPath()
+        pull_request_path = projectConfig.getPullRequestPath()
+        review_path = projectConfig.getReviewDataPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+
+        """issue commit 数据库输出 自带抬头"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review 数据库输出 自带抬头"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        targetFileName = None
+        if filter_change_trigger:
+            targetFileName = f'CDR_ALL_{projectName}_data_change_trigger'
+        else:
+            targetFileName = f'CDR_ALL_{projectName}_data'
+
+        print("read file cost time:", datetime.now() - time1)
+
+        """先找出所有参与 reivew的人选"""
+        data_issue = pandas.merge(pullRequestData, issueCommentData, left_on='number', right_on='pull_number')
+        """过滤 comment 在closed 后面的场景 2020.6.28"""
+        data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
+        data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)
+        """过滤删除用户的场景"""
+        data_issue.dropna(subset=['user_login_y'], inplace=True)
+        """"过滤 head_label 为nan的场景"""
+        data_issue.dropna(subset=['head_label'], inplace=True)
+        """过滤机器人的场景"""
+        data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
+        data_issue = data_issue[['number', 'node_id_x', 'user_login_y',
+                                'created_at_x', 'user_login_x', 'created_at_y']].copy(deep=True)
+
+        data_issue.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_user_login', 'comment_at']
+        data_issue.drop_duplicates(inplace=True)
+
+        data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
+        data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
+        """过滤 comment 在closed 后面的场景 2020.6.28"""
+        data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
+        """过滤删除用户场景"""
+        data_review.dropna(subset=['user_login_y'], inplace=True)
+        """过滤机器人的场景  """
+        data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
+        data_review = data_review[['number', 'node_id_x', 'user_login_y',
+                                   'created_at', 'user_login_x', 'submitted_at']].copy(deep=True)
+
+        data_review.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_user_login', 'comment_at']
+        data_review.drop_duplicates(inplace=True)
+
+        rawData = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
+        rawData.drop_duplicates(inplace=True)
+        rawData.reset_index(drop=True, inplace=True)
+        print(rawData.shape)
+
+        if filter_change_trigger:
+            """change_trigger只取出pr, reviewer，和data取交集"""
+            changeTriggerData['label'] = changeTriggerData.apply(
+                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+            changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            changeTriggerData.rename(columns={'pullrequest_node': 'node_id_x',
+                                              'user_login': "review_user_login"}, inplace=True)
+            rawData = pandas.merge(rawData, changeTriggerData, how='inner')
+
+        rawData = rawData.drop(labels='node_id_x', axis=1)
+        rawData.sort_values(['pr_number', 'review_user_login', 'comment_at'], ascending=[True, True, True],
+                            inplace=True)
+        rawData.drop_duplicates(subset=['pr_number', 'review_user_login'], inplace=True, keep='first')
+
+        data = rawData
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getCDRDataPath(),
+                                          targetFileName=targetFileName, dateCol='pr_created_at',
+                                          dataFrame=data)
+
+    @staticmethod
     def getReviewerFrequencyDict(projectName, date):
         """获得某个项目某个时间段的reviewer
         的review次数字典
@@ -3310,6 +3430,100 @@ class DataProcessUtils:
                                   df_LCP, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
         pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_LCSubstr.tsv"),
                                   df_LCSubstr, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
+
+    @staticmethod
+    def fillAlgorithmResultExcelHelper(filter_train=False, filter_test=False, error_analysis=True):
+        """指定某个文件夹，根据指定的文件和算法列表自动填充excel
+           2020.8.12 实在受不了了
+        """
+        """项目列表"""
+        projectList = ['opencv', 'cakephp', 'xbmc', 'symfony', 'akka', 'babel',
+                       'django', 'brew', 'netty', 'scikit-learn', 'moby', 'metasploit-framework',
+                       'Baystation12']
+        algorithmList = ['FPS', 'IR', 'RF', 'CN', 'AC']
+        """算法名字对应文件的映射
+           注： ML 算法文件名字做了略微修改
+        """
+        algorithmFileLabelMap = {'FPS': 'FPS', 'IR': 'IR', 'RF': 'ML_0',
+                                 'CN': 'CN', 'AC': 'AC'}
+        sheetMap = ['TopK', 'PT', 'NT', 'PF', 'NF']
+
+        """指标列表"""
+        metricList = ['AVG_TopKAccuracy', 'recommend_positive_success_pr_ratio', 'recommend_negative_success_pr_ratio',
+                      'recommend_positive_fail_pr_ratio', 'recommend_negative_fail_pr_ratio']
+
+        """阅读结果数据的文件路径"""
+        readPath = r'C:\Users\ThinkPad\Desktop\统计依据\数据'
+
+        recommendNumList = [1, 3, 5]
+
+        """文件名称"""
+        excelName = f'推荐算法数据统计_{filter_train}_{filter_test}_{error_analysis}.xlsx'
+
+        """Excel 文件初始化"""
+        ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetMap[0])
+        for sheetName in sheetMap:
+            ExcelHelper().addSheet(filename=excelName, sheetName=sheetName)
+
+        """依照每个sheet来增加excel的内容"""
+        for metric_index, sheetName in enumerate(sheetMap):
+            metric = metricList[metric_index]
+
+            """初始化行"""
+            inital_line = []
+            inital_line.append("")
+            for i in range(0, 3):
+                for m in algorithmList:
+                    inital_line.append(m)
+                inital_line.append("")
+                inital_line.append("")
+
+            ExcelHelper().appendExcelRow(excelName, sheetName, inital_line, style=ExcelHelper.getNormalStyle())
+
+            for project in projectList:
+                """对应的行数"""
+                line = []
+                line.append(project)
+                for recommendNum in recommendNumList:
+                    for algorithm in algorithmList:
+                        line.append(DataProcessUtils.readSingleResultFromExcel(path=readPath,
+                                                                               algorithm_label=algorithmFileLabelMap[
+                                                                                   algorithm],
+                                                                               project=project,
+                                                                               filter_train=filter_train,
+                                                                               filter_test=filter_test,
+                                                                               error_analysis=error_analysis,
+                                                                               metric=metric,
+                                                                               recommendNum=recommendNum))
+                    line.append("")
+                    line.append("")
+                ExcelHelper().appendExcelRow(excelName, sheetName, line, style=ExcelHelper.getNormalStyle())
+
+    @staticmethod
+    def readSingleResultFromExcel(path, algorithm_label, project, filter_train, filter_test, error_analysis,
+                                  metric, recommendNum):
+        sheetName = 'result'
+        """从指定路径的指定文件中读取数据"""
+        isFind = False
+        fileName = f'output{algorithm_label}_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
+        fileName = os.path.join(path, fileName)
+        if not os.path.exists(fileName):
+            return "NA"
+        sheet = ExcelHelper().readExcelSheet(fileName, sheetName)
+        rowNum = sheet.nrows - 1
+        while not isFind:
+            # print(rowNum)
+            line = sheet.row_values(rowNum)
+            if isinstance(line, list) and line.__len__() > 0:
+                if line[2] == metric:
+                    isFind = True
+                    break
+            rowNum -= 1
+        """数字占一行"""
+        rowNum += 2
+        content = sheet.row_values(rowNum)
+        result = content[1 + recommendNum]
+        return result
 
     @staticmethod
     def selectPeriodChangeTrigger(projectName, start, end):

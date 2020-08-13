@@ -32,6 +32,7 @@ class projectConfig:
     PATH_REVIEW_COMMENT = 'data' + os.sep + 'train' + os.sep + 'reviewCommentData'
     PATH_REVIEW_CHANGE = 'data' + os.sep + 'train' + os.sep + 'reviewChangeData'
     PATH_PULL_REQUEST_DISTANCE = 'data' + os.sep + 'train' + os.sep + 'prDistance'
+    PATH_USER_FOLLOW_RELATION = 'data' + os.sep + 'train' + os.sep + 'userFollowRelation'
 
     PATH_FPS_DATA = 'data' + os.sep + 'train' + os.sep + 'FPS'
     PATH_ML_DATA = 'data' + os.sep + 'train' + os.sep + 'ML'
@@ -48,6 +49,7 @@ class projectConfig:
     PATH_CHREV_DATA = 'data' + os.sep + 'train' + os.sep + 'CHREV'
     PATH_XF_DATA = 'data' + os.sep + 'train' + os.sep + 'XF'
 
+    PATH_CDR_DATA = 'data' + os.sep + 'train' + os.sep + 'CDR'
     PATH_ALGORITHM = 'source' + os.sep + 'scikit' + os.sep
 
     TEST_OUT_PUT_SHEET_NAME = 'sheet1'
@@ -156,6 +158,10 @@ class projectConfig:
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_ML_DATA)
 
     @staticmethod
+    def getCDRDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CDR_DATA)
+
+    @staticmethod
     def getIRDataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_IR_DATA)
 
@@ -226,6 +232,10 @@ class projectConfig:
     @staticmethod
     def getLogPath():
         return projectConfig.getRootPath() + os.sep + 'log'
+
+    @staticmethod
+    def getUserFollowRelation():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_USER_FOLLOW_RELATION)
 
     @staticmethod
     def getAlgorithmPath():
