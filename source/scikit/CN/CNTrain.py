@@ -188,7 +188,8 @@ class CNTrain:
 
                 recommend_positive_success_pr_ratio, recommend_negative_success_pr_ratio, recommend_positive_fail_pr_ratio,\
                 recommend_negative_fail_pr_ratio = DataProcessUtils.errorAnalysis(
-                    recommendList, answerList, filter_answer_list, recommendNum)
+                    communities_data['whole']['recommend_list'], communities_data['whole']['answer_list']
+                    , filter_answer_list, recommendNum)
                 error_analysis_data = [recommend_positive_success_pr_ratio,
                                        recommend_negative_success_pr_ratio,
                                        recommend_positive_fail_pr_ratio,
@@ -219,8 +220,7 @@ class CNTrain:
                                         recommend_negative_fail_pr_ratios]
 
             """结果写入excel"""
-            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date,
-                                        error_analysis_data))
+            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date, error_analysis_data)
 
             """文件分割"""
             content = ['']
@@ -231,11 +231,10 @@ class CNTrain:
             print("cost time:", datetime.now() - startTime)
 
         """推荐错误可视化"""
-        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'CN')
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'CN_{filter_train}_{filter_test}')
 
         """计算历史累积数据"""
-        DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
-                                           fmeasureks, error_analysis_datas)
+        DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks, fmeasureks, error_analysis_datas)
 
     @staticmethod
     def algorithmBody(date, project, recommendNum=5, filter_train=False, filter_test=False, is_split=False):
@@ -312,8 +311,6 @@ class CNTrain:
         # """处理NAN"""
         # df.dropna(how='any', inplace=True)
         # df.reset_index(drop=True, inplace=True)
-        df['pr_title'].fillna(value='', inplace=True)
-        df['pr_body'].fillna(value='', inplace=True)
 
         """对df添加一列标识训练集和测试集"""
         df['label'] = df['pr_created_at'].apply(
