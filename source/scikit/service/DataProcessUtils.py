@@ -3768,13 +3768,13 @@ class DataProcessUtils:
         """项目列表"""
         projectList = ['opencv', 'cakephp', 'xbmc', 'symfony', 'akka', 'babel',
                        'django', 'brew', 'netty', 'scikit-learn', 'moby', 'metasploit-framework',
-                       'Baystation12']
-        algorithmList = ['FPS', 'IR', 'RF', 'CN', 'AC']
+                       'Baystation12', 'react', 'pandas']
+        algorithmList = ['FPS', 'IR', 'RF', 'CN', 'AC', 'CHREV', 'XF']
         """算法名字对应文件的映射
            注： ML 算法文件名字做了略微修改
         """
         algorithmFileLabelMap = {'FPS': 'FPS', 'IR': 'IR', 'RF': 'ML_0',
-                                 'CN': 'CN', 'AC': 'AC'}
+                                 'CN': 'CN', 'AC': 'AC', 'CHREV': 'CHREV', 'XF': 'XF'}
         sheetMap = ['TopK', 'PT', 'NT', 'PF', 'NF']
 
         """指标列表"""
@@ -4107,15 +4107,21 @@ class DataProcessUtils:
 
 if __name__ == '__main__':
 
-    projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew', 'django', 'netty', 'scikit-learn']
-    # projects = ['opencv']
-    """分割不同算法的训练集"""
-    for p in projects:
-        for t in [True, False]:
-            DataProcessUtils.contactIR_ACData(p, filter_change_trigger=t)
-            # DataProcessUtils.contactFPS_ACData(p, filter_change_trigger=t)
-            # DataProcessUtils.contactSVM_CData(p, filter_change_trigger=t)
-            # DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-            # DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-            # DataProcessUtils.contactCNData(p, filter_change_trigger=t)
-            # DataProcessUtils.contactACData(p, filter_change_trigger=t)
+    # projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew', 'django', 'netty', 'scikit-learn']
+    # projects = ['react', 'pandas', 'moby', 'Baystation12', 'metasploit-framework']
+    # # """分割不同算法的训练集"""
+    # for p in projects:
+    #     for t in [True, False]:
+    #         # DataProcessUtils.contactFPS_ACData(p, filter_change_trigger=t)
+    #         # DataProcessUtils.contactSVM_CData(p, filter_change_trigger=t)
+    #         DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+    #         DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+    #         DataProcessUtils.contactCNData(p, filter_change_trigger=t)
+    #         DataProcessUtils.contactACData(p, filter_change_trigger=t)
+    #         DataProcessUtils.contactCHREVData(p, filter_change_trigger=t)
+    #         DataProcessUtils.contactIRData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+    #         DataProcessUtils.contactXFData(p, filter_change_trigger=t)
+
+    # DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    # DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    DataProcessUtils.fillAlgorithmResultExcelHelper(False, False, True)

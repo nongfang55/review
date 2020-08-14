@@ -4,8 +4,10 @@ import time
 from datetime import datetime
 from math import sqrt
 
+import numpy
 import pandas
 from gensim import corpora, models
+from pandas import DataFrame
 
 from source.config.projectConfig import projectConfig
 from source.nlp.FleshReadableUtils import FleshReadableUtils
@@ -299,16 +301,49 @@ class IRTrain:
         recommendList = []  # 最后多个case推荐列表
         answerList = []
 
-        for targetData in test_data.itertuples(index=False):  # 对每一个case做推荐
-            """itertuples 具有大量列的时候返回常规元组 >255"""
-            targetNum = targetData[-1]
-            recommendScore = {}
-            for trainData in train_data.itertuples(index=False, name='Pandas'):
-                trainNum = trainData[-1]
-                reviewers = train_data_y[trainNum]
+        """对IR 矩阵乘法优化"""
+        """计算train_data的矩阵"""
+        df_train = train_data.copy(deep=True)
+        df_train.drop(columns=['pr_number'], inplace=True)
+        """计算test_data矩阵"""
+        df_test = test_data.copy(deep=True)
+        df_test.drop(columns=['pr_number'], inplace=True)
 
+        """计算距离"""
+        DIS = DataFrame(numpy.dot(df_test, df_train.T))  # train_num x t
+
+        # for targetData in test_data.itertuples(index=False):  # 对每一个case做推荐
+        #     """itertuples 具有大量列的时候返回常规元组 >255"""
+        #     targetNum = targetData[-1]
+        #     recommendScore = {}
+        #     for trainData in train_data.itertuples(index=False, name='Pandas'):
+        #         trainNum = trainData[-1]
+        #         reviewers = train_data_y[trainNum]
+        #
+        #         """计算相似度不带上最后一个pr number"""
+        #         score = IRTrain.cos2(targetData[0:targetData.__len__()-2], trainData[0:trainData.__len__()-2])
+        #         for reviewer in reviewers:
+        #             if recommendScore.get(reviewer, None) is None:
+        #                 recommendScore[reviewer] = 0
+        #             recommendScore[reviewer] += score
+        #
+        #     targetRecommendList = [x[0] for x in
+        #                            sorted(recommendScore.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]]
+        #     # print(targetRecommendList)
+        #     recommendList.append(targetRecommendList)
+        #     answerList.append(test_data_y[targetNum])
+
+        test_pr_list = tuple(test_data['pr_number'])
+        train_pr_list = tuple(train_data['pr_number'])
+
+        for index_test, pr_test in enumerate(test_pr_list):
+            print(index_test, "  all:", test_pr_list.__len__())
+            recommendScore = {}
+            for index_train, pr_train in enumerate(train_pr_list):
+                reviewers = train_data_y[pr_train]
+                """计算时间差"""
                 """计算相似度不带上最后一个pr number"""
-                score = IRTrain.cos2(targetData[0:targetData.__len__()-2], trainData[0:trainData.__len__()-2])
+                score = DIS.iloc[index_test][index_train]
                 for reviewer in reviewers:
                     if recommendScore.get(reviewer, None) is None:
                         recommendScore[reviewer] = 0
@@ -318,7 +353,7 @@ class IRTrain:
                                    sorted(recommendScore.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]]
             # print(targetRecommendList)
             recommendList.append(targetRecommendList)
-            answerList.append(test_data_y[targetNum])
+            answerList.append(test_data_y[pr_test])
 
         return [recommendList, answerList]
 
@@ -371,9 +406,11 @@ if __name__ == '__main__':
     #          (2018, 4, 2019, 4)]
     # dates = [(2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 8)]
     # dates = [(2017, 1, 2017, 2)]
-    dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
-             (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
-             (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['cakephp', 'opencv', 'akka', 'xmbc', 'symfony', 'babel']
+    # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+    #          (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
+    #          (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
+    dates = [(2017, 1, 2018, 1)]
+    # projects = ['react', 'pandas']
+    projects = ['opencv']
     for p in projects:
         IRTrain.testIRAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True)

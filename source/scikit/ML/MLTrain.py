@@ -604,7 +604,7 @@ class MLTrain:
 
         for algorithmType in algorithms:
             for project in projects:
-                excelName = f'output{algorithmType}_{project}_ML_{filter_train}_{filter_test}_{error_analysis}.xlsx'
+                excelName = f'outputML_{algorithmType}_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
                 recommendNum = 5  # 推荐数量
                 sheetName = 'result'
                 """初始化excel文件"""
