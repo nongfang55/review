@@ -20,7 +20,8 @@ from source.utils.pandas.pandasHelper import pandasHelper
 class ACTrain:
 
     @staticmethod
-    def TestAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False):
+    def TestAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False,
+                      test_type=StringKeyUtils.STR_TEST_TYPE_SLIDE):
         """  2020.8.6
         增加两个参数  filter_train 和  filter_test
          分别用来区别是否使用change trigger过滤的数据集"""
@@ -50,7 +51,10 @@ class ACTrain:
         ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=['训练集', '测试集'])
         for date in dates:
             startTime = datetime.now()
-            recommendList, answerList, prList, convertDict, trainSize = ACTrain.algorithmBody(date, project, recommendNum, filter_train=filter_train, filter_test=filter_test)
+            recommendList, answerList, prList, convertDict, trainSize = ACTrain.algorithmBody(date, project, recommendNum,
+                                                                                              filter_train=filter_train,
+                                                                                              filter_test=filter_test,
+                                                                                              test_type=test_type)
             """根据推荐列表做评价"""
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -63,12 +67,28 @@ class ACTrain:
 
             error_analysis_data = None
             if error_analysis:
-                y = date[2]
-                m = date[3]
-                filename = projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
-                filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date, prList,
-                                                                                         convertDict, filename, 'review_user_login',
-                                                                                         'pr_number')
+                if test_type == StringKeyUtils.STR_TEST_TYPE_SLIDE:
+                    y = date[2]
+                    m = date[3]
+                    filename = projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                    filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date, prList,
+                                                                                             convertDict, filename, 'review_user_login',
+                                                                                             'pr_number')
+                elif test_type == StringKeyUtils.STR_TEST_TYPE_INCREMENT:
+                    fileList = []
+                    for i in range(date[0] * 12 + date[1], date[2] * 12 + date[3] + 1):  # 拆分的数据做拼接
+                        y = int((i - i % 12) / 12)
+                        m = i % 12
+                        if m == 0:
+                            m = 12
+                            y = y - 1
+                        fileList.append(projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv')
+
+                    filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerDataByIncrement(project, prList,
+                                                                                                        convertDict,
+                                                                                                        fileList,
+                                                                                                        'review_user_login',
+                                                                                                        'pr_number')
                 # recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio, recommend_negative_success_pr_ratio, \
                 # recommend_negative_success_time_ratio, recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio, \
                 # recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio = DataProcessUtils.errorAnalysis(
@@ -131,7 +151,7 @@ class ACTrain:
                                            fmeasureks, error_analysis_datas)
 
     @staticmethod
-    def preProcess(df, dates):
+    def preProcessBySlide(df, dates):
         """参数说明
             df：读取的dataframe对象
             dates:四元组，后两位作为测试的年月 (,,year,month)
@@ -183,7 +203,45 @@ class ACTrain:
         return train_data, train_data_y, test_data, test_data_y, convertDict
 
     @staticmethod
-    def algorithmBody(date, project, recommendNum=5, filter_train=True, filter_test=True):
+    def preProcessByIncrement(df, dates):
+        """参数说明
+            df：读取的dataframe对象
+            dates:四元组，后两位作为测试的年月 (,,year,month)
+           """
+
+        """注意： 输入文件中已经带有列名了"""
+
+        """处理NAN"""
+        df.dropna(how='any', inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        df.fillna(value='', inplace=True)
+
+        """对reviewer名字数字化处理 存储人名映射字典做返回"""
+        convertDict = DataProcessUtils.changeStringToNumber(df, ['review_user_login'])
+        """先对tag做拆分"""
+        tagDict = dict(list(df.groupby('pr_number')))
+
+        print("before drop:", df.shape)
+        df = df.copy(deep=True)
+        df.drop(columns=['review_user_login'], inplace=True)
+        df.drop_duplicates(['pr_number'], inplace=True)
+        print("after drop:", df.shape)
+
+        test_data = df
+
+        """问题转化为多标签问题
+            train_data_y   [{pull_number:[r1, r2, ...]}, ... ,{}]
+        """
+        test_data_y = {}
+        for pull_number in test_data.drop_duplicates(['pr_number'])['pr_number']:
+            reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
+            test_data_y[pull_number] = reviewers
+
+        return test_data, test_data_y, convertDict
+
+    @staticmethod
+    def algorithmBody(date, project, recommendNum=5, filter_train=True, filter_test=True,
+                      test_type=StringKeyUtils.STR_TEST_TYPE_SLIDE):
 
         """提供单个日期和项目名称
            返回推荐列表和答案
@@ -199,12 +257,19 @@ class ACTrain:
                 y = y - 1
 
             # print(y, m)
-            if i < date[2] * 12 + date[3]:
-                if filter_train:
-                    filename = projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+            filename = None
+            if test_type == StringKeyUtils.STR_TEST_TYPE_SLIDE:
+                if i < date[2] * 12 + date[3]:
+                    if filter_train:
+                        filename = projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                    else:
+                        filename = projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
                 else:
-                    filename = projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
-            else:
+                    if filter_test:
+                        filename = projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                    else:
+                        filename = projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+            elif test_type == StringKeyUtils.STR_TEST_TYPE_INCREMENT:
                 if filter_test:
                     filename = projectConfig.getACDataPath() + os.sep + f'AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
                 else:
@@ -218,28 +283,47 @@ class ACTrain:
 
         df.reset_index(inplace=True, drop=True)
         """df做预处理"""
-        """新增人名映射字典"""
-        train_data, train_data_y, test_data, test_data_y, convertDict = ACTrain.preProcess(df, date)
+        if test_type == StringKeyUtils.STR_TEST_TYPE_SLIDE:
+            train_data, train_data_y, test_data, test_data_y, convertDict = ACTrain.preProcessBySlide(df, date)
 
-        prList = list(test_data.drop_duplicates(['pr_number'])['pr_number'])
-        prList.sort()
+            prList = list(test_data.drop_duplicates(['pr_number'])['pr_number'])
+            prList.sort()
 
-        recommendList, answerList = ACTrain.RecommendByAC(train_data, train_data_y, test_data,
-                                                          test_data_y, recommendNum=recommendNum, w=-1, l=1)
+            recommendList, answerList = ACTrain.RecommendByAC_SLIDE(train_data, train_data_y, test_data,
+                                                              test_data_y, recommendNum=recommendNum, w=-1, l=1)
 
-        """新增返回测试 训练集大小，用于做统计"""
+            """新增返回测试 训练集大小，用于做统计"""
 
-        """新增返回训练集 测试集大小"""
-        trainSize = (train_data.shape, test_data.shape)
-        print(trainSize)
+            """新增返回训练集 测试集大小"""
+            trainSize = (train_data.shape, test_data.shape)
+            print(trainSize)
 
-        # """输出推荐名单到文件"""
-        # DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict)
+            # """输出推荐名单到文件"""
+            # DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict)
 
-        return recommendList, answerList, prList, convertDict, trainSize
+            return recommendList, answerList, prList, convertDict, trainSize
+        elif test_type == StringKeyUtils.STR_TEST_TYPE_INCREMENT:
+            test_data, test_data_y, convertDict = ACTrain.preProcessByIncrement(df, date)
+
+            prList = list(test_data.drop_duplicates(['pr_number'])['pr_number'])
+            prList.sort()
+            prList.pop(0)
+
+            recommendList, answerList = ACTrain.RecommendByAC_INCREMENT(test_data,test_data_y, recommendNum=recommendNum, w=-1, l=1)
+
+            """新增返回测试 训练集大小，用于做统计"""
+
+            """新增返回训练集 测试集大小"""
+            trainSize = (test_data.shape)
+            print(trainSize)
+
+            # """输出推荐名单到文件"""
+            # DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict)
+
+            return recommendList, answerList, prList, convertDict, trainSize
 
     @staticmethod
-    def RecommendByAC(train_data, train_data_y, test_data, test_data_y, recommendNum=5, w=-1, l=1):
+    def RecommendByAC_SLIDE(train_data, train_data_y, test_data, test_data_y, recommendNum=5, w=-1, l=1):
         """使用活跃度为用户打分
            并且是多标签分类
            
@@ -279,11 +363,65 @@ class ACTrain:
 
         return [recommendList, answerList]
 
+    @staticmethod
+    def RecommendByAC_INCREMENT(test_data, test_data_y, recommendNum=5, w=-1, l=1):
+        """使用活跃度为用户打分
+           并且是多标签分类
+
+           w  pr的有效窗口时间  -1表示没有期限  单位为天
+           l  时间衰退因子
+        """""
+
+        recommendList = []
+        answerList = []
+        testDict = dict(list(test_data.groupby('pr_number')))
+        testTuple = sorted(testDict.items(), key=lambda x: x[0], reverse=False)
+        isFirst = True
+        for test_pull_number, test_df in testTuple:
+            if isFirst:
+                """第一个pr不推荐"""
+                isFirst = False
+                continue
+            scores = {}  # 初始化分数字典
+            """添加正确答案"""
+            answerList.append(test_data_y[test_pull_number])
+            tempData = test_data.loc[test_data['pr_number'] < test_pull_number].copy(deep=True)
+            time1 = datetime.strptime(list(test_df['pr_created_at'])[0], "%Y-%m-%d %H:%M:%S")
+            """对trainData 做时间上的筛选"""
+            if w != -1:
+                tempData['time_gap'] = tempData['pr_created_at'].apply(lambda x: \
+                                                                           (time1 - datetime.strptime(x,
+                                                                                                      "%Y-%m-%d %H:%M:%S")).total_seconds() / (
+                                                                                       24 * 3600))
+                tempData = tempData.loc[tempData['time_gap'] <= w]
+            prList = list(set(tempData['pr_number']))
+            for train_pull_number in prList:
+                train_df = testDict[train_pull_number]
+                time2 = datetime.strptime(list(train_df['pr_created_at'])[0], "%Y-%m-%d %H:%M:%S")
+                """单位现在设置为天"""
+                unit = 3600 * 24
+                score = math.pow((time1 - time2).total_seconds() / unit, -l)
+                for reviewer in test_data_y[train_pull_number]:
+                    if scores.get(reviewer, None) is None:
+                        scores[reviewer] = 0
+                    scores[reviewer] += score
+
+            """人数不够随机添加"""
+            if scores.items().__len__() < recommendNum:
+                for i in range(0, recommendNum):
+                    scores[f'{StringKeyUtils.STR_USER_NONE}_{i}'] = -1
+
+            recommendList.append([x[0] for x in sorted(scores.items(),
+                                                       key=lambda d: d[1], reverse=True)[0:recommendNum]])
+
+        return [recommendList, answerList]
+
 if __name__ == '__main__':
-    dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
-             (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
-             (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    # dates = [(2017, 1, 2017, 2)]
+    # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+    #          (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
+    #          (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
+    dates = [(2017, 1, 2017, 2)]
     projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony']
     for p in projects:
-        ACTrain.TestAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True)
+        for test_type in [StringKeyUtils.STR_TEST_TYPE_INCREMENT]:
+            ACTrain.TestAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True, test_type=test_type)

@@ -199,8 +199,8 @@ class IR_ACTrain:
                 temp = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
                 df = df.append(temp)  # 合并
 
+        df.reset_index(inplace=True, drop=True)
         if test_type == StringKeyUtils.STR_TEST_TYPE_SLIDE:
-            df.reset_index(inplace=True, drop=True)
             """df做预处理"""
             """预处理新增返回测试pr列表 2020.4.11"""
             train_data, train_data_y, test_data, test_data_y, convertDict = IR_ACTrain.preProcessBySlide(df, date)
@@ -525,7 +525,7 @@ class IR_ACTrain:
             """人数不足随机填充"""
             if recommendScore.items().__len__() < recommendNum:
                 for i in range(0, recommendNum):
-                    recommendScore[f'{StringKeyUtils.STR_USER_NONE}_{i}'] = 0
+                    recommendScore[f'{StringKeyUtils.STR_USER_NONE}_{i}'] = -1
 
             targetRecommendList = [x[0] for x in
                                    sorted(recommendScore.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]]
