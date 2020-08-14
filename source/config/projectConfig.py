@@ -48,6 +48,10 @@ class projectConfig:
     PATH_CN_IR_DATA = 'data' + os.sep + 'train' + os.sep + 'CN_IR'
     PATH_CHREV_DATA = 'data' + os.sep + 'train' + os.sep + 'CHREV'
     PATH_XF_DATA = 'data' + os.sep + 'train' + os.sep + 'XF'
+    PATH_SVM_C_DATA = 'data' + os.sep + 'train' + os.sep + 'SVM_C'
+    PATH_FPS_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'FPS_AC'
+    PATH_IR_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'IR_AC'
+    PATH_CN_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'CN_AC'
 
     PATH_CDR_DATA = 'data' + os.sep + 'train' + os.sep + 'CDR'
     PATH_ALGORITHM = 'source' + os.sep + 'scikit' + os.sep
@@ -188,6 +192,22 @@ class projectConfig:
     @staticmethod
     def getCADataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_CA_DATA)
+
+    @staticmethod
+    def getSVM_CDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_SVM_C_DATA)
+
+    @staticmethod
+    def getFPS_ACDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_FPS_AC_DATA)
+
+    @staticmethod
+    def getIR_ACDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_IR_AC_DATA)
+
+    @staticmethod
+    def getCN_ACDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_FPS_AC_DATA)
 
     @staticmethod
     def getCNDataPath():

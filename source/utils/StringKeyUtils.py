@@ -358,6 +358,13 @@ class StringKeyUtils:
     """机器人识别可能用上"""
     STR_NAME_BOT = '[bot]'
 
+    """标识不同的训练方式"""
+    STR_TEST_TYPE_SLIDE = 'test_type_slide'
+    STR_TEST_TYPE_INCREMENT = 'test_type_increment'
+
+    """人员随机填充"""
+    STR_USER_NONE = 'user_for_none'
+
 
 
 
