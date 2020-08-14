@@ -5,8 +5,10 @@ import time
 from datetime import datetime
 from math import sqrt
 
+import numpy
 import pandas
 from gensim import corpora, models
+from pandas import DataFrame
 
 from source.config.projectConfig import projectConfig
 from source.nlp.FleshReadableUtils import FleshReadableUtils
@@ -21,9 +23,10 @@ from source.utils.pandas.pandasHelper import pandasHelper
 
 class IR_ACTrain:
     """作为基于信息检索的reviewer推荐  但是是AC算法提到的方式"""
+
     @staticmethod
-    def testIR_ACAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False,
-                           test_type=StringKeyUtils.STR_TEST_TYPE_SLIDE):  # 多个case, 元组代表总共的时间跨度,最后一个月用于测试
+    def testAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False,
+                      test_type=StringKeyUtils.STR_TEST_TYPE_SLIDE):  # 多个case, 元组代表总共的时间跨度,最后一个月用于测试
         """
            algorithm : 基于信息检索
         """
@@ -31,7 +34,6 @@ class IR_ACTrain:
         recommendNum = 5  # 推荐数量
         excelName = f'outputIR_AC_{project}_{filter_train}_{filter_test}_{error_analysis}.xlsx'
         sheetName = 'result'
-
 
         """计算累积数据"""
         topks = []
@@ -55,9 +57,11 @@ class IR_ACTrain:
             startTime = datetime.now()
             """根据推荐列表做评价"""
 
-            recommendList, answerList, prList, convertDict, trainSize = IR_ACTrain.algorithmBody(date, project, recommendNum,
-                                                                                              filter_train=filter_train,
-                                                                                              filter_test=filter_test, test_type=test_type)
+            recommendList, answerList, prList, convertDict, trainSize = IR_ACTrain.algorithmBody(date, project,
+                                                                                                 recommendNum,
+                                                                                                 filter_train=filter_train,
+                                                                                                 filter_test=filter_test,
+                                                                                                 test_type=test_type)
 
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -69,14 +73,33 @@ class IR_ACTrain:
             fmeasureks.append(fmeasurek)
 
             error_analysis_data = None
+            filter_answer_list = None
             if error_analysis:
-                y = date[2]
-                m = date[3]
-                filename = projectConfig.getIR_ACDataPath() + os.sep + f'IR_AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
-                filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date, prList,
-                                                                                         convertDict, filename,
-                                                                                         'review_user_login',
-                                                                                         'pr_number')
+                if test_type == StringKeyUtils.STR_TEST_TYPE_SLIDE:
+                    y = date[2]
+                    m = date[3]
+                    filename = projectConfig.getIR_ACDataPath() + os.sep + f'IR_AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                    filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date, prList,
+                                                                                             convertDict, filename,
+                                                                                             'review_user_login',
+                                                                                             'pr_number')
+                elif test_type == StringKeyUtils.STR_TEST_TYPE_INCREMENT:
+                    fileList = []
+                    for i in range(date[0] * 12 + date[1], date[2] * 12 + date[3] + 1):  # 拆分的数据做拼接
+                        y = int((i - i % 12) / 12)
+                        m = i % 12
+                        if m == 0:
+                            m = 12
+                            y = y - 1
+                        fileList.append(
+                            projectConfig.getIR_ACDataPath() + os.sep + f'IR_AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv')
+
+                    filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerDataByIncrement(project, prList,
+                                                                                                        convertDict,
+                                                                                                        fileList,
+                                                                                                        'review_user_login',
+                                                                                                        'pr_number')
+
                 # recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio, recommend_negative_success_pr_ratio, \
                 # recommend_negative_success_time_ratio, recommend_positive_fail_pr_ratio, recommend_positive_fail_time_ratio, \
                 # recommend_negative_fail_pr_ratio, recommend_negative_fail_time_ratio = DataProcessUtils.errorAnalysis(
@@ -129,7 +152,8 @@ class IR_ACTrain:
             print("cost time:", datetime.now() - startTime)
 
         """推荐错误可视化"""
-        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'IR_AC')
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project,
+                                                 f'IR_AC_{test_type}_{filter_train}_{filter_test}')
 
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
@@ -165,10 +189,10 @@ class IR_ACTrain:
                     else:
                         filename = projectConfig.getIR_ACDataPath() + os.sep + f'IR_AC_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
             elif test_type == StringKeyUtils.STR_TEST_TYPE_INCREMENT:
-                        if filter_test:
-                            filename = projectConfig.getFPS_ACDataPath() + os.sep + f'IR_AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
-                        else:
-                            filename = projectConfig.getFPS_ACDataPath() + os.sep + f'IR_AC_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
+                if filter_test:
+                    filename = projectConfig.getIR_ACDataPath() + os.sep + f'IR_AC_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
+                else:
+                    filename = projectConfig.getIR_ACDataPath() + os.sep + f'IR_AC_ALL_{project}_data_{y}_{m}_to_{y}_{m}.tsv'
             if df is None:
                 df = pandasHelper.readTSVFile(filename, pandasHelper.INT_READ_FILE_WITH_HEAD)
             else:
@@ -193,13 +217,12 @@ class IR_ACTrain:
             """新增人名映射字典"""
             test_data, test_data_y, convertDict = IR_ACTrain.preProcessByIncrement(df, date)
 
-            prList = list(test_data.drop_duplicates(['pull_number'])['pull_number'])
+            prList = list(test_data.drop_duplicates(['pr_number'])['pr_number'])
             """增量预测第一个pr不预测"""
-
-            """2020.8.1 本来FPS的pr顺序是倒序，现在改为正序，便于和其他算法推荐名单比较"""
             prList.sort()
             prList.pop(0)
-            recommendList, answerList = IR_ACTrain.RecommendByIR_AC_INCREMENT(test_data,  test_data_y, recommendNum=recommendNum)
+            recommendList, answerList = IR_ACTrain.RecommendByIR_AC_INCREMENT(test_data, test_data_y,
+                                                                              recommendNum=recommendNum)
 
             """新增返回测试 训练集大小，用于做统计"""
 
@@ -227,9 +250,10 @@ class IR_ACTrain:
 
         """创建时间转化为时间戳"""
         df['pr_created_at'] = df['pr_created_at'].apply(lambda x: time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+        df['pr_created_at'] = df['pr_created_at'] / (2400 * 36)
 
         """先对输入数据做精简 只留下感兴趣的数据"""
-        df = df[['pr_number', 'pr_title', 'pr_body', 'review_user_login', 'label', 'pr_created_at']].copy(deep=True)
+        df = df[['pr_number', 'pr_title', 'review_user_login', 'pr_created_at']].copy(deep=True)
 
         print("before filter:", df.shape)
         df.drop_duplicates(inplace=True)
@@ -239,7 +263,7 @@ class IR_ACTrain:
         """先对tag做拆分"""
         tagDict = dict(list(df.groupby('pr_number')))
         """先尝试所有信息团在一起"""
-        df = df[['pr_number', 'pr_title', 'pr_body', 'label', 'pr_created_at']].copy(deep=True)
+        df = df[['pr_number', 'pr_title', 'pr_created_at']].copy(deep=True)
         df.drop_duplicates(inplace=True)
         df.reset_index(drop=True, inplace=True)
 
@@ -258,13 +282,6 @@ class IR_ACTrain:
             """对单词做提取词干"""
             pr_title_word_list = nltkFunction.stemList(pr_title_word_list)
             tempList.extend(pr_title_word_list)
-
-            """pull request的body"""
-            pr_body = getattr(row, 'pr_body')
-            pr_body_word_list = [x for x in FleshReadableUtils.word_list(pr_body) if x not in stopwords]
-            """对单词做提取词干"""
-            pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
-            tempList.extend(pr_body_word_list)
             textList.append(tempList)
 
         print(textList.__len__())
@@ -290,15 +307,14 @@ class IR_ACTrain:
         test_data = wordVectors
         """填充为向量"""
         test_data = DataProcessUtils.convertFeatureDictToDataFrame(test_data, featureNum=feature_cnt)
-        test_data['pr_number'] = list(df.loc[df['label'] == True]['pr_number'])
-        test_data['pr_created_at'] = list(df.loc[df['label'] == True]['pr_number'])
-
+        test_data['pr_number'] = list(df['pr_number'])
+        test_data['pr_created_at'] = list(df['pr_created_at'])
         """问题转化为多标签问题
             train_data_y   [{pull_number:[r1, r2, ...]}, ... ,{}]
         """
 
         test_data_y = {}
-        for pull_number in df.loc[df['label'] == True]['pr_number']:
+        for pull_number in list(df['pr_number']):
             reviewers = list(tagDict[pull_number].drop_duplicates(['review_user_login'])['review_user_login'])
             test_data_y[pull_number] = reviewers
 
@@ -325,9 +341,10 @@ class IR_ACTrain:
 
         """创建时间转化为时间戳"""
         df['pr_created_at'] = df['pr_created_at'].apply(lambda x: time.mktime(time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+        df['pr_created_at'] = df['pr_created_at'] / (24 * 3600)
 
         """先对输入数据做精简 只留下感兴趣的数据"""
-        df = df[['pr_number', 'pr_title', 'pr_body', 'review_user_login', 'label', 'pr_created_at']].copy(deep=True)
+        df = df[['pr_number', 'pr_title', 'review_user_login', 'label', 'pr_created_at']].copy(deep=True)
 
         print("before filter:", df.shape)
         df.drop_duplicates(inplace=True)
@@ -337,7 +354,7 @@ class IR_ACTrain:
         """先对tag做拆分"""
         tagDict = dict(list(df.groupby('pr_number')))
         """先尝试所有信息团在一起"""
-        df = df[['pr_number', 'pr_title', 'pr_body', 'label', 'pr_created_at']].copy(deep=True)
+        df = df[['pr_number', 'pr_title', 'label', 'pr_created_at']].copy(deep=True)
         df.drop_duplicates(inplace=True)
         df.reset_index(drop=True, inplace=True)
 
@@ -356,13 +373,6 @@ class IR_ACTrain:
             """对单词做提取词干"""
             pr_title_word_list = nltkFunction.stemList(pr_title_word_list)
             tempList.extend(pr_title_word_list)
-
-            """pull request的body"""
-            pr_body = getattr(row, 'pr_body')
-            pr_body_word_list = [x for x in FleshReadableUtils.word_list(pr_body) if x not in stopwords]
-            """对单词做提取词干"""
-            pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
-            tempList.extend(pr_body_word_list)
             textList.append(tempList)
 
         print(textList.__len__())
@@ -398,8 +408,8 @@ class IR_ACTrain:
         test_data = DataProcessUtils.convertFeatureDictToDataFrame(test_data, featureNum=feature_cnt)
         train_data['pr_number'] = list(df.loc[df['label'] == False]['pr_number'])
         test_data['pr_number'] = list(df.loc[df['label'] == True]['pr_number'])
-        train_data['pr_created_at'] = list(df.loc[df['label'] == False]['pr_number'])
-        test_data['pr_created_at'] = list(df.loc[df['label'] == True]['pr_number'])
+        train_data['pr_created_at'] = list(df.loc[df['label'] == False]['pr_created_at'])
+        test_data['pr_created_at'] = list(df.loc[df['label'] == True]['pr_created_at'])
 
         """问题转化为多标签问题
             train_data_y   [{pull_number:[r1, r2, ...]}, ... ,{}]
@@ -427,21 +437,35 @@ class IR_ACTrain:
         recommendList = []  # 最后多个case推荐列表
         answerList = []
 
-        for targetData in test_data.itertuples(index=False):  # 对每一个case做推荐
-            """itertuples 具有大量列的时候返回常规元组 >255"""
-            targetNum = targetData[-2]
+        """对IR 矩阵乘法优化"""
+        """计算train_data的矩阵"""
+        df_train = train_data.copy(deep=True)
+        df_train.drop(columns=['pr_created_at', 'pr_number'], inplace=True)
+        """计算test_data矩阵"""
+        df_test = test_data.copy(deep=True)
+        df_test.drop(columns=['pr_created_at', 'pr_number'], inplace=True)
+
+        """计算距离"""
+        DIS = DataFrame(numpy.dot(df_test, df_train.T))  # train_num x test_num
+
+        test_pr_list = tuple(test_data['pr_number'])
+        train_pr_list = tuple(train_data['pr_number'])
+        test_time_list = tuple(test_data['pr_created_at'])
+        train_time_list = tuple(train_data['pr_created_at'])
+
+        for index_test, pr_test in enumerate(test_pr_list):
+            print(index_test)
+            time1 = test_time_list[index_test]
             recommendScore = {}
-            for trainData in train_data.itertuples(index=False, name='Pandas'):
-                trainNum = trainData[-2]
-                reviewers = train_data_y[trainNum]
-
+            for index_train, pr_train in enumerate(train_pr_list):
+                reviewers = train_data_y[pr_train]
+                time2 = train_time_list[index_train]
                 """计算时间差"""
-                gap = (targetData[-1] - trainData[-1]).total_seconds() / (3600 * 24)
-
+                gap = (time1 - time2)
                 """计算相似度不带上最后一个pr number"""
-                score = IR_ACTrain.cos2(targetData[0:targetData.__len__()-3], trainData[0:trainData.__len__()-3])
-                score *= math.pow(score, -l)
-
+                score = DIS.iloc[index_test][index_train]
+                score *= math.pow(gap, -l)
+                #
                 for reviewer in reviewers:
                     if recommendScore.get(reviewer, None) is None:
                         recommendScore[reviewer] = 0
@@ -451,7 +475,7 @@ class IR_ACTrain:
                                    sorted(recommendScore.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]]
             # print(targetRecommendList)
             recommendList.append(targetRecommendList)
-            answerList.append(test_data_y[targetNum])
+            answerList.append(test_data_y[pr_test])
 
         return [recommendList, answerList]
 
@@ -464,26 +488,36 @@ class IR_ACTrain:
         recommendList = []  # 最后多个case推荐列表
         answerList = []
 
-        for index, targetData in test_data.itertuples(index=True):  # 对每一个case做推荐
-            """itertuples 具有大量列的时候返回常规元组 >255"""
-            if index == 0:
-                """第一个无法计算"""
+        """对IR 矩阵乘法优化"""
+        """计算test_data矩阵"""
+        df_test = test_data.copy(deep=True)
+        df_test.drop(columns=['pr_number', 'pr_created_at'], inplace=True)
+
+        """计算距离"""
+        DIS = DataFrame(numpy.dot(df_test, df_test.T))  # train_num x test_num
+
+        test_data.sort_values(by=['pr_number'], inplace=True, ascending=True)
+        prList = tuple(test_data['pr_number'])
+        test_time_list = tuple(test_data['pr_created_at'])
+
+        for test_index, test_pull_number in enumerate(prList):
+            if test_index == 0:
+                """第一个pr没有历史  无法推荐"""
                 continue
-            targetNum = targetData[-2]  # pr 在dataframe的倒数第二行
+            print("index:", test_index, " now:", prList.__len__())
             recommendScore = {}
+            """添加正确答案"""
+            time1 = test_time_list[test_index]
 
-            tempDf = test_data.loc[test_data[-2] <= targetNum]
-            for trainData in tempDf.itertuples(index=False, name='Pandas'):
-                trainNum = trainData[-2]
-                reviewers = test_data_y[trainNum]
-
+            train_pr_list = prList[:test_index]
+            for train_index, train_pull_number in enumerate(train_pr_list):
+                time2 = test_time_list[train_index]
+                score = DIS.iloc[test_index][train_index]
                 """计算时间差"""
-                gap = (targetData[-1] - trainData[-1]).total_seconds() / (3600 * 24)
-
+                gap = (time1 - time2)
                 """计算相似度不带上最后一个pr number"""
-                score = IR_ACTrain.cos2(targetData[0:targetData.__len__() - 3], trainData[0:trainData.__len__() - 3])
                 score *= math.pow(gap, -l)
-                for reviewer in reviewers:
+                for reviewer in test_data_y[train_pull_number]:
                     if recommendScore.get(reviewer, None) is None:
                         recommendScore[reviewer] = 0
                     recommendScore[reviewer] += score
@@ -495,9 +529,8 @@ class IR_ACTrain:
 
             targetRecommendList = [x[0] for x in
                                    sorted(recommendScore.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]]
-            # print(targetRecommendList)
             recommendList.append(targetRecommendList)
-            answerList.append(test_data_y[targetNum])
+            answerList.append(test_data_y[test_pull_number])
 
         return [recommendList, answerList]
 
@@ -546,14 +579,17 @@ class IR_ACTrain:
 
 
 if __name__ == '__main__':
-    # dates = [(2018, 4, 2018, 5), (2018, 4, 2018, 7), (2018, 4, 2018, 10), (2018, 4, 2019, 1),
-    #          (2018, 4, 2019, 4)]
-    # dates = [(2018, 1, 2019, 5), (2018, 1, 2019, 6), (2018, 1, 2019, 7), (2018, 1, 2019, 8)]
-    # dates = [(2017, 1, 2017, 2)]
-    dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
-             (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
-             (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['babel', 'symfony']
+    # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+    #          (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
+    #          (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
+    # dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
+    #          (2017, 1, 2018, 6)]
+    dates = [(2018, 1, 2018, 2)]
+    # projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew', 'django', 'netty', 'scikit-learn']
+    projects = ['opencv']
     for p in projects:
-        IR_ACTrain.testIR_ACAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True,
-                                   test_type=StringKeyUtils.STR_TEST_TYPE_INCREMENT)
+        for test_type in [StringKeyUtils.STR_TEST_TYPE_SLIDE]:
+            for t in [False]:
+                if test_type == StringKeyUtils.STR_TEST_TYPE_INCREMENT:
+                    dates = [(2018, 1, 2018, 2)]
+                IR_ACTrain.testAlgorithm(p, dates, filter_train=t, filter_test=t, error_analysis=True, test_type=test_type)

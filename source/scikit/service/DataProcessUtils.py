@@ -894,6 +894,106 @@ class DataProcessUtils:
                                           dataFrame=data)
 
     @staticmethod
+    def contactIR_ACData(projectName, filter_change_trigger=True):
+        """ALL_{projectName}_data_pullrequest
+           ALL_{projectName}_data_issuecomment
+           ALL_{projectName}_data_review
+           三个文件拼出IR所需的信息量文件
+        """
+
+        if filter_change_trigger:
+            targetFileName = f'IR_AC_ALL_{projectName}_data_change_trigger'
+        else:
+            targetFileName = f'IR_AC_ALL_{projectName}_data'
+
+        """读取信息  IR_AC 只需要pr 的title和body的信息"""
+        issue_comment_path = projectConfig.getIssueCommentPath()
+        pull_request_path = projectConfig.getPullRequestPath()
+        review_path = projectConfig.getReviewDataPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+
+        """issue commit 数据库输出 自带抬头"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_path, f'ALL_{projectName}_data_issuecomment.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ review 数据库输出 自带抬头"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_path, f'ALL_{projectName}_data_review.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        if filter_change_trigger:
+            """ pr_change_trigger 自带抬头"""
+            changeTriggerData = pandasHelper.readTSVFile(
+                os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+                pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+            )
+
+        """思路  上面两部分依次做凭借， 最后加上文件"""
+        data_issue = pandas.merge(pullRequestData, issueCommentData, left_on='number', right_on='pull_number')
+        """过滤 comment 在closed 后面的场景 2020.6.28"""
+        data_issue = data_issue.loc[data_issue['closed_at'] >= data_issue['created_at_y']].copy(deep=True)
+        data_issue = data_issue.loc[data_issue['user_login_x'] != data_issue['user_login_y']].copy(deep=True)
+        """过滤删除用户的场景"""
+        data_issue.dropna(subset=['user_login_y'], inplace=True)
+        """过滤机器人的场景"""
+        data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
+        "IR数据行： pr_number, review_user_login, pr_title, pr_body, pr_created_at"
+        data_issue = data_issue[['number', 'title', 'created_at_x', 'user_login_y', 'node_id_x']].copy(
+            deep=True)
+        data_issue.columns = ['pr_number', 'pr_title', 'pr_created_at', 'review_user_login', 'pullrequest_node']
+        data_issue.drop_duplicates(inplace=True)
+
+        data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
+        data_review = data_review.loc[data_review['user_login_x'] != data_review['user_login_y']].copy(deep=True)
+        """过滤 comment 在closed 后面的场景 2020.6.28"""
+        data_review = data_review.loc[data_review['closed_at'] >= data_review['submitted_at']].copy(deep=True)
+        """过滤删除用户场景"""
+        data_review.dropna(subset=['user_login_y'], inplace=True)
+        """过滤机器人的场景  """
+        data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
+        data_review = data_review[['number', 'title', 'created_at', 'user_login_y', 'node_id_x']].copy(
+            deep=True)
+        data_review.columns = ['pr_number', 'pr_title', 'pr_created_at', 'review_user_login', 'pullrequest_node']
+        data_review.drop_duplicates(inplace=True)
+
+        data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
+        data.drop_duplicates(inplace=True)
+        data.reset_index(drop=True, inplace=True)
+        print(data.shape)
+
+        if filter_change_trigger:
+            """change_trigger只取出pr, reviewer，和data取交集"""
+            changeTriggerData['label'] = changeTriggerData.apply(
+                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+            changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            changeTriggerData.rename(columns={'user_login': 'review_user_login'}, inplace=True)
+            changeTriggerData.reset_index(inplace=True, drop=True)
+            data = pandas.merge(data, changeTriggerData, how='inner')
+
+        """只选出感兴趣的部分"""
+        data = data[['pr_number', 'review_user_login', 'pr_title', 'pr_created_at']].copy(deep=True)
+        data.sort_values(by='pr_number', ascending=False, inplace=True)
+        data.reset_index(drop=True)
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getIR_ACDataPath(),
+                                          targetFileName=targetFileName, dateCol='pr_created_at',
+                                          dataFrame=data)
+    @staticmethod
     def convertStringTimeToTimeStrip(s):
         return int(time.mktime(time.strptime(s, "%Y-%m-%d %H:%M:%S")))
 
@@ -4006,60 +4106,16 @@ class DataProcessUtils:
         plt.close()
 
 if __name__ == '__main__':
-    # DataProcessUtils.splitDataByMonth(projectConfig.getRootPath() + r'\data\train\ALL_rails_data.tsv',
-    #                                   projectConfig.getRootPath() + r'\data\train\all' + os.sep, hasHead=True)
-    #
-    # print(pandasHelper.readTSVFile(
-    #     projectConfig.getRootPath() + r'\data\train\all\ALL_scala_data_2012_6_to_2012_6.tsv', ))
-    #
-    # DataProcessUtils.contactReviewCommentData('rails')
-    #
-
-    # """从总的commit file文件中分割树独立的commit file文件"""
-    # DataProcessUtils.splitProjectCommitFileData('infinispan')
 
     projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew', 'django', 'netty', 'scikit-learn']
     # projects = ['opencv']
     """分割不同算法的训练集"""
     for p in projects:
         for t in [True, False]:
-            DataProcessUtils.contactFPS_ACData(p, filter_change_trigger=t)
+            DataProcessUtils.contactIR_ACData(p, filter_change_trigger=t)
+            # DataProcessUtils.contactFPS_ACData(p, filter_change_trigger=t)
             # DataProcessUtils.contactSVM_CData(p, filter_change_trigger=t)
             # DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
             # DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
             # DataProcessUtils.contactCNData(p, filter_change_trigger=t)
             # DataProcessUtils.contactACData(p, filter_change_trigger=t)
-
-    # DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    # DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    # DataProcessUtils.getReviewerFrequencyDict(p, (2018, 1, 2019, 12))
-
-    # projects = ['opencv', 'adobe', 'angular', 'bitcoin', 'cakephp']
-    # projects = ['bitcoin']
-    # for p in projects:
-    #     DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-
-    # DataProcessUtils.contactMLData('xbmc')
-    # DataProcessUtils.contactFPSData('cakephp', label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    #
-    # DataProcessUtils.getReviewerFrequencyDict('rails', (2019, 4, 2019, 6))
-    # DataProcessUtils.getStopWordList()
-    # DataProcessUtils.dunn()
-    #
-    # DataProcessUtils.compareDataFrameByPullNumber()
-
-    # DataProcessUtils.changeTriggerAnalyzer('symfony')
-    #
-    # DataProcessUtils.contactMLData("opencv", filter_change_trigger=True)
-    # DataProcessUtils.contactGAData('opencv', filter_change_trigger=False, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
-    # DataProcessUtils.contactHGData("opencv", filter_change_trigger=True)
-    # DataProcessUtils.caculatePrDistance("opencv", (2017, 1, 2017, 2), filter_change_trigger=True)
-    # DataProcessUtils.contactFPSData("opencv", label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=False)
-
-    # DataProcessUtils.selectPeriodChangeTrigger("scikit-learn", 8100, 12900)
-    # DataProcessUtils.changeTriggerAnalyzer("scikit-learn")
-    # DataProcessUtils.changeTriggerAnalyzer("babel")
-
-    # DataProcessUtils.findUnUsefulUser("opencv", "CN", [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
-    #          (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
-    #          (2017, 1, 2018, 11), (2017, 1, 2018, 12)], True, True)

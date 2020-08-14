@@ -153,7 +153,7 @@ class FPS_ACTrain:
             print("cost time:", datetime.now() - startTime)
 
         """推荐错误可视化"""
-        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'FPS_AC_{filter_train}_{filter_train}_{test_type}')
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'FPS_AC_{test_type}_{filter_train}_{filter_train}')
 
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
@@ -395,6 +395,7 @@ class FPS_ACTrain:
         answerList = []
         testDict = dict(list(test_data.groupby('pull_number')))
         for pr_index, test_pull_number in enumerate(prList):
+            print("index:", pr_index, " all:", prList.__len__())
             if pr_index == 0:
                 """第一个pr没有历史  无法推荐"""
                 continue
