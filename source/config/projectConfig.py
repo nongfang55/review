@@ -33,6 +33,7 @@ class projectConfig:
     PATH_REVIEW_CHANGE = 'data' + os.sep + 'train' + os.sep + 'reviewChangeData'
     PATH_PULL_REQUEST_DISTANCE = 'data' + os.sep + 'train' + os.sep + 'prDistance'
     PATH_USER_FOLLOW_RELATION = 'data' + os.sep + 'train' + os.sep + 'userFollowRelation'
+    PATH_USER_WATCH_REPO_RELATION = 'data' + os.sep + 'train' + os.sep + 'userWatchRepoRelation'
 
     PATH_FPS_DATA = 'data' + os.sep + 'train' + os.sep + 'FPS'
     PATH_ML_DATA = 'data' + os.sep + 'train' + os.sep + 'ML'
@@ -52,6 +53,7 @@ class projectConfig:
     PATH_FPS_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'FPS_AC'
     PATH_IR_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'IR_AC'
     PATH_CN_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'CN_AC'
+    PATH_RF_A_DATA = 'data' + os.sep + 'train' + os.sep + 'RF_A'
 
     PATH_CDR_DATA = 'data' + os.sep + 'train' + os.sep + 'CDR'
     PATH_ALGORITHM = 'source' + os.sep + 'scikit' + os.sep
@@ -174,6 +176,10 @@ class projectConfig:
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_AC_DATA)
 
     @staticmethod
+    def getRF_ADataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_RF_A_DATA)
+
+    @staticmethod
     def getPBDataPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_PB_DATA)
 
@@ -256,6 +262,10 @@ class projectConfig:
     @staticmethod
     def getUserFollowRelation():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_USER_FOLLOW_RELATION)
+
+    @staticmethod
+    def getUserWatchRepoRelation():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_USER_WATCH_REPO_RELATION)
 
     @staticmethod
     def getAlgorithmPath():

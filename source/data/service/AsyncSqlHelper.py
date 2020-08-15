@@ -21,6 +21,7 @@ from source.data.bean.ReviewComment import ReviewComment
 from source.data.bean.TreeEntry import TreeEntry
 from source.data.bean.User import User
 from source.data.bean.UserFollowRelation import UserFollowRelation
+from source.data.bean.UserWatchRepoRelation import UserWatchRepoRelation
 from source.database.SqlExecuteHelper import SqlExecuteHelper
 from source.database.SqlUtils import SqlUtils
 
@@ -72,6 +73,8 @@ class AsyncSqlHelper:
             return SqlUtils.STR_TABLE_NAME_GIT_BLOB
         elif isinstance(bean, UserFollowRelation):
             return SqlUtils.STR_TABLE_NAME_USER_FOLLOW_RELATION
+        elif isinstance(bean, UserWatchRepoRelation):
+            return SqlUtils.STR_TABLE_NAME_USER_WATCH_REPO_RELATION
         else:
             return None
 

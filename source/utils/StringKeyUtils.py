@@ -51,6 +51,7 @@ class StringKeyUtils:
     STR_KEY_PARTICIPANTS = 'participants'
     STR_KEY_SITE_ADMIN_V4 = 'isSiteAdmin'
     STR_KEY_HIREABLE_V4 = 'isHireable'
+    STR_KEY_WATCHING = 'watching'
 
     '''pull request可能会使用到的信息'''
     STR_KEY_STATE = 'state'
@@ -233,6 +234,7 @@ class StringKeyUtils:
     STR_KEY_NODES = 'nodes'
     STR_KEY_NODE = 'node'
     STR_KEY_DATABASE_ID = 'databaseId'
+    STR_KEY_CURSOR = 'cursor'
 
     STR_KEY_ERRORS_PR_NOT_FOUND = 'Could not resolve to an issue or pull request with the number of'
 

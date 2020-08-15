@@ -26,6 +26,7 @@ from source.data.bean.ReviewComment import ReviewComment
 from source.data.bean.TreeEntry import TreeEntry
 from source.data.bean.User import User
 from source.data.bean.UserFollowRelation import UserFollowRelation
+from source.data.bean.UserWatchRepoRelation import UserWatchRepoRelation
 from source.data.service.AsyncSqlHelper import AsyncSqlHelper
 from source.data.service.BeanParserHelper import BeanParserHelper
 from source.data.service.GraphqlHelper import GraphqlHelper
@@ -134,6 +135,16 @@ class AsyncApiHelper:
             return res
         except Exception as e:
             print(e)
+
+    @staticmethod
+    async def parserUserWatchRepoList(resultJson):
+        try:
+            res = None
+            res = UserWatchRepoRelation.parserV4.parser(resultJson)
+            return res
+        except Exception as e:
+            print(e)
+
 
     @staticmethod
     async def downloadInformation(pull_number, semaphore, mysql, statistic):
@@ -1901,12 +1912,22 @@ class AsyncApiHelper:
                     """先获取pull request信息"""
                     args = {"login": userLogin}
                     api = AsyncApiHelper.getGraphQLApi()
-                    query = GraphqlHelper.getFollowingListByLogin()
+                    """第一次加载"""
+                    query = GraphqlHelper.getFollowingListByLoginFirst()
                     resultJson = await AsyncApiHelper.postGraphqlData(session, api, query, args)
                     print(resultJson)
 
-                    followingList = await AsyncApiHelper.parserUserFollowingList(resultJson)
-                    beanList.extend(followingList)
+                    res = await AsyncApiHelper.parserUserFollowingList(resultJson)
+
+                    if res is not None:
+                        [followingList, followingCount, lastFollowingCursor, followerList, followerCount, lastFollowerCursor] = res
+                        beanList.extend(followingList)
+                        beanList.extend(followerList)
+
+                    res = await AsyncApiHelper.parserUserWatchRepoList(resultJson)
+                    if res is not None:
+                        [watchList, watchCount, lastWatchCursor] = res
+                        beanList.extend(watchList)
 
                     await AsyncSqlHelper.storeBeanDateList(beanList, mysql)
                     # 做了同步处理

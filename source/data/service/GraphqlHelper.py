@@ -25,7 +25,7 @@ class GraphqlHelper:
         return GraphqlHelper.STR_KEY_QUERY_PR_TIMELINE
 
     @staticmethod
-    def getFollowingListByLogin():
+    def getFollowingListByLoginFirst():
         return GraphqlHelper.STR_KEY_QUERY_FOLLOWING_LIST
 
     @staticmethod
@@ -486,6 +486,28 @@ query($ids:[ID!]!) {
          node {
             login 
             name
+         }
+       }
+     }
+
+     followers(first:100) {
+       totalCount
+       edges {
+         cursor
+         node {
+            login 
+            name
+         }
+       }
+     }
+
+     watching(first:100) {
+       totalCount
+       edges {
+         cursor
+         node {
+           name
+           nameWithOwner
          }
        }
      } 

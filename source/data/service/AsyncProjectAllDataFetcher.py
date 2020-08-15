@@ -185,7 +185,9 @@ class AsyncProjectAllDataFetcher:
                     continue
 
                 """若为普通review，则看后面紧跟着的一系列commit是否和reviewCommit有文件重合的改动"""
-                change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTriggerByBlob(pr_node_id, changes, review, mysql, statistic)
+                change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTriggerByBlob(pr_node_id,
+                                                                                                       changes, review,
+                                                                                                       mysql, statistic)
                 if change_trigger_review_comments is not None:
                     changeTriggerComments.extend(change_trigger_review_comments)
                 # if reviewChangeRelationList.__len__() > 0:
@@ -340,7 +342,8 @@ class AsyncProjectAllDataFetcher:
                                              , values)
             print("fetched size:", res.__len__())
 
-            tasks = [asyncio.ensure_future(AsyncApiHelper.downloadSingleReviewComment(repoName, item[0], semaphore, mysql, statistic))
+            tasks = [asyncio.ensure_future(
+                AsyncApiHelper.downloadSingleReviewComment(repoName, item[0], semaphore, mysql, statistic))
                      for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
             await asyncio.wait(tasks)
 
@@ -353,14 +356,17 @@ class AsyncProjectAllDataFetcher:
         if configPraser.getPrintMode():
             print("mysql init success")
         print("mysql init success")
-        total = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_COUNT_BY_HAS_FETCHED_FILE, None)
+        total = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_COUNT_BY_HAS_FETCHED_FILE,
+                                           None)
         fetch_loop = int(total[0][0] / 2000)
         for i in range(0, fetch_loop):
-            res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_BY_HAS_FETCHED_FILE, None)
+            res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_BY_HAS_FETCHED_FILE,
+                                             None)
             print(res)
 
-            tasks = [asyncio.ensure_future(AsyncApiHelper.downloadCommits(item[0], item[1], semaphore, mysql, statistic))
-                     for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
+            tasks = [
+                asyncio.ensure_future(AsyncApiHelper.downloadCommits(item[0], item[1], semaphore, mysql, statistic))
+                for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
             await asyncio.wait(tasks)
 
     @staticmethod
@@ -451,7 +457,7 @@ class AsyncProjectAllDataFetcher:
             Logger.logi("start: {0}, end: {1}, all: {2}".format(pos, pos + fetchLimit, size))
             """4. 开始爬取"""
             results = AsyncProjectAllDataFetcher.getPullRequestTimeLine(owner=owner,
-                                                                    repo=repo, nodes=sub_need_fetch_prs)
+                                                                        repo=repo, nodes=sub_need_fetch_prs)
             Logger.logi("successfully fetched {0} pr! ".format(pos + fetchLimit))
             pos += fetchLimit
 
@@ -500,7 +506,6 @@ class AsyncProjectAllDataFetcher:
         #         if review_comment_trigger is None or review_comment_trigger.empty:
         #             re_analyze_prs.append(pr)
         # Logger.logi("there are {0} prs need to re analyze".format(re_analyze_prs.__len__()))
-
 
         """设置fetch参数"""
         pos = 0
@@ -576,7 +581,8 @@ class AsyncProjectAllDataFetcher:
 
         """读取PRTimeline，获取需要分析change_trigger的pr列表"""
         pr_timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
-        pr_timeline_df = pandasHelper.readTSVFile(fileName=pr_timeline_filename, header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        pr_timeline_df = pandasHelper.readTSVFile(fileName=pr_timeline_filename,
+                                                  header=pandasHelper.INT_READ_FILE_WITH_HEAD)
         pr_nodes = list(set(list(pr_timeline_df['pullrequest_node'])))
         pr_nodes.sort()
 
@@ -600,7 +606,7 @@ class AsyncProjectAllDataFetcher:
             formated_data = []
             for pr, group in grouped_timeline:
                 record = group.to_dict(orient='records')
-                record = sorted(record, key = lambda x:int(x.get(StringKeyUtils.STR_KEY_POSITION)))
+                record = sorted(record, key=lambda x: int(x.get(StringKeyUtils.STR_KEY_POSITION)))
                 formated_data.append(record)
 
             """分析这些pr的timeline"""
@@ -619,49 +625,23 @@ class AsyncProjectAllDataFetcher:
                 Logger.logi("successfully analyzed {0} prs".format(pos))
             pos += fetchLimit
 
+
 if __name__ == '__main__':
     # AsyncProjectAllDataFetcher.getDataForRepository(configPraser.getOwner(), configPraser.getRepo(),
     #                                                 configPraser.getLimit(), configPraser.getStart())
-    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
-    # AsyncProjectAllDataFetcher.getDataForRepository("django", "django", 3500, 11000)
-    # AsyncProjectAllDataFetcher.getPRTimeLine("yarnpkg", "yarn")
-    # AsyncProjectAllDataFetcher.checkPRTimeLineResult()
+    projects = ['akka']
+    for p in projects:
+        from source.scikit.service.DataProcessUtils import DataProcessUtils
 
-    # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
-    # AsyncProjectAllDataFetcher.getNoOriginLineReviewComment('bitcoin', 'bitcoin', 9400, 15500)
-
-    #AsyncProjectAllDataFetcher.checkPRTimeLineResult();
-    # 全量爬取pr时间线信息，写入prTimeData文件夹
-    # AsyncProjectAllDataFetcher.getPRTimeLine("django", 'django')
-    # AsyncProjectAllDataFetcher.getPRTimeLine("akka", 'akka')
-    # AsyncProjectAllDataFetcher.checkPRTimeLineResult()
-
-    # # 全量获取pr change_trigger信息，写入prTimeData文件夹
-    # AsyncProjectAllDataFetcher.getPRChangeTriggerData(owner=configPraser.getOwner(), repo=configPraser.getRepo())
-    # AsyncProjectAllDataFetcher.checkChangeTriggerResult()
-
-    # pr timeline去重
-    # source_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline.tsv'
-    # target_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{configPraser.getRepo()}_data_prtimeline_drop.tsv'
-    # df = pandasHelper.readTSVFile(fileName=source_filename, header=0)
-    # df.drop_duplicates(subset=["pullrequest_node", "timelineitem_node"], inplace=True, keep='first')
-    # pandasHelper.writeTSVFile(target_filename, df)
-
-    # 全量获取pr change_trigger信息，写入prTimeData文件夹
-    # projects = [("saltstack", "salt"),
-    #             ("scikit-learn", "scikit-learn"),
-    #             ("pandas-dev", "pandas"),
-    #             ("vercel", "next.js"),
-    #             ("moby", "moby"),
-    #             ("rapid7", "metasploit-framework"),
-    #             ("Baystation12", "Baystation12"),
-    #             ("fastlane", "fastlane")]
+        userList = DataProcessUtils.getUserListFromProject(p)
+        # userList = ['jonashaag']
+        AsyncProjectAllDataFetcher.getUserFollowList(userList)
 
     # AsyncProjectAllDataFetcher.getNoOriginLineReviewComment('vercel', 'next.js', 500, 6000)
-    projects = [("opencv", "opencv")]
-    for project in projects:
-        AsyncProjectAllDataFetcher.getPRChangeTriggerData(project[0], project[1])
-        # AsyncProjectAllDataFetcher.checkChangeTriggerResult(project[0], project[1])
-    for i in range(0, 5):
-        winsound.PlaySound('SystemAsterisk', winsound.SND_ALIAS)
+    # projects = [("opencv", "opencv")]
+    # for project in projects:
+    #     AsyncProjectAllDataFetcher.getPRChangeTriggerData(project[0], project[1])
+    #     # AsyncProjectAllDataFetcher.checkChangeTriggerResult(project[0], project[1])
+    # for i in range(0, 5):
+    #     winsound.PlaySound('SystemAsterisk', winsound.SND_ALIAS)
     # AsyncProjectAllDataFetcher.testChangeTriggerAnalyzer("rapid7", "metasploit-framework", "MDExOlB1bGxSZXF1ZXN0MjA0MDg1Nzky")
