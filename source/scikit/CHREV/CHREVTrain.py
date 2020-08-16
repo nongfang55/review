@@ -12,6 +12,7 @@ from source.nlp.FleshReadableUtils import FleshReadableUtils
 from source.nlp.SplitWordHelper import SplitWordHelper
 from source.nltk import nltkFunction
 from source.scikit.ML.MLTrain import MLTrain
+from source.scikit.XF.XFTrain import XFTrain
 from source.scikit.service.DataProcessUtils import DataProcessUtils
 from source.utils.ExcelHelper import ExcelHelper
 from source.utils.pandas.pandasHelper import pandasHelper
@@ -64,6 +65,7 @@ class CHREVTrain:
             fmeasureks.append(fmeasurek)
 
             error_analysis_data = None
+            filter_answer_list = None
             if error_analysis:
                 y = date[2]
                 m = date[3]
@@ -114,7 +116,12 @@ class CHREVTrain:
                                         recommend_negative_fail_pr_ratios]
 
             """结果写入excel"""
-            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date)
+            DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date, error_analysis_data)
+
+            """保存推荐结果到本地"""
+            DataProcessUtils.saveRecommendList(prList, recommendList,
+                                               answerList, convertDict, filter_answer_list=filter_answer_list,
+                                               key=project + str(date) + str(filter_train) + str(filter_test))
 
             """文件分割"""
             content = ['']
@@ -124,7 +131,7 @@ class CHREVTrain:
             print("cost time:", datetime.now() - startTime)
 
         """推荐错误可视化"""
-        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'CHREV')
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'CHREV_{filter_train}_{filter_test}')
 
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
@@ -190,7 +197,7 @@ class CHREVTrain:
         """issue comment 和  review comment关注的"""
 
         """处理NAN"""
-        df.dropna(how='any', inplace=True)
+        # df.dropna(how='any', inplace=True)
         df.reset_index(drop=True, inplace=True)
         df.fillna(value='', inplace=True)
 
@@ -372,7 +379,11 @@ if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    # dates = [(2017, 1, 2017, 2)]
-    projects = ['opencv']
+    projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew',
+                'django', 'netty', 'scikit-learn', 'next.js', 'angular', 'moby',
+                'metasploit-framework', 'Baystation12', 'react', 'pandas', 'joomla-cms',
+                'grafana', 'salt']
     for p in projects:
-        CHREVTrain.testCHREVAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True)
+        for t in [True]:
+            CHREVTrain.testCHREVAlgorithm(p, dates, filter_train=t, filter_test=t, error_analysis=True)
+            XFTrain.testXFAlgorithm(p, dates, filter_train=t, filter_test=t, error_analysis=True)

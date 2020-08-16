@@ -347,6 +347,8 @@ class MLTrain:
         df['label'] = df['pr_created_at'].apply(
             lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_year == date[2] and
                        time.strptime(x, "%Y-%m-%d %H:%M:%S").tm_mon == date[3]))
+
+        df.sort_values(by='pr_number', ascending=True, inplace=True)
         df.reset_index(drop=True, inplace=True)
 
         # """在现有的特征中添加文本路径特征"""
@@ -596,7 +598,8 @@ class MLTrain:
         return [recommendList, answer]
 
     @staticmethod
-    def testMLAlgorithmsByMultipleLabels(projects, dates, algorithms=None,  filter_train=False, filter_test=False, error_analysis=False):
+    def testMLAlgorithmsByMultipleLabels(projects, dates, algorithms=None, filter_train=False, filter_test=False,
+                                         error_analysis=False):
         """
            多标签测试算法接口，把流程相似的算法统一
         """
@@ -634,11 +637,11 @@ class MLTrain:
 
                     for date in dates:
                         recommendList, answerList, prList, convertDict, trainSize = MLTrain.algorithmBody(date, project,
-                                                                                               algorithmType,
-                                                                                               recommendNum,
-                                                                                               featureType,
-                                                                                               filter_train=filter_train,
-                                                                                               filter_test=filter_test)
+                                                                                                          algorithmType,
+                                                                                                          recommendNum,
+                                                                                                          featureType,
+                                                                                                          filter_train=filter_train,
+                                                                                                          filter_test=filter_test)
                         """根据推荐列表做评价"""
                         topk, mrr, precisionk, recallk, fmeasurek = \
                             DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -650,13 +653,15 @@ class MLTrain:
                         fmeasureks.append(fmeasurek)
 
                         error_analysis_data = None
+                        filter_answer_list = None
                         if error_analysis:
                             y = date[2]
                             m = date[3]
                             filename = projectConfig.getMLDataPath() + os.sep + f'ML_ALL_{project}_data_change_trigger_{y}_{m}_to_{y}_{m}.tsv'
                             filter_answer_list = DataProcessUtils.getAnswerListFromChangeTriggerData(project, date,
                                                                                                      prList,
-                                                                                                     convertDict, filename,
+                                                                                                     convertDict,
+                                                                                                     filename,
                                                                                                      'review_user_login',
                                                                                                      'pr_number')
                             # recommend_positive_success_pr_ratio, recommend_positive_success_time_ratio, recommend_negative_success_pr_ratio, \
@@ -699,6 +704,14 @@ class MLTrain:
                                                     recommend_negative_success_pr_ratios,
                                                     recommend_positive_fail_pr_ratios,
                                                     recommend_negative_fail_pr_ratios]
+
+                        # """保存推荐结果到本地"""
+                        # DataProcessUtils.saveRecommendList(prList, recommendList,
+                        #                                    answerList, convertDict,
+                        #                                    filter_answer_list=filter_answer_list,
+                        #                                    key=project + str(date) + str(filter_train) + str(
+                        #                                        filter_test))
+
                         """结果写入excel"""
                         DataProcessUtils.saveResult(excelName, sheetName, topk, mrr, precisionk, recallk, fmeasurek,
                                                     date,
@@ -713,14 +726,16 @@ class MLTrain:
                     print("cost time:", datetime.now() - startTime)
 
                     """推荐错误可视化"""
-                    DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'ML_{algorithmType}_{filter_train}_{filter_test}')
+                    DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project,
+                                                             f'ML_{algorithmType}_{filter_train}_{filter_test}')
 
                     """计算历史累积数据"""
                     DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
                                                        fmeasureks, error_analysis_datas)
 
     @staticmethod
-    def algorithmBody(date, project, algorithmType, recommendNum=5, featureType=3,  filter_train=False, filter_test=False):
+    def algorithmBody(date, project, algorithmType, recommendNum=5, featureType=3, filter_train=False,
+                      filter_test=False):
         df = None
         """对需求文件做合并 """
         for i in range(date[0] * 12 + date[1], date[2] * 12 + date[3] + 1):  # 拆分的数据做拼接
@@ -764,7 +779,6 @@ class MLTrain:
         """保存推荐结果到本地"""
         DataProcessUtils.saveRecommendList(prList, recommendList, answerList, convertDict, key=project + str(date))
 
-
         return recommendList, answerList, prList, convertDict, trainSize
 
 
@@ -772,5 +786,6 @@ if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
              (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
              (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['django', 'brew', 'netty', 'scikit-learn']
-    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0],  filter_train=False, filter_test=False, error_analysis=True)
+    projects = ['opencv', 'brew', 'symfony']
+    MLTrain.testMLAlgorithmsByMultipleLabels(projects, dates, [0], filter_train=False, filter_test=False,
+                                             error_analysis=True)

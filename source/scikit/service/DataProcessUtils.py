@@ -3641,13 +3641,16 @@ class DataProcessUtils:
         return recommendList, answerList
 
     @staticmethod
-    def saveRecommendList(prList, recommendList, answerList, convertDict, authorList=None, typeList=None, key=None):
+    def saveRecommendList(prList, recommendList, answerList, convertDict, authorList=None, typeList=None, key=None,
+                          filter_answer_list=None):
         """保存推荐列表到本地，便于观察"""
         recommendList, answerList = DataProcessUtils.recoverName(recommendList, answerList, convertDict)
         tempDict = {k: v for v, k in convertDict.items()}
         if authorList is not None:
             authorList = [tempDict[x] for x in authorList]
-        col = ['pr', 'r1', 'r2', 'r3', 'r4', 'r5', 'a1', 'a2', 'a3', 'a4', 'a5', 'author', 'type']
+        if filter_answer_list is not None:
+            filter_answer_list = [[tempDict[i] for i in x] for x in filter_answer_list]
+        col = ['pr', 'r1', 'r2', 'r3', 'r4', 'r5', 'a1', 'a2', 'a3', 'a4', 'a5', 'author', 'type', 'fa1', 'fa2', 'fa3', 'fa4', 'fa5']
         data = DataFrame(columns=col)
         for index, pr in enumerate(prList):
             d = {'pr': pr}
@@ -3659,6 +3662,9 @@ class DataProcessUtils:
                 d['author'] = authorList[index]
             if typeList is not None:
                 d['type'] = typeList[index]
+            if filter_answer_list is not None:
+                for i, a in enumerate(filter_answer_list[index]):
+                    d[f'fa{i + 1}'] = a
             data = data.append(d, ignore_index=True)
         # pandasHelper.writeTSVFile('temp.tsv', data
         #                           , pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
@@ -3888,13 +3894,13 @@ class DataProcessUtils:
         """项目列表"""
         projectList = ['opencv', 'cakephp', 'xbmc', 'symfony', 'akka', 'babel',
                        'django', 'brew', 'netty', 'scikit-learn', 'moby', 'metasploit-framework',
-                       'Baystation12', 'react', 'pandas']
-        algorithmList = ['FPS', 'IR', 'RF', 'CN', 'AC', 'CHREV', 'XF']
+                       'Baystation12', 'react', 'pandas', 'angular', 'next.js']
+        algorithmList = ['FPS', 'IR', 'RF', 'CN', 'AC', 'CHREV', 'XF', 'RF_A']
         """算法名字对应文件的映射
            注： ML 算法文件名字做了略微修改
         """
         algorithmFileLabelMap = {'FPS': 'FPS', 'IR': 'IR', 'RF': 'ML_0',
-                                 'CN': 'CN', 'AC': 'AC', 'CHREV': 'CHREV', 'XF': 'XF'}
+                                 'CN': 'CN', 'AC': 'AC', 'CHREV': 'CHREV', 'XF': 'XF', 'RF_A': 'RF_A'}
         sheetMap = ['TopK', 'PT', 'NT', 'PF', 'NF']
 
         """指标列表"""
@@ -4263,22 +4269,25 @@ class DataProcessUtils:
 
 if __name__ == '__main__':
 
-    # projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew', 'django', 'netty', 'scikit-learn']
-    # # projects = ['react', 'pandas', 'moby', 'Baystation12', 'metasploit-framework']
-    # # projects = ['opencv']
-    # # """分割不同算法的训练集"""
-    # for p in projects:
-    #     for t in [True, False]:
-    #         DataProcessUtils.contactRF_AData(p, filter_change_trigger=t)
-    #         # DataProcessUtils.contactFPS_ACData(p, filter_change_trigger=t)
-    #         # DataProcessUtils.contactSVM_CData(p, filter_change_trigger=t)
-    #         DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-    #         DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-    #         DataProcessUtils.contactCNData(p, filter_change_trigger=t)
-    #         DataProcessUtils.contactACData(p, filter_change_trigger=t)
-    #         DataProcessUtils.contactCHREVData(p, filter_change_trigger=t)
-    #         DataProcessUtils.contactIRData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-    #         DataProcessUtils.contactXFData(p, filter_change_trigger=t)
-
     # DataProcessUtils.fillAlgorithmResultExcelHelper(False, False, True)
-    DataProcessUtils.getUserListFromProject('opencv')
+
+    projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew',
+                'django', 'netty', 'scikit-learn', 'next.js', 'angular', 'moby',
+                'metasploit-framework', 'Baystation12', 'react', 'pandas', 'joomla-cms',
+                'grafana', 'salt']
+    # # """分割不同算法的训练集"""
+    for p in projects:
+        for t in [True, False]:
+            # DataProcessUtils.contactFPS_ACData(p, filter_change_trigger=t)
+            # DataProcessUtils.contactSVM_CData(p, filter_change_trigger=t)
+            # DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+            # DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+            # DataProcessUtils.contactCNData(p, filter_change_trigger=t)
+            # DataProcessUtils.contactACData(p, filter_change_trigger=t)
+            DataProcessUtils.contactCHREVData(p, filter_change_trigger=t)
+    #         # DataProcessUtils.contactIRData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+            DataProcessUtils.contactXFData(p, filter_change_trigger=t)
+    #
+    # # DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    # # DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
+    # # DataProcessUtils.fillAlgorithmResultExcelHelper(False, False, True)

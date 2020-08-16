@@ -125,7 +125,7 @@ class XFTrain:
             print("cost time:", datetime.now() - startTime)
 
         """推荐错误可视化"""
-        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, 'XF')
+        DataProcessUtils.recommendErrorAnalyzer2(error_analysis_datas, project, f'XF_{filter_train}_{filter_test}')
 
         """计算历史累积数据"""
         DataProcessUtils.saveFinallyResult(excelName, sheetName, topks, mrrs, precisionks, recallks,
@@ -191,8 +191,8 @@ class XFTrain:
         """issue comment 和  review comment关注的"""
 
         """处理NAN"""
-        df.dropna(how='any', inplace=True)
-        df.reset_index(drop=True, inplace=True)
+        # df.dropna(how='any', inplace=True)
+        # df.reset_index(drop=True, inplace=True)
         df.fillna(value='', inplace=True)
 
         """对df添加一列标识训练集和测试集"""
