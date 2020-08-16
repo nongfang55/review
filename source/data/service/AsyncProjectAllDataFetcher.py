@@ -627,21 +627,35 @@ class AsyncProjectAllDataFetcher:
 
 
 if __name__ == '__main__':
-    # AsyncProjectAllDataFetcher.getDataForRepository(configPraser.getOwner(), configPraser.getRepo(),
-    #                                                 configPraser.getLimit(), configPraser.getStart())
-    projects = ['akka']
+    """1. 获取基础数据"""
+    # 格式说明: owner, repo, 需要爬取的pr数量, pr的结束编号
+    # eg. 数据表上pr序号是14000-17800
+    # 这里应该填 opencv, opencv, 3800(17800减14000), 17800
+    projects = [("opencv", "opencv", 3800, 17800),
+                ("facebook", "react", 4800, 19300)]
     for p in projects:
-        from source.scikit.service.DataProcessUtils import DataProcessUtils
+        AsyncProjectAllDataFetcher.getDataForRepository(p[0], p[1], p[2], p[3])
 
-        userList = DataProcessUtils.getUserListFromProject(p)
-        # userList = ['jonashaag']
-        AsyncProjectAllDataFetcher.getUserFollowList(userList)
+    """2. 获取reviewer comment original_line数据"""
+    # 格式说明: owner, repo, pr的开始编号, pr的结束编号
+    projects = [("opencv", "opencv", 14000, 17800),
+                ("facebook", "react", 14500, 19300)]
+    for p in projects:
+        AsyncProjectAllDataFetcher.getNoOriginLineReviewComment(p[0], p[1], p[2], p[3])
 
-    # AsyncProjectAllDataFetcher.getNoOriginLineReviewComment('vercel', 'next.js', 500, 6000)
-    # projects = [("opencv", "opencv")]
-    # for project in projects:
-    #     AsyncProjectAllDataFetcher.getPRChangeTriggerData(project[0], project[1])
-    #     # AsyncProjectAllDataFetcher.checkChangeTriggerResult(project[0], project[1])
-    # for i in range(0, 5):
-    #     winsound.PlaySound('SystemAsterisk', winsound.SND_ALIAS)
-    # AsyncProjectAllDataFetcher.testChangeTriggerAnalyzer("rapid7", "metasploit-framework", "MDExOlB1bGxSZXF1ZXN0MjA0MDg1Nzky")
+    """3. 获取pr时间线信息"""
+    # 格式说明：owner, repo
+    projects = [("opencv", "opencv"),
+                ("facebook", "react")]
+    for project in projects:
+        AsyncProjectAllDataFetcher.getPRTimeLine(project[0], project[1])
+
+    """4. 获取change_trigger"""
+    # TODO 注意在爬取之前需要先将PRTimeLine数据保存到本地，见文档
+    # 格式说明：owner, repo
+    projects = [("opencv", "opencv")]
+    for project in projects:
+        AsyncProjectAllDataFetcher.getPRChangeTriggerData(project[0], project[1])
+
+    """5. 获取commit_file"""
+    AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
