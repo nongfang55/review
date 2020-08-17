@@ -1,11 +1,11 @@
 [authorization]
-token=bb9352f53a87bdf87bd26017edc5cc4a5e864d47
+token=37fe1865db5deb1549572be38688ac3e90e35b49
 [database]
-host=101.133.220.93
-username=review
-password=123456
+host=cdb-er8xfzac.cd.tencentcdb.com
+username=root
+password=review123456
 database=REVIEW
-port=3306
+port=10174
 [debug]
 print=False
 [project]
