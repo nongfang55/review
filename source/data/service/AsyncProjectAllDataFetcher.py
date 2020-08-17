@@ -650,7 +650,10 @@ if __name__ == '__main__':
     for project in projects:
         AsyncProjectAllDataFetcher.getPRTimeLine(project[0], project[1])
 
-    """4. 获取change_trigger"""
+    """4. 获取commit_file"""
+    AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
+
+    """5. 获取change_trigger"""
     # TODO 注意在爬取之前需要先将PRTimeLine数据保存到本地，见文档
     # 格式说明：owner, repo
     projects = [("opencv", "opencv")]
