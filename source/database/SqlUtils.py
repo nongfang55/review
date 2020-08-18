@@ -61,7 +61,7 @@ class SqlUtils:
     STR_SQL_QUERY_UNMATCH_COMMIT_FILE_BY_HAS_FETCHED_FILE = """select distinct commitPRRelation.repo_full_name, gitCommit.sha
                                         from gitCommit, commitPRRelation
                                         where gitCommit.has_file_fetched = False
-                                        and gitCommit.sha = commitPRRelation.sha LIMIT 2000"""
+                                        and gitCommit.sha = commitPRRelation.sha LIMIT %s, 2000"""
     '''查询数据库中没有匹配 gitfile 的commit 数量通过 has_file_fetched判断'''
     STR_SQL_QUERY_UNMATCH_COMMIT_FILE_COUNT_BY_HAS_FETCHED_FILE = """select count(distinct gitCommit.sha)
                                         from gitCommit, commitPRRelation

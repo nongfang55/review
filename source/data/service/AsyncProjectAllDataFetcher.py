@@ -356,12 +356,12 @@ class AsyncProjectAllDataFetcher:
         if configPraser.getPrintMode():
             print("mysql init success")
         print("mysql init success")
-        total = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_COUNT_BY_HAS_FETCHED_FILE,
-                                           None)
-        fetch_loop = int(total[0][0] / 2000)
+        fetch_size = 2000
+        total = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_COUNT_BY_HAS_FETCHED_FILE, None)
+        fetch_loop = int(total[0][0] / fetch_size)
         for i in range(0, fetch_loop):
-            res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_BY_HAS_FETCHED_FILE,
-                                             None)
+            start = random.randint(0, fetch_loop - 1)
+            res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_BY_HAS_FETCHED_FILE, [start * fetch_size])
             print(res)
 
             tasks = [
