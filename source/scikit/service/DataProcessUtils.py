@@ -1692,6 +1692,154 @@ class DataProcessUtils:
                                           dataFrame=data)
 
     @staticmethod
+    def contactEARECData(projectName, filter_change_trigger=False):
+        """
+        通过 ALL_{projectName}_data_issuecomment
+             ALL_{projectName}_data_review
+             ALL_{projectName}_data_review_comment
+             ALL_{projectName}_data_pullrequest 四个文件拼接出EAREC所需文件
+        """
+        """读取信息"""
+        start_time = datetime.now()
+        issue_comment_file_path = projectConfig.getIssueCommentPath()
+        review_comment_file_path = projectConfig.getReviewCommentDataPath()
+        review_file_path = projectConfig.getReviewDataPath()
+        pullrequest_file_path = projectConfig.getPullRequestPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+
+        """读取issue_comment"""
+        issueCommentData = pandasHelper.readTSVFile(
+            os.path.join(issue_comment_file_path, f'ALL_{projectName}_data_issuecomment.tsv'), low_memory=False,
+            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        print("raw issue_comment file: ", issueCommentData.shape)
+
+        """读取review"""
+        reviewData = pandasHelper.readTSVFile(
+            os.path.join(review_file_path, f'ALL_{projectName}_data_review.tsv'), low_memory=False,
+            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        print("raw review file: ", reviewData.shape)
+
+        """读取review_comment"""
+        reviewCommentData = pandasHelper.readTSVFile(
+            os.path.join(review_comment_file_path, f'ALL_{projectName}_data_review_comment.tsv'), low_memory=False,
+            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        print("raw review_comment file: ", reviewCommentData.shape)
+
+        """读取pull request"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pullrequest_file_path, f'ALL_{projectName}_data_pullrequest.tsv'), low_memory=False,
+            header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        print("raw pr file:", pullRequestData.shape)
+
+        if filter_change_trigger:
+            """ pr_change_trigger 自带抬头"""
+            changeTriggerData = pandasHelper.readTSVFile(
+                os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+                pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+            )
+
+        print("read file cost time:", datetime.now() - start_time)
+
+        """过滤状态非关闭的pr review"""
+        pullRequestData = pullRequestData.loc[pullRequestData['state'] == 'closed'].copy(deep=True)
+        print("after fliter closed pr:", pullRequestData.shape)
+
+        """过滤pr不需要的字段"""
+        pullRequestData = pullRequestData[
+            ['repo_full_name', 'number', 'title', 'body', 'node_id', 'user_login', 'created_at', 'author_association',
+             'closed_at']].copy(deep=True)
+        pullRequestData.columns = ['repo_full_name', 'pull_number', 'pr_title', 'pr_body', 'pullrequest_node',
+                                   'pr_author', 'pr_created_at',
+                                   'pr_author_association', 'closed_at']
+        pullRequestData.drop_duplicates(inplace=True)
+        pullRequestData.reset_index(drop=True, inplace=True)
+        print("after fliter pr:", pullRequestData.shape)
+
+        """过滤issue comment不需要的字段"""
+        issueCommentData = issueCommentData[
+            ['pull_number', 'node_id', 'user_login', 'created_at', 'author_association']].copy(deep=True)
+        issueCommentData.columns = ['pull_number', 'comment_node', 'reviewer', 'commented_at', 'reviewer_association']
+        issueCommentData.drop_duplicates(inplace=True)
+        issueCommentData.reset_index(drop=True, inplace=True)
+        issueCommentData['comment_type'] = StringKeyUtils.STR_LABEL_ISSUE_COMMENT
+        print("after fliter issue comment:", issueCommentData.shape)
+
+        """过滤review不需要的字段"""
+        reviewData = reviewData[['pull_number', 'id', 'user_login', 'submitted_at']].copy(deep=True)
+        reviewData.columns = ['pull_number', 'pull_request_review_id', 'reviewer', 'submitted_at']
+        reviewData.drop_duplicates(inplace=True)
+        reviewData.reset_index(drop=True, inplace=True)
+        print("after fliter review:", reviewData.shape)
+
+        """过滤review comment不需要的字段"""
+        reviewCommentData = reviewCommentData[
+            ['pull_request_review_id', 'node_id', 'user_login', 'created_at', 'author_association']].copy(deep=True)
+        reviewCommentData.columns = ['pull_request_review_id', 'comment_node', 'reviewer', 'commented_at',
+                                     'reviewer_association']
+        reviewCommentData.drop_duplicates(inplace=True)
+        reviewCommentData.reset_index(drop=True, inplace=True)
+        reviewCommentData['comment_type'] = StringKeyUtils.STR_LABEL_REVIEW_COMMENT
+        print("after fliter review comment:", reviewCommentData.shape)
+
+        """连接表"""
+        """对于没有留下评论的review也算入"""
+        reviewCommentData = pandas.merge(reviewData, reviewCommentData, on='pull_request_review_id', how='left')
+        reviewCommentData['reviewer'] = reviewCommentData.apply(
+            lambda row: row['reviewer_x'] if pandas.isna(row['reviewer_y']) else row['reviewer_y'], axis=1)
+        reviewCommentData['commented_at'] = reviewCommentData.apply(
+            lambda row: row['submitted_at'] if pandas.isna(row['commented_at']) else row['commented_at'], axis=1)
+        reviewCommentData.drop(columns=['pull_request_review_id', 'submitted_at', 'reviewer_x', 'reviewer_y'],
+                               inplace=True)
+
+        data = pandas.concat([issueCommentData, reviewCommentData])
+        data.reset_index(drop=True, inplace=True)
+        data = pandas.merge(pullRequestData, data, left_on='pull_number', right_on='pull_number')
+        print("contact review & issue comment:", data.shape)
+
+        """过滤comment在closed之后的场景"""
+        data = data.loc[data['closed_at'] >= data['commented_at']].copy(deep=True)
+        data.drop(columns=['closed_at'], inplace=True)
+        print("after filter comment after pr closed:", data.shape)
+
+        """去掉自己是reviewer的情况"""
+        data = data[data['reviewer'] != data['pr_author']]
+        data.reset_index(drop=True, inplace=True)
+        print("after filter self reviewer:", data.shape)
+
+        """过滤nan的情况"""
+        data.dropna(subset=['reviewer', 'pr_author'], inplace=True)
+
+        """过滤机器人的场景  """
+        data['isBot'] = data['reviewer'].apply(lambda x: BotUserRecognizer.isBot(x))
+        data = data.loc[data['isBot'] == False].copy(deep=True)
+        data.drop(columns=['isBot'], inplace=True)
+        print("after filter robot reviewer:", data.shape)
+
+        if filter_change_trigger:
+            """change_trigger只取出comment_node和data取交集"""
+            # changeTriggerData = changeTriggerData.loc[changeTriggerData['change_trigger'] >= 0].copy(deep=True)
+            changeTriggerData['label'] = changeTriggerData.apply(
+                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+            changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            data = pandas.merge(data, changeTriggerData, how='inner')
+            print("after filter by change_trigger:", data.shape)
+
+        data = data.drop(labels='pullrequest_node', axis=1)
+
+        if filter_change_trigger:
+            targetFileName = f'EAREC_{projectName}_data_change_trigger'
+        else:
+            targetFileName = f'EAREC_{projectName}_data'
+
+        """按照时间分成小片"""
+        DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getEARECDataPath(),
+                                          targetFileName=targetFileName, dateCol='pr_created_at',
+                                          dataFrame=data)
+
+    @staticmethod
     def contactCFData(projectName, filter_change_trigger=False):
         """
         通过 ALL_{projectName}_data_issuecomment

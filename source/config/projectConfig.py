@@ -54,6 +54,7 @@ class projectConfig:
     PATH_IR_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'IR_AC'
     PATH_CN_AC_DATA = 'data' + os.sep + 'train' + os.sep + 'CN_AC'
     PATH_RF_A_DATA = 'data' + os.sep + 'train' + os.sep + 'RF_A'
+    PATH_EAREC_DATA = 'data' + os.sep + 'train' + os.sep + 'EAREC'
 
     PATH_CDR_DATA = 'data' + os.sep + 'train' + os.sep + 'CDR'
     PATH_ALGORITHM = 'source' + os.sep + 'scikit' + os.sep
@@ -270,6 +271,10 @@ class projectConfig:
     @staticmethod
     def getAlgorithmPath():
         return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_ALGORITHM)
+
+    @staticmethod
+    def getEARECDataPath():
+        return os.path.join(projectConfig.getRootPath(), projectConfig.PATH_EAREC_DATA)
 
 
 if __name__ == "__main__":
