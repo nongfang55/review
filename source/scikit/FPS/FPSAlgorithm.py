@@ -342,7 +342,7 @@ class FPSAlgorithm:
         return [x[0] for x in sorted(scores.items(), key=lambda d: d[1], reverse=True)[0:k - 1]], answerList
 
     @staticmethod
-    def RecommendByFPS(train_data, train_data_y, test_data, test_data_y, recommendNum=5):
+    def RecommendByFPS(train_data, train_data_y, test_data, test_data_y, recommendNum=5, disMapList=None):
         """多标签分类的FPS"""
 
         recommendList = []
@@ -360,10 +360,14 @@ class FPSAlgorithm:
                 score = 0
                 for filename1 in paths1:
                     for filename2 in paths2:
-                        score += FPSAlgorithm.LCS_2(filename1, filename2) + \
-                                 FPSAlgorithm.LCSubseq_2(filename1, filename2) +\
-                                 FPSAlgorithm.LCP_2(filename1, filename2) +\
-                                 FPSAlgorithm.LCSubstr_2(filename1, filename2)
+                        if disMapList is None:
+                            score += FPSAlgorithm.LCS_2(filename1, filename2) + \
+                                     FPSAlgorithm.LCSubseq_2(filename1, filename2) +\
+                                     FPSAlgorithm.LCP_2(filename1, filename2) +\
+                                     FPSAlgorithm.LCSubstr_2(filename1, filename2)
+                        else:
+                            # for i in range(0, 4):
+                             score += disMapList[(test_pull_number, train_pull_number)]
                 score /= paths1.__len__() * paths2.__len__()
                 for reviewer in train_data_y[train_pull_number]:
                     if scores.get(reviewer, None) is None:

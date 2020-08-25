@@ -3854,10 +3854,8 @@ class DataProcessUtils:
         return path.split(sep)
 
     @staticmethod
-    def LCS_2(path1, path2):
+    def LCS_2(list1, list2):
         """计算最长后缀"""
-        list1 = DataProcessUtils.getSplitFilePath(path1)
-        list2 = DataProcessUtils.getSplitFilePath(path2)
         suf = 0
         length = min(list1.__len__(), list2.__len__())
         for i in range(0, length):
@@ -3869,10 +3867,8 @@ class DataProcessUtils:
         return score
 
     @staticmethod
-    def LCP_2(path1, path2):
+    def LCP_2(list1, list2):
         """计算最长前缀"""
-        list1 = tuple(DataProcessUtils.getSplitFilePath(path1))
-        list2 = tuple(DataProcessUtils.getSplitFilePath(path2))
         pre = 0
         length = min(list1.__len__(), list2.__len__())
         for i in range(0, length):
@@ -3885,10 +3881,8 @@ class DataProcessUtils:
         return pre / max(list1.__len__(), list2.__len__())
 
     @staticmethod
-    def LCSubseq_2(path1, path2):
+    def LCSubseq_2(list1, list2):
         """计算最大公共子字串"""
-        list1 = DataProcessUtils.getSplitFilePath(path1)
-        list2 = DataProcessUtils.getSplitFilePath(path2)
 
         com = 0
         dp = [[0 for i in range(0, list2.__len__() + 1)] for i in range(0, list1.__len__() + 1)]
@@ -3904,10 +3898,8 @@ class DataProcessUtils:
         return com / max(list1.__len__(), list2.__len__())
 
     @staticmethod
-    def LCSubstr_2(path1, path2):
+    def LCSubstr_2(list1, list2):
         """计算连续公共子字串"""
-        list1 = DataProcessUtils.getSplitFilePath(path1)
-        list2 = DataProcessUtils.getSplitFilePath(path2)
         com = 0
         dp = [[0 for i in range(0, list2.__len__() + 1)] for i in range(0, list1.__len__() + 1)]
         for i in range(1, list1.__len__() + 1):
@@ -4033,6 +4025,125 @@ class DataProcessUtils:
                                   df_LCP, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
         pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_LCSubstr.tsv"),
                                   df_LCSubstr, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
+
+    @staticmethod
+    def caculatePrDistanceByIncrement(projectName, date, filter_change_trigger=False):
+        """计算某个项目的某个时间段之内的相似度(y1, m1, y2, m2)
+           模拟正常算法做增量
+        """
+        time1 = datetime.now()
+        pull_request_path = projectConfig.getPullRequestPath()
+        pr_change_file_path = projectConfig.getPRChangeFilePath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+        minYear, minMonth, maxYear, maxMonth = date
+
+        """pull request 数据库输出 自带抬头"""
+        pullRequestData = pandasHelper.readTSVFile(
+            os.path.join(pull_request_path, f'ALL_{projectName}_data_pullrequest.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """pr_change_file 数据库输出 自带抬头"""
+        prChangeFileData = pandasHelper.readTSVFile(
+            os.path.join(pr_change_file_path, f'ALL_{projectName}_data_pr_change_file.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        """ pr_change_trigger 自带抬头"""
+        changeTriggerData = pandasHelper.readTSVFile(
+            os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+            pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+        )
+
+        pullRequestData = pullRequestData.loc[pullRequestData['is_pr'] == 1].copy(deep=True)
+
+        if filter_change_trigger:
+            changeTriggerData = changeTriggerData[['pullrequest_node']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+            changeTriggerData.reset_index(inplace=True, drop=True)
+            pullRequestData = pandas.merge(pullRequestData, changeTriggerData, left_on='node_id',
+                                           right_on='pullrequest_node')
+
+        pullRequestData['label'] = pullRequestData['created_at'].apply(
+            lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+        pullRequestData['label_y'] = pullRequestData['label'].apply(lambda x: x.tm_year)
+        pullRequestData['label_m'] = pullRequestData['label'].apply(lambda x: x.tm_mon)
+
+        pullRequestData['data_value'] = pullRequestData.apply(lambda x:x['label_y'] * 12 + x['label_m'], axis=1)
+
+        def isInTimeGap(x):
+            d = x['label_y'] * 12 + x['label_m']
+            d1 = minYear * 12 + minMonth
+            d2 = maxYear * 12 + maxMonth
+            return d1 <= d <= d2
+
+        """筛选出目标的pr"""
+        pullRequestData['target'] = pullRequestData.apply(lambda x: isInTimeGap(x), axis=1)
+        pullRequestData = pullRequestData.loc[pullRequestData['target'] == 1]
+        pullRequestData.reset_index(drop=True, inplace=True)
+
+        """连接文件"""
+        data = pandas.merge(pullRequestData, prChangeFileData, left_on='number', right_on='pull_number')
+        prList = list(set(data['number']))
+        prList.sort()
+        prFileDict = dict(list(data.groupby('number')))
+
+        """pr file对"""
+        prFileMap = {}
+        for pr in prList:
+            prFileMap[pr] = tuple(set(prFileDict[pr]['filename']))
+
+        list_p1 = []
+        list_p2 = []
+        list_dis_FPS = []
+
+        fileListMap = {}
+        for pr in prList:
+            for f in prFileMap[pr]:
+                if fileListMap.get(f) is None:
+                    fileListMap[f] = tuple(DataProcessUtils.getSplitFilePath(f))
+
+        cols = ['pr1', 'pr2', 'distance']
+
+        min_data = minYear * 12 + minMonth
+        max_data = maxYear * 12 + maxMonth
+
+        for i in range(min_data + 1, max_data + 1, 1):
+            pr_df_1 = data.loc[data['data_value'] == i]
+            list_pr_1 = list(set(pr_df_1['number']))
+            pr_df_2 = data.loc[data['data_value'] < i]
+            list_pr_2 = list(set(pr_df_2['number']))
+
+            for index, p1 in enumerate(list_pr_1):
+                print("now:", index, " all:", list_pr_1.__len__())
+                for p2 in list_pr_2:
+                    if p1 > p2:  # 左大， 右边小
+                        files1 = prFileMap[p1]
+                        files2 = prFileMap[p2]
+
+                        score_FPS = 0
+
+                        # for filename1 in files1:
+                        #     for filename2 in files2:
+                        #         score_FPS += DataProcessUtils.LCS_2(filename1, filename2)
+                        #         score_FPS += DataProcessUtils.LCSubseq_2(filename1, filename2)
+                        #         score_FPS += DataProcessUtils.LCP_2(filename1, filename2)
+                        #         score_FPS += DataProcessUtils.LCSubstr_2(filename1, filename2)
+
+                        score_FPS /= files1.__len__() * files2.__len__()
+
+
+                        list_p1.append(p1)
+                        list_p2.append(p2)
+                        list_dis_FPS.append(score_FPS)
+
+        """初始化df"""
+        df_FPS = DataFrame({'pr1': list_p1, 'pr2': list_p2, 'distance': list_dis_FPS})
+
+        targetPath = projectConfig.getPullRequestDistancePath()
+        pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_FPS.tsv"),
+                                  df_FPS, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
+
 
     @staticmethod
     def fillAlgorithmResultExcelHelper(filter_train=False, filter_test=False, error_analysis=True):
@@ -4418,23 +4529,26 @@ class DataProcessUtils:
 if __name__ == '__main__':
 
     # DataProcessUtils.fillAlgorithmResultExcelHelper(False, False, True)
-
-    projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew',
-                'django', 'netty', 'scikit-learn', 'next.js', 'angular', 'moby',
-                'metasploit-framework', 'Baystation12', 'react', 'pandas', 'joomla-cms',
-                'grafana', 'salt']
-    # # """分割不同算法的训练集"""
+    projects = ['opencv']
     for p in projects:
-        for t in [True, False]:
-            # DataProcessUtils.contactFPS_ACData(p, filter_change_trigger=t)
-            # DataProcessUtils.contactSVM_CData(p, filter_change_trigger=t)
-            # DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-            # DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-            # DataProcessUtils.contactCNData(p, filter_change_trigger=t)
-            # DataProcessUtils.contactACData(p, filter_change_trigger=t)
-            DataProcessUtils.contactCHREVData(p, filter_change_trigger=t)
-    #         # DataProcessUtils.contactIRData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
-            DataProcessUtils.contactXFData(p, filter_change_trigger=t)
+        DataProcessUtils.caculatePrDistanceByIncrement(p, (2017, 1, 2020, 6), filter_change_trigger=False)
+
+    # projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew',
+    #             'django', 'netty', 'scikit-learn', 'next.js', 'angular', 'moby',
+    #             'metasploit-framework', 'Baystation12', 'react', 'pandas', 'joomla-cms',
+    #             'grafana', 'salt']
+    # # # """分割不同算法的训练集"""
+    # for p in projects:
+    #     for t in [True, False]:
+    #         # DataProcessUtils.contactFPS_ACData(p, filter_change_trigger=t)
+    #         # DataProcessUtils.contactSVM_CData(p, filter_change_trigger=t)
+    #         # DataProcessUtils.contactFPSData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+    #         # DataProcessUtils.contactMLData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+    #         # DataProcessUtils.contactCNData(p, filter_change_trigger=t)
+    #         # DataProcessUtils.contactACData(p, filter_change_trigger=t)
+    #         DataProcessUtils.contactCHREVData(p, filter_change_trigger=t)
+    # #         # DataProcessUtils.contactIRData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT, filter_change_trigger=t)
+    #         DataProcessUtils.contactXFData(p, filter_change_trigger=t)
     #
     # # DataProcessUtils.contactTCData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)
     # # DataProcessUtils.contactPBData(p, label=StringKeyUtils.STR_LABEL_ALL_COMMENT)

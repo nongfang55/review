@@ -20,7 +20,7 @@ from source.utils.pandas.pandasHelper import pandasHelper
 class FPSTrain:
 
     @staticmethod
-    def TestAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False):
+    def TestAlgorithm(project, dates, filter_train=False, filter_test=False, error_analysis=False, disMapList=None):
         """  2020.8.6
         增加两个参数  filter_train 和  filter_test
          分别用来区别是否使用change trigger过滤的数据集"""
@@ -51,7 +51,7 @@ class FPSTrain:
         for date in dates:
             startTime = datetime.now()
             # FPSTrain.algorithmBody(date, project, recommendNum)
-            recommendList, answerList, prList, convertDict, trainSize = FPSTrain.algorithmBody(date, project, recommendNum, filter_train=filter_train, filter_test=filter_test)
+            recommendList, answerList, prList, convertDict, trainSize = FPSTrain.algorithmBody(date, project, recommendNum, filter_train=filter_train, filter_test=filter_test, disMapList=disMapList)
             """根据推荐列表做评价"""
             topk, mrr, precisionk, recallk, fmeasurek = \
                 DataProcessUtils.judgeRecommend(recommendList, answerList, recommendNum)
@@ -183,7 +183,7 @@ class FPSTrain:
         return train_data, train_data_y, test_data, test_data_y, convertDict
 
     @staticmethod
-    def algorithmBody(date, project, recommendNum=5, filter_train=True, filter_test=True):
+    def algorithmBody(date, project, recommendNum=5, filter_train=True, filter_test=True, disMapList=None):
 
         """提供单个日期和项目名称
            返回推荐列表和答案
@@ -226,7 +226,7 @@ class FPSTrain:
         prList.sort()
 
         recommendList, answerList = FPSAlgorithm.RecommendByFPS(train_data, train_data_y, test_data,
-                                                                test_data_y, recommendNum=recommendNum)
+                                                                test_data_y, recommendNum=recommendNum, disMapList=disMapList)
 
         """新增返回测试 训练集大小，用于做统计"""
 
@@ -239,6 +239,22 @@ class FPSTrain:
 
         return recommendList, answerList, prList, convertDict, trainSize
 
+    @staticmethod
+    def loadLocalPrDistance(project):
+        prDisDf_FPS = pandasHelper.readTSVFile(projectConfig.getPullRequestDistancePath() + os.sep +
+                                               f"pr_distance_{project}_FPS.tsv",
+                                               header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+
+        DisMapFPS = {}
+
+        for row in prDisDf_FPS.itertuples(index=False, name='Pandas'):
+            p1 = row[0]
+            p2 = row[1]
+            dis = row[2]
+            DisMapFPS[(p1, p2)] = dis
+
+        return DisMapFPS
+
 
 if __name__ == '__main__':
     dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
@@ -248,6 +264,10 @@ if __name__ == '__main__':
     #          (2017, 1, 2018, 6)]
     # dates = [(2017, 1, 2017, 2), (2017, 1, 2017, 3), (2017, 1, 2017, 4), (2017, 1, 2017, 5), (2017, 1, 2017, 6),
     #          (2017, 1, 2017, 7)]
-    projects = ['cakephp', 'opencv', 'akka', 'xmbc', 'symfony', 'babel']
+    projects = ['opencv']
+
+    """加载本地文件"""
+    disMapList = FPSTrain.loadLocalPrDistance('opencv')
+
     for p in projects:
-        FPSTrain.TestAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True)
+        FPSTrain.TestAlgorithm(p, dates, filter_train=False, filter_test=False, error_analysis=True, disMapList=disMapList)

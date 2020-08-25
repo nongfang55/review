@@ -10,12 +10,13 @@ class BotUserRecognizer:
 
     """手动维护的列表"""
     BOT_TABLE = ['stickler-ci', 'codecov-io', 'rails-bot', 'mention-bot',
-                 'babel-bot', 'symfony-skeleton-bot', 'akka-ci', 'buildsize',
-                 'stale', 'netty-bot', 'codecov', 'label-actions', 'salt-jenkins',
-                 'facebook-github-bot', 'reactjs-bot', 'pull-bot', 'googlebot',
-                 'mary-poppins', 'ngbot[bot]', 'ngbot', 'sklearn-lgtm', 'pep8speaks',
-                 'fastlane-bot-helper', 'netkins', 'GordonTheTurtle', 'lightbend-cla-validator',
-                 'sizebot']
+             'babel-bot', 'symfony-skeleton-bot', 'akka-ci', 'buildsize',
+             'stale', 'netty-bot', 'codecov', 'label-actions', 'salt-jenkins',
+             'facebook-github-bot', 'reactjs-bot', 'pull-bot', 'googlebot',
+             'mary-poppins', 'ngbot[bot]', 'ngbot', 'sklearn-lgtm', 'pep8speaks',
+             'fastlane-bot-helper', 'netkins', 'GordonTheTurtle', 'lightbend-cla-validator',
+             'sizebot', 'angular-automatic-lock-bot', 'codesandbox', 'jenkins4kodi', 'github-actions',
+             'houndci-bot', 'joomla-cms-bot', 'CLAassistant', 'claassistantio']
 
     @staticmethod
     def isBot(name):
