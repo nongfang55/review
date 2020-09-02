@@ -400,7 +400,10 @@ class ACTrain:
                 time2 = datetime.strptime(list(train_df['pr_created_at'])[0], "%Y-%m-%d %H:%M:%S")
                 """单位现在设置为天"""
                 unit = 3600 * 24
-                score = math.pow((time1 - time2).total_seconds() / unit, -l)
+                if time1 == time2:
+                    score = 0
+                else:
+                    score = math.pow(abs((time1 - time2).total_seconds()) / unit, -l)
                 for reviewer in test_data_y[train_pull_number]:
                     if scores.get(reviewer, None) is None:
                         scores[reviewer] = 0

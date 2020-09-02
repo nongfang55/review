@@ -4123,12 +4123,12 @@ class DataProcessUtils:
 
                         score_FPS = 0
 
-                        # for filename1 in files1:
-                        #     for filename2 in files2:
-                        #         score_FPS += DataProcessUtils.LCS_2(filename1, filename2)
-                        #         score_FPS += DataProcessUtils.LCSubseq_2(filename1, filename2)
-                        #         score_FPS += DataProcessUtils.LCP_2(filename1, filename2)
-                        #         score_FPS += DataProcessUtils.LCSubstr_2(filename1, filename2)
+                        for filename1 in files1:
+                            for filename2 in files2:
+                                score_FPS += DataProcessUtils.LCS_2(filename1, filename2)
+                                score_FPS += DataProcessUtils.LCSubseq_2(filename1, filename2)
+                                score_FPS += DataProcessUtils.LCP_2(filename1, filename2)
+                                score_FPS += DataProcessUtils.LCSubstr_2(filename1, filename2)
 
                         score_FPS /= files1.__len__() * files2.__len__()
 
@@ -4524,7 +4524,361 @@ class DataProcessUtils:
         userList = list(set(userList))
         return userList
 
+    @staticmethod
+    def genBaseData(projects, date):
+        """加上时间限制"""
+        excelName = "basic_data.xls"
+        sheetName = "result"
+        content = ['Repository', 'PRs', 'commenter_cnt', 'comment_ratio',
+                   'issueComment_cnt', 'issueComment_ratio',
+                   'reviewComment_cnt', 'reviewComment_ratio', 'contributor_cnt']
+        ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=content)
+        issue_comment_file_path = projectConfig.getIssueCommentPath()
+        review_comment_file_path = projectConfig.getReviewCommentDataPath()
+        pullrequest_file_path = projectConfig.getPullRequestPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+        review_file_path = projectConfig.getReviewDataPath()
 
+        for projectName in projects:
+            """
+            通过 ALL_{projectName}_data_issuecomment
+                 ALL_{projectName}_data_review
+                 ALL_{projectName}_data_review_comment
+                 ALL_{projectName}_data_pullrequest
+            """
+
+            """读取issue_comment"""
+            issueCommentData = pandasHelper.readTSVFile(
+                os.path.join(issue_comment_file_path, f'ALL_{projectName}_data_issuecomment.tsv'), low_memory=False,
+                header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+            print("raw issue_comment file: ", issueCommentData.shape)
+
+            """读取review"""
+            reviewData = pandasHelper.readTSVFile(
+                os.path.join(review_file_path, f'ALL_{projectName}_data_review.tsv'), low_memory=False,
+                header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+            print("raw review file: ", reviewData.shape)
+
+            """读取review_comment"""
+            reviewCommentData = pandasHelper.readTSVFile(
+                os.path.join(review_comment_file_path, f'ALL_{projectName}_data_review_comment.tsv'), low_memory=False,
+                header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+            print("raw review_comment file: ", reviewCommentData.shape)
+
+            """读取issue_comment"""
+            pullRequestData = pandasHelper.readTSVFile(
+                os.path.join(pullrequest_file_path, f'ALL_{projectName}_data_pullrequest.tsv'), low_memory=False,
+                header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+            print("raw pr file:", pullRequestData.shape)
+
+            """ pr_change_trigger 自带抬头"""
+            changeTriggerData = pandasHelper.readTSVFile(
+                os.path.join(change_trigger_path, f'ALL_{projectName}_data_pr_change_trigger.tsv'),
+                pandasHelper.INT_READ_FILE_WITH_HEAD, low_memory=False
+            )
+            """change_trigger只取出pr, reviewer，和data取交集"""
+            changeTriggerData['label'] = changeTriggerData.apply(
+                lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+            changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
+            changeTriggerData = changeTriggerData[['comment_node']].copy(deep=True)
+            changeTriggerData.drop_duplicates(inplace=True)
+
+            """过滤状态非关闭的pr review"""
+            pullRequestData = pullRequestData.loc[pullRequestData['state'] == 'closed'].copy(deep=True)
+            print("after fliter closed pr:", pullRequestData.shape)
+
+            """过滤时间"""
+            minYear, minMonth, maxYear, maxMonth = date
+
+            pullRequestData['label'] = pullRequestData['created_at'].apply(
+                lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+            pullRequestData['label_y'] = pullRequestData['label'].apply(lambda x: x.tm_year)
+            pullRequestData['label_m'] = pullRequestData['label'].apply(lambda x: x.tm_mon)
+
+            pullRequestData['data_value'] = pullRequestData.apply(lambda x: x['label_y'] * 12 + x['label_m'], axis=1)
+
+            def isInTimeGap(x):
+                d = x['label_y'] * 12 + x['label_m']
+                d1 = minYear * 12 + minMonth
+                d2 = maxYear * 12 + maxMonth
+                return d1 <= d <= d2
+
+            """筛选出目标的pr"""
+            pullRequestData['target'] = pullRequestData.apply(lambda x: isInTimeGap(x), axis=1)
+            pullRequestData = pullRequestData.loc[pullRequestData['target'] == 1]
+
+            """过滤pr不需要的字段"""
+            pullRequestData = pullRequestData[
+                ['repo_full_name', 'number', 'node_id', 'user_login', 'created_at', 'author_association',
+                 'closed_at']].copy(deep=True)
+            pullRequestData.columns = ['repo_full_name', 'pull_number', 'pullrequest_node', 'pr_author', 'pr_created_at',
+                                       'pr_author_association', 'closed_at']
+            pullRequestData.drop_duplicates(inplace=True)
+            pullRequestData.reset_index(drop=True, inplace=True)
+            print("after fliter pr:", pullRequestData.shape)
+
+            """过滤issue comment不需要的字段"""
+            issueCommentData = issueCommentData[
+                ['pull_number', 'node_id', 'user_login', 'created_at', 'author_association']].copy(deep=True)
+            issueCommentData.columns = ['pull_number', 'comment_node', 'reviewer', 'commented_at', 'reviewer_association']
+            issueCommentData.drop_duplicates(inplace=True)
+            issueCommentData.reset_index(drop=True, inplace=True)
+            issueCommentData['comment_type'] = StringKeyUtils.STR_LABEL_ISSUE_COMMENT
+            print("after fliter issue comment:", issueCommentData.shape)
+
+            """过滤review不需要的字段"""
+            reviewData = reviewData[['pull_number', 'id', 'user_login', 'submitted_at']].copy(deep=True)
+            reviewData.columns = ['pull_number', 'pull_request_review_id', 'reviewer', 'submitted_at']
+            reviewData.drop_duplicates(inplace=True)
+            reviewData.reset_index(drop=True, inplace=True)
+            print("after fliter review:", reviewData.shape)
+
+            """过滤review comment不需要的字段"""
+            reviewCommentData = reviewCommentData[
+                ['pull_request_review_id', 'node_id', 'user_login', 'created_at', 'author_association']].copy(deep=True)
+            reviewCommentData.columns = ['pull_request_review_id', 'comment_node', 'reviewer', 'commented_at',
+                                         'reviewer_association']
+            reviewCommentData.drop_duplicates(inplace=True)
+            reviewCommentData.reset_index(drop=True, inplace=True)
+            reviewCommentData['comment_type'] = StringKeyUtils.STR_LABEL_REVIEW_COMMENT
+            print("after fliter review comment:", reviewCommentData.shape)
+
+            """连接表"""
+            """对于没有留下评论的review也算入"""
+            reviewCommentData = pandas.merge(reviewData, reviewCommentData, on='pull_request_review_id', how='left')
+            reviewCommentData['reviewer'] = reviewCommentData.apply(
+                lambda row: row['reviewer_x'] if pandas.isna(row['reviewer_y']) else row['reviewer_y'], axis=1)
+            reviewCommentData['commented_at'] = reviewCommentData.apply(
+                lambda row: row['submitted_at'] if pandas.isna(row['commented_at']) else row['commented_at'], axis=1)
+            reviewCommentData.drop(columns=['pull_request_review_id', 'submitted_at', 'reviewer_x', 'reviewer_y'],
+                                   inplace=True)
+
+            issueCommentData = pandas.merge(issueCommentData, pullRequestData, how="inner")
+            reviewCommentData = pandas.merge(reviewCommentData, pullRequestData, how="inner")
+
+            pr_cnt = list(set(pullRequestData['pullrequest_node'])).__len__()
+            contributor_cnt = list(set(pullRequestData['pr_author'])).__len__()
+            issue_comment_cnt = list(set(issueCommentData['comment_node'])).__len__()
+            review_comment_cnt = list(set(reviewCommentData['comment_node'])).__len__()
+            commenter_cnt = set(list(issueCommentData['reviewer']) + list(reviewCommentData['reviewer'])).__len__()
+
+            issueCommentData = pandas.merge(issueCommentData, changeTriggerData, how="inner")
+            reviewCommentData = pandas.merge(reviewCommentData, changeTriggerData, how="inner")
+
+            filter_issue_comment_cnt = list(set(issueCommentData['comment_node'])).__len__()
+            filter_review_comment_cnt = list(set(reviewCommentData['comment_node'])).__len__()
+            filter_commenter_cnt = set(list(issueCommentData['reviewer']) + list(reviewCommentData['reviewer'])).__len__()
+
+            content = [projectName, pr_cnt, commenter_cnt, filter_commenter_cnt/commenter_cnt,
+                       issue_comment_cnt, filter_issue_comment_cnt/issue_comment_cnt,
+                       review_comment_cnt, filter_review_comment_cnt/review_comment_cnt, contributor_cnt]
+
+            ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+
+    @staticmethod
+    def genNotMergePrRatio(projects, startYear, endYear):
+        """加上时间限制"""
+        excelName = "open_pr_ratio.xls"
+        sheetName = "result"
+        content = ['year', 'all pr', 'open pr', 'ratio']
+        ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=content)
+        issue_comment_file_path = projectConfig.getIssueCommentPath()
+        review_comment_file_path = projectConfig.getReviewCommentDataPath()
+        pullrequest_file_path = projectConfig.getPullRequestPath()
+        timeline_path = projectConfig.getPRTimeLineDataPath()
+        review_file_path = projectConfig.getReviewDataPath()
+
+        count = 0
+
+        all_map = {}
+        open_map = {}
+        reject_map = {}
+        for i in range(startYear, endYear + 1):
+            all_map[i] = 0
+            open_map[i] = 0
+            reject_map[i] = 0
+
+        for projectName in projects:
+            """读取pullrequest_comment"""
+            pullRequestData = pandasHelper.readTSVFile(
+                os.path.join(pullrequest_file_path, f'ALL_{projectName}_data_pullrequest.tsv'), low_memory=False,
+                header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+            print("raw pr file:", pullRequestData.shape)
+
+            timelineData = pandasHelper.readTSVFile(
+                os.path.join(timeline_path, f'ALL_{projectName}_data_prtimeline.tsv'), low_memory=False,
+                header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+            print("raw pr file:", timelineData.shape)
+
+            pullRequestData = pullRequestData.loc[pullRequestData['is_pr']==True].copy(deep=True)
+
+            pullRequestData['label'] = pullRequestData['created_at'].apply(
+                lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+            pullRequestData['label_y'] = pullRequestData['label'].apply(lambda x: x.tm_year)
+            pullRequestData['label_m'] = pullRequestData['label'].apply(lambda x: x.tm_mon)
+
+
+
+            group = dict(list(timelineData.groupby('pullrequest_node')))
+            for index, df in group.items():
+                if df.shape[0] > 5:
+                    count +=1
+            print(count)
+
+
+
+            for i in range(startYear, endYear + 1):
+                temp = pullRequestData.loc[pullRequestData['label_y'] == i]
+                all_map[i] += temp.shape[0]
+                temp_open = temp.loc[temp['state'] == 'open']
+                open_map[i] += temp_open.shape[0]
+
+
+                temp2 = temp.loc[temp['merged'] == 0]
+                reject_map[i] += temp2.shape[0]
+
+        for i in range(startYear, endYear + 1):
+            content = [i, all_map[i], open_map[i], open_map[i] / all_map[i]]
+            ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+            content = [i, all_map[i], reject_map[i], reject_map[i] / all_map[i]]
+            ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+
+    @staticmethod
+    def genOpenPrRatio(projects, startYear, endYear):
+        """加上时间限制"""
+        excelName = "open_pr_ratio.xls"
+        sheetName = "result"
+        content = ['year', 'all pr', 'open pr', 'ratio']
+        ExcelHelper().initExcelFile(fileName=excelName, sheetName=sheetName, excel_key_list=content)
+        issue_comment_file_path = projectConfig.getIssueCommentPath()
+        review_comment_file_path = projectConfig.getReviewCommentDataPath()
+        pullrequest_file_path = projectConfig.getPullRequestPath()
+        change_trigger_path = projectConfig.getPRTimeLineDataPath()
+        review_file_path = projectConfig.getReviewDataPath()
+
+        all_map = {}
+        open_map = {}
+        for i in range(startYear, endYear + 1):
+            all_map[i] = 0
+            open_map[i] = 0
+
+        for projectName in projects:
+            """读取pullrequest_comment"""
+            pullRequestData = pandasHelper.readTSVFile(
+                os.path.join(pullrequest_file_path, f'ALL_{projectName}_data_pullrequest.tsv'), low_memory=False,
+                header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+            print("raw pr file:", pullRequestData.shape)
+
+            pullRequestData = pullRequestData.loc[pullRequestData['is_pr'] == True].copy(deep=True)
+
+            pullRequestData['label'] = pullRequestData['created_at'].apply(
+                lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+            pullRequestData['label_y'] = pullRequestData['label'].apply(lambda x: x.tm_year)
+            pullRequestData['label_m'] = pullRequestData['label'].apply(lambda x: x.tm_mon)
+
+            for i in range(startYear, endYear + 1):
+                temp = pullRequestData.loc[pullRequestData['label_y'] == i]
+                all_map[i] += temp.shape[0]
+                temp_open = temp.loc[temp['state'] == 'open']
+                open_map[i] += temp_open.shape[0]
+
+        for i in range(startYear, endYear + 1):
+            content = [i, all_map[i], open_map[i], open_map[i] / all_map[i]]
+            ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
+
+    @staticmethod
+    def changeTriggerAnalyzerALL(repos, date):
+        disDict = {}
+        for p in repos:
+            pullrequest_file_path = projectConfig.getPullRequestPath()
+            """读取issue_comment"""
+            pullRequestData = pandasHelper.readTSVFile(
+                os.path.join(pullrequest_file_path, f'ALL_{p}_data_pullrequest.tsv'), low_memory=False,
+                header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+            print("raw pr file:", pullRequestData.shape)
+
+            """过滤状态非关闭的pr review"""
+            pullRequestData = pullRequestData.loc[pullRequestData['state'] == 'closed'].copy(deep=True)
+            print("after fliter closed pr:", pullRequestData.shape)
+
+            """过滤时间"""
+            minYear, minMonth, maxYear, maxMonth = date
+
+            pullRequestData['label'] = pullRequestData['created_at'].apply(
+                lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
+            pullRequestData['label_y'] = pullRequestData['label'].apply(lambda x: x.tm_year)
+            pullRequestData['label_m'] = pullRequestData['label'].apply(lambda x: x.tm_mon)
+
+            pullRequestData['data_value'] = pullRequestData.apply(lambda x: x['label_y'] * 12 + x['label_m'], axis=1)
+
+            def isInTimeGap(x):
+                d = x['label_y'] * 12 + x['label_m']
+                d1 = minYear * 12 + minMonth
+                d2 = maxYear * 12 + maxMonth
+                return d1 <= d <= d2
+
+            """筛选出目标的pr"""
+            pullRequestData['target'] = pullRequestData.apply(lambda x: isInTimeGap(x), axis=1)
+            pullRequestData = pullRequestData.loc[pullRequestData['target'] == 1]
+
+            """过滤状态非关闭的pr review"""
+            pullRequestData = pullRequestData.loc[pullRequestData['state'] == 'closed'].copy(deep=True)
+            print("after fliter closed pr:", pullRequestData.shape)
+
+            """对change trigger 数据做统计"""
+            change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{p}_data_pr_change_trigger.tsv'
+            change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
+
+            change_trigger_df = pandas.merge(change_trigger_df, pullRequestData, left_on='pullrequest_node', right_on='node_id')
+
+            df_review = change_trigger_df.loc[change_trigger_df['comment_type'] == 'label_review_comment']
+            print("review all:", df_review.shape[0])
+            x = range(-1, 11)
+            y = []
+            for i in x:
+                count = df_review.loc[df_review['change_trigger'] == i].shape[0]
+                if disDict.get(i, None) is None:
+                    disDict[i] = 0
+                disDict[i] += count
+        return disDict
+
+    @staticmethod
+    def wilcoxon():
+        filename = os.path.join("top5_new.xlsx")
+        data = pandas.read_excel(filename, sheet_name="result")
+        print(data)
+        # data.columns = [0, 1, 2, 3, 4]
+        # data.index = [0, 1, 2, 3, 4, 5, 6, 7]
+        # print(data)
+        # x = [[1, 2, 3, 5, 1], [12, 31, 54, 12], [10, 12, 6, 74, 11]]
+        # print(data.values.T)
+        # result = scikit_posthocs.posthoc_nemenyi_friedman(data.values)
+        # print(result)
+        # print(data.values.T[1])
+        # print(data.values.T[3])
+        data1 = []
+        for i in range(0, 7):
+            data1.append([])
+            for j in range(0, 7):
+                if i == j:
+                    data1[i].append(numpy.nan)
+                    continue
+                statistic, pvalue = wilcoxon(data.values.T[i], data.values.T[j], alternative="two-sided")
+                print(pvalue)
+                data1[i].append(pvalue)
+        data1 = pandas.DataFrame(data1)
+        print(data1)
+        data1.to_excel('a.xls')
+        import matplotlib.pyplot as plt
+        name = ['FPS', 'IR', 'AC', 'CHREV', 'XF', 'RF_A', 'CN']
+        # scikit_posthocs.sign_plot(result, g=name)
+        # plt.show()
+        for i in range(0, 7):
+            data1[i][i] = numpy.nan
+        ax = seaborn.heatmap(data1, annot=True, vmax=1, square=True, yticklabels=name, xticklabels=name, cmap='GnBu_r')
+        ax.set_title("Wilcoxon signed-rank test_top1_origin")
+        plt.show()
 
 if __name__ == '__main__':
 

@@ -93,7 +93,9 @@ class Graph:
             edge = self.get_edge_by_key(edge_id)
             if edge.connectedTo.__len__() > 2:
                 """对于有三个点以上的边  删除这个顶点，边保留"""
+                self.edge_content_list.pop((edge.type, edge.connectedTo))  # 原来的检索边需要删除
                 edge.connectedTo.remove(node.id)
+                self.edge_content_list[(edge.type, edge.connectedTo)] = edge
             else:
                 """找到其他连接边的点， 删除该边在其他顶点上面的引用"""
                 for node_id_temp in edge.connectedTo:
@@ -138,6 +140,11 @@ class Graph:
 
     def updateW(self):
         """计算W'矩阵"""
+        """对矩阵行规范化
+           而不是全体归一化
+           疑问，博客上看到矩阵是列归一化？ http://ws.nju.edu.cn/blog/2017/11/markov_chain_pagerank_rwr/
+           可能矩阵定义的问题吧 如果矩阵第i行是代表其他点到点i的概率，那么应该是列归一化
+        """
         N = self.num_nodes
         W = np.zeros((N, N))
         # 遍历所有边，求权重总和
@@ -146,6 +153,8 @@ class Graph:
             total_weight += edge.weight
         for key, edge in self.edge_list.items():
             nodes = edge.connectedTo
-            W[nodes[0]][nodes[1]] = edge.weight/total_weight
-            W[nodes[1]][nodes[0]] = edge.weight/total_weight
+            W[nodes[0]][nodes[1]] = edge.weight
+            W[nodes[1]][nodes[0]] = edge.weight
+        # 列归一化
+        W /= W.sum(axis=0).reshape(1, N)  # 对第2维度相加
         self.W = W

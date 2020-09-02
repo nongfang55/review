@@ -1,6 +1,7 @@
 # coding=gbk
 import sys
 import os
+
 sys.path.append("/root/zjq_rev")
 import time
 from datetime import datetime
@@ -115,7 +116,7 @@ class EARECTrain:
         # prList.sort()
 
         recommendList, answerList, = EARECTrain.RecommendByEAREC(train_data, train_data_y, test_data,
-                                                                test_data_y, convertDict, recommendNum=recommendNum,
+                                                                 test_data_y, convertDict, recommendNum=recommendNum,
                                                                  a=a)
 
         """保存推荐结果到本地"""
@@ -243,7 +244,7 @@ class EARECTrain:
         return train_data, train_data_y, test_data, test_data_y, convertDict
 
     @staticmethod
-    def RecommendByEAREC( train_data, train_data_y, test_data, test_data_y, convertDict, recommendNum=5, a=0.5):
+    def RecommendByEAREC(train_data, train_data_y, test_data, test_data_y, convertDict, recommendNum=5, a=0.5):
         """EAREC推荐算法"""
 
         recommendList = []
@@ -276,26 +277,40 @@ class EARECTrain:
         """增加候选人的顶点"""
         candidates = list(set(train_data['reviewer']))
         for candidate in candidates:
-            graph.add_node(nodeType=Node.STR_NODE_TYPE_REVIEWER, contentKey=candidate, description=f"reviewer:{candidate}")
+            graph.add_node(nodeType=Node.STR_NODE_TYPE_REVIEWER, contentKey=candidate,
+                           description=f"reviewer:{candidate}")
 
+        # 用于计算两个评审者之间的相关程度
+        scoreMap = {}
         """构造reviewer, reviewer关系"""
         grouped_train_data = train_data.groupby(train_data['pull_number'])
         for pr, group in grouped_train_data:
             reviewers = list(set(group['reviewer'].to_list()))
             reviewers = sorted(reviewers)
             for i in range(0, reviewers.__len__()):
-                for j in range(i+1, reviewers.__len__()):
-                    reviewer_i = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, reviewers[i])
-                    reviewer_j = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, reviewers[j])
-                    # 边权累加
-                    graph.add_edge(nodes=[reviewer_i.id, reviewer_j.id],
-                                   edgeType=Edge.STR_EDGE_TYPE_REVIEWER_REVIEWER,
-                                   weight=1,
-                                   description=f" pr review relation between reviewer {reviewers[i]} and reviewer {reviewers[j]}")
+                for j in range(i + 1, reviewers.__len__()):
+                    if scoreMap.get((reviewers[i], reviewers[j]), None) is None:
+                        scoreMap[(reviewers[i], reviewers[j])] = 0
+                    scoreMap[(reviewers[i], reviewers[j])] += 1
+                    # reviewer_i = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, reviewers[i])
+                    # reviewer_j = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, reviewers[j])
+                    # # 边权累加
+                    # graph.add_edge(nodes=[reviewer_i.id, reviewer_j.id],
+                    #                edgeType=Edge.STR_EDGE_TYPE_REVIEWER_REVIEWER,
+                    #                weight=1,
+                    #                description=f" pr review relation between reviewer {reviewers[i]} and reviewer {reviewers[j]}")
+        for reviewers, weight in scoreMap.items():
+            i, j = reviewers
+            reviewer_i = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, i)
+            reviewer_j = graph.get_node_by_content(Node.STR_NODE_TYPE_REVIEWER, j)
+            graph.add_edge(nodes=[reviewer_i.id, reviewer_j.id],
+                           edgeType=Edge.STR_EDGE_TYPE_REVIEWER_REVIEWER,
+                           weight=weight,
+                           description=f" pr review relation between reviewer {i} and reviewer {j}")
         print("finish building reviewer<->reviewer relations!  cost time: {0}s".format(datetime.now() - start))
 
         print("start building reviewer<->ipr relations....")
-        test_pr_list = tuple(set(test_data['pull_number']))
+        test_pr_list = tuple(test_data['pull_number'])  # 用set压缩会导致后面dis读取错位
         train_pr_list = tuple(train_data['pull_number'])
 
         prList = list(test_data.drop_duplicates(['pull_number'])['pull_number'])
@@ -321,7 +336,8 @@ class EARECTrain:
                 for pr, comments in commented_pr_df_grouped:
                     index_train = train_pr_list.index(pr)
                     index_test = test_pr_list.index(pr_num)
-                    score += comments.shape[0] * DIS.iloc[index_test][index_train]/(train_len_dict[pr]*test_len_dict[pr_num])
+                    score += comments.shape[0] * DIS.iloc[index_test][index_train] / (
+                                train_len_dict[pr] * test_len_dict[pr_num])
                 score /= max_score
 
                 """更新p向量"""
@@ -339,9 +355,9 @@ class EARECTrain:
             q[pr_node.id][0] = 1
 
             """迭代六次"""
-            for c in range(0, 1):
+            for c in range(0, 6):  # 迭代6次
                 tmp = numpy.dot(graph.W, p)
-                p = (1-a) * tmp + a * q
+                p = (1 - a) * tmp + a * q
 
             """最后得出的p，看谁的分数在前五"""
             score_dict = {}
@@ -349,7 +365,8 @@ class EARECTrain:
                 node = graph.get_node_by_key(i)
                 score_dict[node.contentKey] = p[i]
 
-            recommendList.append([x[0] for x in sorted(score_dict.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]])
+            recommendList.append(
+                [x[0] for x in sorted(score_dict.items(), key=lambda d: d[1], reverse=True)[0:recommendNum]])
             answerList.append(test_data_y[pr_num])
 
             """删除 pr 节点"""
@@ -357,15 +374,11 @@ class EARECTrain:
 
         return recommendList, answerList
 
+
 if __name__ == '__main__':
-    dates = [(2017, 1, 2018, 1), (2017, 1, 2018, 2), (2017, 1, 2018, 3), (2017, 1, 2018, 4), (2017, 1, 2018, 5),
-             (2017, 1, 2018, 6), (2017, 1, 2018, 7), (2017, 1, 2018, 8), (2017, 1, 2018, 9), (2017, 1, 2018, 10),
-             (2017, 1, 2018, 11), (2017, 1, 2018, 12)]
-    projects = ['opencv', 'cakephp', 'akka', 'django', 'symfony',
-                'babel','scikit-learn','brew', 'metasploit-framework',
-                'Baystation12', 'netty', 'moby', 'xbmc', 'next.js',
-                'angular', 'react', 'salt', 'joomla-cms', 'pandas', 'grafana']
+    dates = [(2017, 1, 2018, 6)]
+    projects = ['opencv']
     for p in projects:
         projectName = p
         """论文里λ用0.1-0.9测试的，每个项目选了最好的topk作为结果，没有统一λ，这里折中取了0.5"""
-        EARECTrain.testEARECAlgorithm(projectName, dates, filter_train=True, filter_test=True, a=0.5)
+        EARECTrain.testEARECAlgorithm(projectName, dates, filter_train=True, filter_test=True, a=0.9)
