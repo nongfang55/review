@@ -38,8 +38,12 @@ class PRTimeLineUtils:
                     prTimeLineItems.append(item)
                 else:
                     """gap 状态应该只有谈话，即没有change, 无脑放入review即可"""
-                    pair_review_node_list.append(item)
-                    """过滤"""
+                    """fix bug 这里需要过滤change的type
+                       具体例子 https://github.com/opencv/opencv/pull/12623
+                    """
+                    if item.typename in PRTimeLineUtils.getReviewType():
+                        pair_review_node_list.append(item)
+                        """过滤"""
             else:
                 if item.typename == PRTimeLineUtils.getReopenedType():  # 进入gap状态
                     isInClosedGap = True
