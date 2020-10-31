@@ -256,6 +256,8 @@ class StringKeyUtils:
     STR_KEY_PULL_REQUEST_REVIEW_THREAD = 'PullRequestReviewThread'  # 相当于review
     STR_KEY_PULL_REQUEST_REVISION_MARKER = 'PullRequestRevisionMarker'
     STR_KEY_MERGED_EVENT = 'MergedEvent'
+    STR_KEY_CLOSED_EVENT = 'ClosedEvent'
+    STR_KEY_REOPENED_EVENT = 'ReopenedEvent'
     STR_KEY_REFERENCED_EVENT = 'ReferencedEvent'    # commit引用，一般在最后merge到主干前做这个动作
 
     API_GITHUB = 'https://api.github.com'
@@ -356,6 +358,7 @@ class StringKeyUtils:
     STR_LABEL_ISSUE_COMMENT = 'label_issue_comment'
     STR_LABEL_REVIEW_COMMENT = 'label_review_comment'
     STR_LABEL_ALL_COMMENT = 'label_all_comment'
+    STR_LABEL_REVIEW_WITH_NO_COMMENT = 'label_review_with_on_comment'
 
     """机器人识别可能用上"""
     STR_NAME_BOT = '[bot]'
@@ -366,6 +369,23 @@ class StringKeyUtils:
 
     """人员随机填充"""
     STR_USER_NONE = 'user_for_none'
+
+    """change_trigger里面用到"""
+    STR_CHANGE_TRIGGER_ISSUE_COMMENT_AUTHOR = -10002  # 作者的评论
+    STR_CHANGE_TRIGGER_ISSUE_COMMENT_OUT_PR = -10003  # 非正常pr流程中的issue comment,但不在reopen和closed中间
+    STR_CHANGE_TRIGGER_ISSUE_COMMENT_BETWEEN_REOPEN = -10004  # 在reopen和closed中间的issue comment
+
+    STR_CHANGE_TRIGGER_REVIEW_NO_COMMENT_AUTHOR = -10002  # 作者的评论
+    STR_CHANGE_TRIGGER_REVIEW_NO_COMMENT_OUT_PR = -10003  # 非正常pr流程中的review no comment,但不在reopen和closed中间
+    STR_CHANGE_TRIGGER_REVIEW_NO_COMMENT_BETWEEN_REOPEN = -10004  # 在reopen和closed中间的review no comment
+
+    STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR = -10002  # 作者评论
+    STR_CHANGE_TRIGGER_REVIEW_COMMENT_OUT_PR = -10003  # 非正常pr流程中的review comment,但不在reopen和closed中间
+    STR_CHANGE_TRIGGER_REVIEW_COMMENT_BETWEEN_REOPEN = -10004  # 在reopen和closed中间的review comment
+    STR_CHANGE_TRIGGER_REVIEW_COMMENT_FILE_MOVE = -10005  # 对比文件移动
+    STR_CHANGE_TRIGGER_REVIEW_COMMENT_ERROR = -10006  # 未知异常
+
+
 
 
 

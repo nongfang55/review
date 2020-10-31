@@ -165,5 +165,17 @@ class PRTimeLineRelation(BeanBase):
                     relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
                                                                            StringKeyUtils.STR_STYLE_DATA_DATE)
                 return relation
+            elif relation.typename == StringKeyUtils.STR_KEY_CLOSED_EVENT:
+                """pull request的closed事件"""
+                if item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None) is not None:
+                    relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
+                                                                           StringKeyUtils.STR_STYLE_DATA_DATE)
+                return relation
+            elif relation.typename == StringKeyUtils.STR_KEY_REOPENED_EVENT:
+                """pull request的reopen事件"""
+                if item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4, None) is not None:
+                    relation.create_at = datetime.strptime(item.get(StringKeyUtils.STR_KEY_CREATE_AT_V4),
+                                                                           StringKeyUtils.STR_STYLE_DATA_DATE)
+                return relation
             else:
                 return None

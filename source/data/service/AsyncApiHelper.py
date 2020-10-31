@@ -1190,16 +1190,21 @@ class AsyncApiHelper:
         return change_trigger_comments
 
     @staticmethod
-    async def analyzeReviewChangeTriggerByBlob(pr_node_id, changes, review, mysql, statistic):
+    async def analyzeReviewChangeTriggerByBlob(pr_node_id, changes, review, mysql, statistic, comments, pr_author,
+                                               is_in_gap):
         """changes目前是逆序的,做分析要先换回来"""
         changes.reverse()
 
         t1 = datetime.now()
-        """从数据库获取review comments(注：一个review 可能会关联多个comment，每个comment会指定一个文件和对应代码行)"""
-        comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timeline_item_node, mysql)
-        if comments is None:
-            print("comment is None! review id:", review.timeline_item_node)
-            return None
+        # """从数据库获取review comments(注：一个review 可能会关联多个comment，每个comment会指定一个文件和对应代码行)"""
+        # comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timeline_item_node, mysql)
+
+        """现在进入这个逻辑的都是有comment的review comment
+           2020.10.31
+        """
+        # if comments is None:
+        #     print("comment is None! review id:", review.timeline_item_node)
+        #     return None
 
         """时间线上面获取的comment都是初始review的comment，而系列的回复comment需要从数据库读"""
         commentList = []
@@ -1220,26 +1225,67 @@ class AsyncApiHelper:
         """遍历review之后的changes，判断是否有comment引起change的情况"""
         change_trigger_comments = []
 
-        if changes is None or changes.__len__() == 0:
+        """新增判断是否在gap中，如果是，则没有判断的必要"""
+        if is_in_gap:
             """缺失的review comment 弥补"""
             for comment in comments:
-                change_trigger_comments.append({
+                change_trigger_review_comment = {
                     "pullrequest_node": pr_node_id,
                     "user_login": comment.user_login,
                     "comment_node": comment.node_id,
                     "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
-                    "change_trigger": -1,
+                    "change_trigger": StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_BETWEEN_REOPEN,
                     "filepath": comment.path
-                })
+                }
+                """如果是作者  改为-2"""
+                if comment.user_login == pr_author:
+                    change_trigger_review_comment['change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR
+                change_trigger_comments.append(change_trigger_review_comment)
                 for c in commentMap[comment.id]:
-                    change_trigger_comments.append({
+                    change_trigger_review_comment = {
                         "pullrequest_node": pr_node_id,
                         "user_login": c.user_login,
                         "comment_node": c.node_id,
                         "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
-                        "change_trigger": -1,
+                        "change_trigger": StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_BETWEEN_REOPEN,
                         "filepath": c.path
-                    })
+                    }
+                    """如果是作者  改为-2"""
+                    if c.user_login == pr_author:
+                        change_trigger_review_comment['change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR
+                    change_trigger_comments.append(change_trigger_review_comment)
+
+            return change_trigger_comments
+
+        """新增判断是否在正常pr流程中间，如果是，则没有判断的必要"""
+        if changes is None or changes.__len__() == 0:
+            """缺失的review comment 弥补"""
+            for comment in comments:
+                change_trigger_review_comment = {
+                    "pullrequest_node": pr_node_id,
+                    "user_login": comment.user_login,
+                    "comment_node": comment.node_id,
+                    "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                    "change_trigger": StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_OUT_PR,
+                    "filepath": comment.path
+                }
+                """如果是作者  改为-2"""
+                if comment.user_login == pr_author:
+                    change_trigger_review_comment['change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR
+                change_trigger_comments.append(change_trigger_review_comment)
+                for c in commentMap[comment.id]:
+                    change_trigger_review_comment = {
+                        "pullrequest_node": pr_node_id,
+                        "user_login": c.user_login,
+                        "comment_node": c.node_id,
+                        "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
+                        "change_trigger": StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_OUT_PR,
+                        "filepath": c.path
+                    }
+                    """如果是作者  改为-2"""
+                    if c.user_login == pr_author:
+                        change_trigger_review_comment['change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR
+                    change_trigger_comments.append(change_trigger_review_comment)
 
             return change_trigger_comments
 
@@ -1388,7 +1434,7 @@ class AsyncApiHelper:
                     "user_login": comment.user_login,
                     "comment_node": comment.node_id,
                     "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
-                    "change_trigger": -1,
+                    "change_trigger": StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_ERROR,
                     "filepath": comment.path
                 })
                 for c in commentMap[comment.id]:
@@ -1397,7 +1443,7 @@ class AsyncApiHelper:
                         "user_login": c.user_login,
                         "comment_node": c.node_id,
                         "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
-                        "change_trigger": -1,
+                        "change_trigger": StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_ERROR,
                         "filepath": c.path
                     })
 
@@ -1454,13 +1500,18 @@ class AsyncApiHelper:
 
                 for comment in comments:
 
+                    """加速"""
+                    if comment.change_trigger == 0 or \
+                            comment.change_trigger == StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR:
+                        continue
+
                     t3 = datetime.now()
 
                     """依次遍历每一个 comment, 寻找 comment 对应的文件的blob
                        在两个commit版本中的文本
                     """
                     if comment.temp_original_line is None or comment.side is None:
-                        comment.change_trigger = -1
+                        comment.change_trigger = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_ERROR
                         continue
 
                     fileName = comment.path
@@ -1479,6 +1530,9 @@ class AsyncApiHelper:
                         print(comment.getValueDict())
                         print([reviewCommit, changeCommit])
                         print("--" * 50)
+                        if comment.change_trigger != StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR\
+                                and comment.change_trigger < 0:
+                            comment.change_trigger = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_FILE_MOVE
                         continue
 
                     print("review blob len:", reviewBlob.__len__(), ' changeblob len:', changeBlob.__len__())
@@ -1525,7 +1579,7 @@ class AsyncApiHelper:
                                 if s != ' ':
                                     dis = min(dis, abs(comment.temp_original_line - curPos))
                         if dis <= 10:
-                            if comment.change_trigger == -1:
+                            if comment.change_trigger < 0:
                                 comment.change_trigger = dis
                             else:
                                 comment.change_trigger = min(comment.change_trigger, dis)
@@ -1539,23 +1593,30 @@ class AsyncApiHelper:
                 print(e)
                 continue
         for comment in comments:
-            change_trigger_comments.append({
+            change_trigger_review_comment = {
                 "pullrequest_node": pr_node_id,
                 "user_login": comment.user_login,
                 "comment_node": comment.node_id,
                 "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
                 "change_trigger": comment.change_trigger,
                 "filepath": comment.path
-            })
+            }
+            """判断作者的情况"""
+            if comment.user_login == pr_author:
+                change_trigger_review_comment['change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR
+            change_trigger_comments.append(change_trigger_review_comment)
             for c in commentMap[comment.id]:
-                change_trigger_comments.append({
+                change_trigger_review_comment = {
                     "pullrequest_node": pr_node_id,
                     "user_login": c.user_login,
                     "comment_node": c.node_id,
                     "comment_type": StringKeyUtils.STR_LABEL_REVIEW_COMMENT,
                     "change_trigger": comment.change_trigger,
                     "filepath": c.path
-                })
+                }
+                if c.user_login == pr_author:
+                    change_trigger_review_comment['change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR
+                change_trigger_comments.append(change_trigger_review_comment)
         statistic.lock.acquire()
         statistic.usefulChangeTrigger += [x for x in comments if x.change_trigger > 0].__len__()
         statistic.lock.release()

@@ -54,8 +54,7 @@ class GraphqlHelper:
 
     STR_KEY_NONE = "{}"
 
-    STR_KEY_QUERY_PR_TIMELINE = '''
-query($ids:[ID!]!) { 
+    STR_KEY_QUERY_PR_TIMELINE = '''query($ids:[ID!]!) { 
   nodes(ids:$ids) {
       ... on PullRequest {
       id
@@ -150,6 +149,23 @@ query($ids:[ID!]!) {
               }
               createdAt
             }
+
+            ... on ClosedEvent {
+                id
+                actor {
+                   login
+                }
+                createdAt
+            }
+
+            ... on ReopenedEvent {
+                id
+                actor {
+                    login
+                }
+                createdAt
+            }
+
             ... on IssueComment {
               author {
                 login
@@ -168,8 +184,7 @@ query($ids:[ID!]!) {
     remaining
     resetAt
   }
-}
-    '''
+}'''
 
     STR_KEY_QUERY_PR_ALL = '''query($name:String!, $owner:String!, $number:Int!) { 
       

@@ -70,7 +70,7 @@ class AsyncProjectAllDataFetcher:
         else:
             offset = 10 - nodes.__len__() % 10
             nodes.extend([None for i in range(0, offset)])
-            nodesGroup = np.array(nodes).reshape(10, -1)
+            nodesGroup = np.array(nodes).reshape(20, -1)
             # for index in range(0, nodes.__len__(), 10):
             #     if index + 10 < nodes.__len__():
             #         nodesGroup.append(nodes[index:index + 10])
@@ -81,6 +81,7 @@ class AsyncProjectAllDataFetcher:
             asyncio.ensure_future(AsyncApiHelper.downloadRPTimeLine([x for x in nodegroup.tolist() if x is not None],
                                                                     semaphore, mysql, statistic))
             for nodegroup in nodesGroup]  # 可以通过nodes 过多次嵌套节省请求数量
+
         tasks = asyncio.gather(*tasks)
         loop.run_until_complete(tasks)
         print('cost time:', datetime.now() - t1)
@@ -94,7 +95,7 @@ class AsyncProjectAllDataFetcher:
         return results
 
     @staticmethod
-    def analyzePullRequestReview(pr_timeline_item_groups):
+    def analyzePullRequestReview(pr_timeline_item_groups, pr_author_map):
         """一次解析多个pr的change_trigger信息"""
         t1 = datetime.now()
 
@@ -109,7 +110,7 @@ class AsyncProjectAllDataFetcher:
 
         loop = asyncio.get_event_loop()
         tasks = [asyncio.ensure_future(
-            AsyncProjectAllDataFetcher.analyzePRTimeline(mysql, pr_timeline_item_group, statistic))
+            AsyncProjectAllDataFetcher.analyzePRTimeline(mysql, pr_timeline_item_group, statistic, pr_author_map))
             for pr_timeline_item_group in pr_timeline_item_groups]
         tasks = asyncio.gather(*tasks)
         loop.run_until_complete(tasks)
@@ -117,7 +118,7 @@ class AsyncProjectAllDataFetcher:
         return tasks.result()
 
     @staticmethod
-    async def analyzePRTimeline(mysql, prOriginTimeLineItems, statistic):
+    async def analyzePRTimeline(mysql, prOriginTimeLineItems, statistic, pr_author_map):
         """分析pr时间线，找出触发过change_trigger的comment
            返回五元组（reviewer, comment_node, comment_type, file, change_trigger）
            对于issue_comment，无需返回file，默认会trigger该pr的所有文件
@@ -128,6 +129,7 @@ class AsyncProjectAllDataFetcher:
             return None
         pr_node_id = None
         prTimeLineItems = []
+
         for item in prOriginTimeLineItems:
             """从某一条item里获取pr_node_id"""
             if pr_node_id is None:
@@ -143,6 +145,9 @@ class AsyncProjectAllDataFetcher:
         """将timeline items逆序"""
         prTimeLineItems.reverse()
 
+        """获取作者"""
+        pr_author = pr_author_map[pr_node_id]
+
         """解析pr时间线，找出和changes相关联的comment"""
         changeTriggerComments = []
         ReviewChangeRelations = []
@@ -154,45 +159,58 @@ class AsyncProjectAllDataFetcher:
             # 数据存储的暂时不做
             # reviewChangeRelationList = ReviewChangeRelation.parserV4.parser(pair)
             # ReviewChangeRelations.extend(reviewChangeRelationList)
+            is_in_gap = False
+            """先对这个pair是否在gap做判断"""
+            for change in changes:
+                if change.typename == StringKeyUtils.STR_KEY_REOPENED_EVENT:
+                    is_in_gap = True
 
-            hasUsefulIssueComment = False
+            """注意：现在的hasUsefulComment是issue commenth和 review_no_comment共享
+                2020.10.31 @张逸凡
+            """
+
+            # 改成检测到的第几条issue comment或者 review with no comment,中间不算作者的评论，从0开始
+            # 由于子序列是时间倒序的，数值增长即可
+            UsefulIssueCommentPos = 0
             for review in reviews:
                 """对于出现在pair中的第一条issue comment, 直接认为它是有效的
                    如果都认为有效,issue_comment就全都有效了
                 """
-                if (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT):
-                    if hasUsefulIssueComment or changes.__len__() == 0:
-                        change_trigger_issue_comment = {
-                            "pullrequest_node": pr_node_id,
-                            "user_login": review.user_login,
-                            "comment_node": review.timeline_item_node,
-                            "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
-                            "change_trigger": -1,
-                            "filepath": None
-                        }
-                    else:
-                        if (review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT) and changes.__len__() > 0:
-                            change_trigger_issue_comment = {
-                                "pullrequest_node": pr_node_id,
-                                "user_login": review.user_login,
-                                "comment_node": review.timeline_item_node,
-                                "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
-                                "change_trigger": 1,
-                                "filepath": None
-                            }
-                    changeTriggerComments.append(change_trigger_issue_comment)
-                    hasUsefulIssueComment = True
-                    continue
 
-                """若为普通review，则看后面紧跟着的一系列commit是否和reviewCommit有文件重合的改动"""
-                change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTriggerByBlob(pr_node_id,
-                                                                                                       changes, review,
-                                                                                                       mysql, statistic)
-                if change_trigger_review_comments is not None:
-                    changeTriggerComments.extend(change_trigger_review_comments)
-                # if reviewChangeRelationList.__len__() > 0:
-                #     ReviewChangeRelations.extend(reviewChangeRelationList)
-        await AsyncSqlHelper.storeBeanDateList(ReviewChangeRelations, mysql)
+                if review.typename == StringKeyUtils.STR_KEY_ISSUE_COMMENT:
+                    """对issue comment进行处理"""
+                    UsefulIssueCommentPos = AsyncProjectAllDataFetcher.analyzeIssueComment(review, changes, pr_author,
+                                                                                           pr_node_id,
+                                                                                           changeTriggerComments,
+                                                                                           UsefulIssueCommentPos,
+                                                                                           is_in_gap)
+                else:
+                    """对review comment进行处理"""
+                    """对于 review comment 先获取 review对应的comment 数量  2020.10.30"""
+                    comments = await AsyncApiHelper.getReviewCommentsByNodeFromStore(review.timeline_item_node, mysql)
+
+                    if comments is None or comments.__len__() == 0:
+                        """对于没有comment的情况，认为种类是review_with_on_comment"""
+                        """对issue comment进行处理"""
+                        UsefulIssueCommentPos = AsyncProjectAllDataFetcher.analyzeReviewWithNoComment(review, changes,
+                                                                                                      pr_author,
+                                                                                                      pr_node_id,
+                                                                                                      changeTriggerComments,
+                                                                                                      UsefulIssueCommentPos,
+                                                                                                      is_in_gap)
+                    else:
+                        """这种就是正常的review comment的情况"""
+                        change_trigger_review_comments = await AsyncApiHelper.analyzeReviewChangeTriggerByBlob(
+                            pr_node_id,
+                            changes, review,
+                            mysql, statistic,
+                            comments, pr_author,
+                            is_in_gap)
+                        if change_trigger_review_comments is not None:
+                            changeTriggerComments.extend(change_trigger_review_comments)
+                        # if reviewChangeRelationList.__len__() > 0:
+                        #     ReviewChangeRelations.extend(reviewChangeRelationList)
+        await AsyncSqlHelper.updateBeanDateList(ReviewChangeRelations, mysql)
 
         """计数"""
         statistic.lock.acquire()
@@ -202,6 +220,117 @@ class AsyncProjectAllDataFetcher:
         statistic.lock.release()
 
         return changeTriggerComments
+
+    @staticmethod
+    def analyzeIssueComment(review, changes, pr_author, pr_node_id, changeTriggerComments,
+                            UsefulIssueCommentPos, is_in_gap):
+        """把部分判断issue的逻辑放在这里，不然主函数有点拥挤了
+           返回值为最新的 IssueCommentPos
+
+           is_in_gap 用于判断是否在closed和 reopened的间隙
+
+        """
+        change_trigger_issue_comment = {
+            "pullrequest_node": pr_node_id,
+            "user_login": review.user_login,
+            "comment_node": review.timeline_item_node,
+            "comment_type": StringKeyUtils.STR_LABEL_ISSUE_COMMENT,
+            "change_trigger": None,
+            "filepath": None
+        }
+
+        """识别作者的情况"""
+        if review.user_login == pr_author:
+            change_trigger_issue_comment['change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_ISSUE_COMMENT_AUTHOR
+            changeTriggerComments.append(change_trigger_issue_comment)
+            """原样返回"""
+            return UsefulIssueCommentPos
+
+        """识别间隙的情况"""
+        if is_in_gap:
+            change_trigger_issue_comment[
+                'change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_ISSUE_COMMENT_BETWEEN_REOPEN
+            changeTriggerComments.append(change_trigger_issue_comment)
+            """原样返回"""
+            return UsefulIssueCommentPos
+
+        """识别正常pr流程外面的情况
+           问题点： changes = 0 是否说明是在pr流程外面的comment？
+        """
+        if changes.__len__() == 0:
+            change_trigger_issue_comment['change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_ISSUE_COMMENT_OUT_PR
+            changeTriggerComments.append(change_trigger_issue_comment)
+            """原样返回"""
+            return UsefulIssueCommentPos
+
+        """除去上面的情况，就是正常的issue comment"""
+        # if hasUsefulIssueComment:
+        #     change_trigger_issue_comment['change_trigger'] = -1
+        # else:
+        #     change_trigger_issue_comment['change_trigger'] = 0
+        #     hasUsefulIssueComment = True
+        change_trigger_issue_comment['change_trigger'] = - UsefulIssueCommentPos  # 注意负号
+        UsefulIssueCommentPos += 1
+
+        changeTriggerComments.append(change_trigger_issue_comment)
+        return UsefulIssueCommentPos
+
+    @staticmethod
+    def analyzeReviewWithNoComment(review, changes, pr_author, pr_node_id, changeTriggerComments,
+                                   UsefulIssueCommentPos, is_in_gap):
+        """把部分判断的逻辑放在这里，不然主函数有点拥挤了
+           返回值为最新的 UsefulIssueCommentPos
+
+           is_in_gap 用于判断是否在closed和 reopened的间隙
+
+           对于这一类的review with no comment，把review的node_id作为标识
+        """
+        change_trigger_review_with_no_comment = {
+            "pullrequest_node": pr_node_id,
+            "user_login": review.user_login,
+            "comment_node": review.timeline_item_node,
+            "comment_type": StringKeyUtils.STR_LABEL_REVIEW_WITH_NO_COMMENT,
+            "change_trigger": None,
+            "filepath": None
+        }
+
+        """识别作者的情况"""
+        if review.user_login == pr_author:
+            change_trigger_review_with_no_comment[
+                'change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_NO_COMMENT_AUTHOR
+            changeTriggerComments.append(change_trigger_review_with_no_comment)
+            """原样返回"""
+            return UsefulIssueCommentPos
+
+        """识别间隙的情况"""
+        if is_in_gap:
+            change_trigger_review_with_no_comment[
+                'change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_NO_COMMENT_BETWEEN_REOPEN
+            changeTriggerComments.append(change_trigger_review_with_no_comment)
+            """原样返回"""
+            return UsefulIssueCommentPos
+
+        """识别正常pr流程外面的情况
+           问题点： changes = 0 是否说明是在pr流程外面的comment？
+        """
+        if changes.__len__() == 0:
+            change_trigger_review_with_no_comment[
+                'change_trigger'] = StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_NO_COMMENT_OUT_PR
+            changeTriggerComments.append(change_trigger_review_with_no_comment)
+            """原样返回"""
+            return UsefulIssueCommentPos
+
+        """除去上面的情况，就是正常的issue comment"""
+        # if hasUsefulIssueComment:
+        #     change_trigger_review_with_no_comment['change_trigger'] = -1
+        # else:
+        #     change_trigger_review_with_no_comment['change_trigger'] = 0
+        #     hasUsefulIssueComment = True
+        change_trigger_review_with_no_comment['change_trigger'] = - UsefulIssueCommentPos  # 注意负号
+        UsefulIssueCommentPos += 1
+
+        changeTriggerComments.append(change_trigger_review_with_no_comment)
+        return UsefulIssueCommentPos
 
     @staticmethod
     def getDataForRepository(owner, repo, limit=-1, start=-1):
@@ -344,7 +473,7 @@ class AsyncProjectAllDataFetcher:
 
             tasks = [asyncio.ensure_future(
                 AsyncApiHelper.downloadSingleReviewComment(repoName, item[0], semaphore, mysql, statistic))
-                     for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
+                for item in res]  # 可以通过nodes 过多次嵌套节省请求数量
             await asyncio.wait(tasks)
 
     @staticmethod
@@ -357,11 +486,13 @@ class AsyncProjectAllDataFetcher:
             print("mysql init success")
         print("mysql init success")
         fetch_size = 2000
-        total = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_COUNT_BY_HAS_FETCHED_FILE, None)
+        total = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_COUNT_BY_HAS_FETCHED_FILE,
+                                           None)
         fetch_loop = int(total[0][0] / fetch_size)
         for i in range(0, fetch_loop):
             start = random.randint(0, fetch_loop - 1)
-            res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_BY_HAS_FETCHED_FILE, [start * fetch_size])
+            res = await AsyncSqlHelper.query(mysql, SqlUtils.STR_SQL_QUERY_UNMATCH_COMMIT_FILE_BY_HAS_FETCHED_FILE,
+                                             [start * fetch_size])
             print(res)
 
             tasks = [
@@ -406,9 +537,10 @@ class AsyncProjectAllDataFetcher:
         pr_nodes = list(pr_nodes)
         pr_nodes = [node[0] for node in pr_nodes]
         # 起始位置
-        pos = 0
+        pos = 4000
         # 每次获取的数量限制
-        fetchLimit = 200
+        """加速"""
+        fetchLimit = 400
         size = pr_nodes.__len__()
         Logger.logi("--------------begin to fetch {0} {1}--------------".format(owner, repo))
         print("start fetch")
@@ -433,7 +565,7 @@ class AsyncProjectAllDataFetcher:
         Logger.logi("--------------end---------------")
 
     @staticmethod
-    def checkPRTimeLineResult(owner, repo):
+    def checkPRTimeLineResult(owner, repo, limit=5):
         """检查PRTimeline数据是否完整爬取"""
         """1. 获取该仓库所有的pr_node"""
         repo_fullname = owner + "/" + repo
@@ -583,8 +715,23 @@ class AsyncProjectAllDataFetcher:
         pr_timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
         pr_timeline_df = pandasHelper.readTSVFile(fileName=pr_timeline_filename,
                                                   header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+
+        """读取PullRequestData，获取pr所对应的作者"""
+        pr_data_filename = projectConfig.getPullRequestPath() + os.sep + f'ALL_{repo}_data_pullrequest.tsv'
+        pr_data_df = pandasHelper.readTSVFile(fileName=pr_data_filename, header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        """收集pr已经对应的作者  用于后面过滤属于作者评论"""
+        pr_author_map = {}
+        for index, row in pr_data_df.iterrows():
+            pr_author_map[row['node_id']] = row['user_login']
+
         pr_nodes = list(set(list(pr_timeline_df['pullrequest_node'])))
         pr_nodes.sort()
+        # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0MjE5MjEzOTc5']  # 3次reopend
+        # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0MjA0MTk5ODkw']
+        # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0NDQwOTAxMzk0']
+        # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0MzE1OTU0NDgw']  # pr外review
+        pr_nodes = ['MDExOlB1bGxSZXF1ZXN0MTQ3NDczNTIx']  # 普通用例
+        # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0NDM4NjAzMjk2']  # 超多review
 
         """设置fetch参数"""
         pos = 0
@@ -610,7 +757,8 @@ class AsyncProjectAllDataFetcher:
                 formated_data.append(record)
 
             """分析这些pr的timeline"""
-            pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(formated_data)
+            pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(formated_data,
+                                                                                             pr_author_map)
             pr_change_trigger_comments = [x for y in pr_change_trigger_comments for x in y]
 
             """将分析结果去重并追加到change_trigger表中"""
@@ -627,31 +775,30 @@ class AsyncProjectAllDataFetcher:
 
 
 if __name__ == '__main__':
-    """1. 获取基础数据"""
-    # 格式说明: owner, repo, 需要爬取的pr数量, pr的结束编号
-    # eg. 数据表上pr序号是14000-17800
-    # 这里应该填 opencv, opencv, 3800(17800减14000), 17800
-    projects = [("opencv", "opencv", 3800, 17800),
-                ("facebook", "react", 4800, 19300)]
-    for p in projects:
-        AsyncProjectAllDataFetcher.getDataForRepository(p[0], p[1], p[2], p[3])
+    # """1. 获取基础数据"""
+    # # 格式说明: owner, repo, 需要爬取的pr数量, pr的结束编号
+    # # eg. 数据表上pr序号是14000-17800
+    # # 这里应该填 opencv, opencv, 3800(17800减14000), 17800
+    # projects = [("opencv", "opencv", 3800, 17800),
+    #             ("facebook", "react", 4800, 19300)]
+    # for p in projects:
+    #     AsyncProjectAllDataFetcher.getDataForRepository(p[0], p[1], p[2], p[3])
+    #
+    # """2. 获取reviewer comment original_line数据"""
+    # # 格式说明: owner, repo, pr的开始编号, pr的结束编号
+    # projects = [("opencv", "opencv", 14000, 17800),
+    #             ("facebook", "react", 14500, 19300)]
+    # for p in projects:
+    #     AsyncProjectAllDataFetcher.getNoOriginLineReviewComment(p[0], p[1], p[2], p[3])
+    #
+    # """3. 获取pr时间线信息"""
+    # # 格式说明：owner, repo
+    # projects = [("opencv", "opencv")]
+    # for project in projects:
+    #     AsyncProjectAllDataFetcher.getPRTimeLine(project[0], project[1])
 
-    """2. 获取reviewer comment original_line数据"""
-    # 格式说明: owner, repo, pr的开始编号, pr的结束编号
-    projects = [("opencv", "opencv", 14000, 17800),
-                ("facebook", "react", 14500, 19300)]
-    for p in projects:
-        AsyncProjectAllDataFetcher.getNoOriginLineReviewComment(p[0], p[1], p[2], p[3])
-
-    """3. 获取pr时间线信息"""
-    # 格式说明：owner, repo
-    projects = [("opencv", "opencv"),
-                ("facebook", "react")]
-    for project in projects:
-        AsyncProjectAllDataFetcher.getPRTimeLine(project[0], project[1])
-
-    """4. 获取commit_file"""
-    AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
+    # """4. 获取commit_file"""
+    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
 
     """5. 获取change_trigger"""
     # TODO 注意在爬取之前需要先将PRTimeLine数据保存到本地，见文档
@@ -660,5 +807,5 @@ if __name__ == '__main__':
     for project in projects:
         AsyncProjectAllDataFetcher.getPRChangeTriggerData(project[0], project[1])
 
-    """5. 获取commit_file"""
-    AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
+    # """5. 获取commit_file"""
+    # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()
