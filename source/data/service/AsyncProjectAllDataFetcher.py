@@ -326,8 +326,10 @@ class AsyncProjectAllDataFetcher:
         # else:
         #     change_trigger_review_with_no_comment['change_trigger'] = 0
         #     hasUsefulIssueComment = True
-        change_trigger_review_with_no_comment['change_trigger'] = - UsefulIssueCommentPos  # 注意负号
-        UsefulIssueCommentPos += 1
+        """2020.11.5 对于review not comment也用类似的手段处理，直接认为无效"""
+        # change_trigger_review_with_no_comment['change_trigger'] = - UsefulIssueCommentPos  # 注意负号
+        # UsefulIssueCommentPos += 1
+        change_trigger_review_with_no_comment['change_trigger'] = -1
 
         changeTriggerComments.append(change_trigger_review_with_no_comment)
         return UsefulIssueCommentPos

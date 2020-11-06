@@ -100,8 +100,7 @@ class PRTimeLineUtils:
 
     @staticmethod
     def getReviewType():
-        return [StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW, StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_THREAD,
-                StringKeyUtils.STR_KEY_ISSUE_COMMENT]
+        return [StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW, StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_THREAD]
 
     @staticmethod
     def getClosedType():
