@@ -641,6 +641,15 @@ class AsyncProjectAllDataFetcher:
         #             re_analyze_prs.append(pr)
         # Logger.logi("there are {0} prs need to re analyze".format(re_analyze_prs.__len__()))
 
+        """读取PullRequestData，获取pr所对应的作者"""
+        pr_data_filename = projectConfig.getPullRequestPath() + os.sep + f'ALL_{repo}_data_pullrequest.tsv'
+        pr_data_df = pandasHelper.readTSVFile(fileName=pr_data_filename, header=pandasHelper.INT_READ_FILE_WITH_HEAD)
+        """收集pr已经对应的作者  用于后面过滤属于作者评论"""
+        pr_author_map = {}
+        for index, row in pr_data_df.iterrows():
+            pr_author_map[row['node_id']] = row['user_login']
+
+
         """设置fetch参数"""
         pos = 0
         fetchLimit = 200
@@ -656,7 +665,7 @@ class AsyncProjectAllDataFetcher:
                 formated_data.append(group.to_dict(orient='records'))
 
             """7. 开始分析"""
-            pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(formated_data)
+            pr_change_trigger_comments = AsyncProjectAllDataFetcher.analyzePullRequestReview(formated_data, pr_author_map)
             pr_change_trigger_comments = [x for y in pr_change_trigger_comments for x in y]
 
             """8. 将分析结果去重并追加到change_trigger表中"""
@@ -732,8 +741,10 @@ class AsyncProjectAllDataFetcher:
         # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0MjA0MTk5ODkw']
         # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0NDQwOTAxMzk0']
         # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0MzE1OTU0NDgw']  # pr外review
-        pr_nodes = ['MDExOlB1bGxSZXF1ZXN0MTQ3NDczNTIx']  # 普通用例
+        # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0MTQ3NDczNTIx']  # 普通用例
         # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0NDM4NjAzMjk2']  # 超多review
+        # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0Mjg1NzExNTIx']
+        # pr_nodes = ['MDExOlB1bGxSZXF1ZXN0MTAxNTUwMTcw']
 
         """设置fetch参数"""
         pos = 0
@@ -808,6 +819,9 @@ if __name__ == '__main__':
     projects = [("opencv", "opencv")]
     for project in projects:
         AsyncProjectAllDataFetcher.getPRChangeTriggerData(project[0], project[1])
+
+    # for project in projects:
+    #     AsyncProjectAllDataFetcher.checkChangeTriggerResult(project[0], project[1])
 
     # """5. 获取commit_file"""
     # AsyncProjectAllDataFetcher.getUnmatchedCommitFile()

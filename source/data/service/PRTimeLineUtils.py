@@ -84,7 +84,9 @@ class PRTimeLineUtils:
                 elif item.typename in PRTimeLineUtils.getReviewType() and pair_change_node_list.__len__() == 0:
                     """如果遇到了comment类型，且change_list为空，仍然放入review_node_list"""
                     pair_review_node_list.append(item)
-                last_item = item
+                if item.typename in PRTimeLineUtils.getChangeType() or\
+                        item.typename in PRTimeLineUtils.getReviewType():
+                    last_item = item
 
             # 注：对于change_node_list为空的pair也保留，否则会漏掉无效评论
             if pair_change_node_list.__len__() > 0 or pair_review_node_list.__len__() > 0:

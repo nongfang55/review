@@ -1486,7 +1486,7 @@ class AsyncApiHelper:
                 changeCommit = change.headRefForcePushedEventAfterCommit
 
             if changeCommit is None or reviewCommit is None:
-                break
+                continue
             try:
                 """获取两个commit 对应的 tree_id"""
                 commitTreeList = await AsyncApiHelper.getCommitsByCheckTreeOID([changeCommit], mysql,

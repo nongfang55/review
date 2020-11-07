@@ -1,5 +1,5 @@
 [authorization]
-token=8ed4ec60b7415c00fd0e1f4ec141e38980822232
+token=8d4dd82430f22cb4ba661a3e0694126543227330
 [database]
 host=cdb-er8xfzac.cd.tencentcdb.com
 username=root

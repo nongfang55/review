@@ -257,8 +257,6 @@ class DataProcessUtils:
         return [recommend_positive_success_pr_ratio, recommend_negative_success_pr_ratio,
                 recommend_positive_fail_pr_ratio, recommend_negative_fail_pr_ratio]
 
-
-
     @staticmethod
     def saveResult(filename, sheetName, topk, mrr, precisionk, recallk, fmeasurek, date, error_analysis_data=None):
         """时间和准确率"""
@@ -330,7 +328,8 @@ class DataProcessUtils:
                 continue
             content = ['', '社区编号', '社区大小', '子社区数', 'Modularity', 'entropy', 'avg_variance']
             ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
-            content = ['', cid, data['size'], data['community_count'], data['modularity'], data['entropy'], data['avg_variance']]
+            content = ['', cid, data['size'], data['community_count'], data['modularity'], data['entropy'],
+                       data['avg_variance']]
             ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
             content = ['', '', 'TopKAccuracy']
             ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
@@ -362,7 +361,6 @@ class DataProcessUtils:
             ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
             content = ['', ''] + data['fmeasurek']
             ExcelHelper().appendExcelRow(filename, sheetName, content, style=ExcelHelper.getNormalStyle())
-
 
     @staticmethod
     def saveFinallyResult(filename, sheetName, topks, mrrs, precisionks, recallks, fmeasureks,
@@ -818,7 +816,8 @@ class DataProcessUtils:
         pullRequestData = pullRequestData.loc[pullRequestData['state'] == 'closed'].copy(deep=True)
         print("after fliter closed pr:", pullRequestData.shape)
 
-        pullRequestData = pullRequestData[['number', 'created_at', 'closed_at', 'user_login', 'node_id']].copy(deep=True)
+        pullRequestData = pullRequestData[['number', 'created_at', 'closed_at', 'user_login', 'node_id']].copy(
+            deep=True)
         reviewData = reviewData[["pull_number", "id", "user_login", 'submitted_at']].copy(deep=True)
 
         if filter_change_trigger:
@@ -864,8 +863,8 @@ class DataProcessUtils:
         """只选出感兴趣的部分"""
         data['commit_sha'] = 0
         data = data[
-                ['repo_full_name', 'number', 'node_id_x', 'created_at', 'user_login', 'commit_sha', 'filename']].copy(
-                deep=True)
+            ['repo_full_name', 'number', 'node_id_x', 'created_at', 'user_login', 'commit_sha', 'filename']].copy(
+            deep=True)
         data.drop_duplicates(inplace=True)
 
         if filter_change_trigger:
@@ -993,6 +992,7 @@ class DataProcessUtils:
         DataProcessUtils.splitDataByMonth(filename=None, targetPath=projectConfig.getIR_ACDataPath(),
                                           targetFileName=targetFileName, dateCol='pr_created_at',
                                           dataFrame=data)
+
     @staticmethod
     def convertStringTimeToTimeStrip(s):
         return int(time.mktime(time.strptime(s, "%Y-%m-%d %H:%M:%S")))
@@ -1377,7 +1377,7 @@ class DataProcessUtils:
             """change_trigger只取出pr, reviewer，和data取交集"""
             changeTriggerData['label'] = changeTriggerData.apply(
                 lambda x: (x['comment_type'] == 'label_issue_comment' and x['change_trigger'] == 1) or (
-                         x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
+                        x['comment_type'] == 'label_review_comment' and x['change_trigger'] == 0), axis=1)
             changeTriggerData = changeTriggerData.loc[changeTriggerData['label'] == True].copy(deep=True)
             changeTriggerData = changeTriggerData[['pullrequest_node', 'user_login']].copy(deep=True)
             changeTriggerData.drop_duplicates(inplace=True)
@@ -2138,8 +2138,10 @@ class DataProcessUtils:
             data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
             "IR数据行： pr_number, review_user_login, pr_title, pr_body, pr_created_at"
-            data_issue = data_issue[['number', 'title', 'body_x', 'created_at_x', 'user_login_y', 'node_id_x']].copy(deep=True)
-            data_issue.columns = ['pr_number', 'pr_title', 'pr_body', 'pr_created_at', 'review_user_login', 'pullrequest_node']
+            data_issue = data_issue[['number', 'title', 'body_x', 'created_at_x', 'user_login_y', 'node_id_x']].copy(
+                deep=True)
+            data_issue.columns = ['pr_number', 'pr_title', 'pr_body', 'pr_created_at', 'review_user_login',
+                                  'pullrequest_node']
             data_issue.drop_duplicates(inplace=True)
 
             data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
@@ -2151,8 +2153,10 @@ class DataProcessUtils:
             """过滤机器人的场景  """
             data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
             data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
-            data_review = data_review[['number', 'title', 'body_x', 'created_at', 'user_login_y', 'node_id_x']].copy(deep=True)
-            data_review.columns = ['pr_number', 'pr_title', 'pr_body', 'pr_created_at', 'review_user_login', 'pullrequest_node']
+            data_review = data_review[['number', 'title', 'body_x', 'created_at', 'user_login_y', 'node_id_x']].copy(
+                deep=True)
+            data_review.columns = ['pr_number', 'pr_title', 'pr_body', 'pr_created_at', 'review_user_login',
+                                   'pullrequest_node']
             data_review.drop_duplicates(inplace=True)
 
             data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
@@ -2239,8 +2243,10 @@ class DataProcessUtils:
         data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
         data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
         "IR数据行： pr_number, review_user_login, pr_title, pr_body, pr_created_at"
-        data_issue = data_issue[['number', 'title', 'body_x', 'created_at_x', 'user_login_y', 'node_id_x']].copy(deep=True)
-        data_issue.columns = ['pr_number', 'pr_title', 'pr_body', 'pr_created_at', 'review_user_login', 'pullrequest_node']
+        data_issue = data_issue[['number', 'title', 'body_x', 'created_at_x', 'user_login_y', 'node_id_x']].copy(
+            deep=True)
+        data_issue.columns = ['pr_number', 'pr_title', 'pr_body', 'pr_created_at', 'review_user_login',
+                              'pullrequest_node']
         data_issue.drop_duplicates(inplace=True)
 
         data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
@@ -2252,9 +2258,10 @@ class DataProcessUtils:
         """过滤机器人的场景  """
         data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
         data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
-        data_review = data_review[['number', 'title', 'body_x', 'created_at', 'user_login_y', 'node_id_x']].copy(deep=True)
+        data_review = data_review[['number', 'title', 'body_x', 'created_at', 'user_login_y', 'node_id_x']].copy(
+            deep=True)
         data_review.columns = ['pr_number', 'pr_title', 'pr_body', 'pr_created_at', 'review_user_login',
-                                'pullrequest_node']
+                               'pullrequest_node']
         data_review.drop_duplicates(inplace=True)
 
         data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
@@ -2806,7 +2813,9 @@ class DataProcessUtils:
         data = pandas.merge(data, prChangeFileData, left_on='pr_number', right_on='pull_number')
 
         """只选出感兴趣的部分"""
-        data = data[['pr_number', 'pr_created_at', 'review_user_login', 'comment_node_id', 'comment_at', 'filename']].copy(deep=True)
+        data = data[
+            ['pr_number', 'pr_created_at', 'review_user_login', 'comment_node_id', 'comment_at', 'filename']].copy(
+            deep=True)
         data.drop_duplicates(inplace=True)
         data.sort_values(by='pr_number', ascending=False, inplace=True)
         data.reset_index(drop=True)
@@ -2889,8 +2898,10 @@ class DataProcessUtils:
         data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
         data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
         "PR数据行： number, review_user_login, pr_created_at, comment_at, filename"
-        data_issue = data_issue[['number', 'user_login_x', 'created_at_x', 'node_id_y', 'user_login_y', 'created_at_y']].copy(deep=True)
-        data_issue.columns = ['pr_number', 'author_user_login', 'pr_created_at', 'comment_node_id', 'review_user_login', 'comment_at']
+        data_issue = data_issue[
+            ['number', 'user_login_x', 'created_at_x', 'node_id_y', 'user_login_y', 'created_at_y']].copy(deep=True)
+        data_issue.columns = ['pr_number', 'author_user_login', 'pr_created_at', 'comment_node_id', 'review_user_login',
+                              'comment_at']
         data_issue.drop_duplicates(inplace=True)
 
         data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
@@ -2909,8 +2920,10 @@ class DataProcessUtils:
         data_review['isBot'] = data_review['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
         data_review = data_review.loc[data_review['isBot'] == False].copy(deep=True)
         "HG数据行： number, review_user_login, pr_created_at, comment_at, filename"
-        data_review = data_review[['number', 'user_login_x', 'created_at_x', 'node_id', 'user_login_y', 'created_at_y']].copy(deep=True)
-        data_review.columns = ['pr_number', 'author_user_login', 'pr_created_at', 'comment_node_id', 'review_user_login', 'comment_at']
+        data_review = data_review[
+            ['number', 'user_login_x', 'created_at_x', 'node_id', 'user_login_y', 'created_at_y']].copy(deep=True)
+        data_review.columns = ['pr_number', 'author_user_login', 'pr_created_at', 'comment_node_id',
+                               'review_user_login', 'comment_at']
         data_review.drop_duplicates(inplace=True)
 
         data = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
@@ -3325,9 +3338,10 @@ class DataProcessUtils:
         data_issue['isBot'] = data_issue['user_login_y'].apply(lambda x: BotUserRecognizer.isBot(x))
         data_issue = data_issue.loc[data_issue['isBot'] == False].copy(deep=True)
         data_issue = data_issue[['number', 'node_id_x', 'user_login_y',
-                                'created_at_x', 'user_login_x', 'created_at_y']].copy(deep=True)
+                                 'created_at_x', 'user_login_x', 'created_at_y']].copy(deep=True)
 
-        data_issue.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_user_login', 'comment_at']
+        data_issue.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_user_login',
+                              'comment_at']
         data_issue.drop_duplicates(inplace=True)
 
         data_review = pandas.merge(pullRequestData, reviewData, left_on='number', right_on='pull_number')
@@ -3342,7 +3356,8 @@ class DataProcessUtils:
         data_review = data_review[['number', 'node_id_x', 'user_login_y',
                                    'created_at', 'user_login_x', 'submitted_at']].copy(deep=True)
 
-        data_review.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_user_login', 'comment_at']
+        data_review.columns = ['pr_number', 'node_id_x', 'review_user_login', 'pr_created_at', 'pr_user_login',
+                               'comment_at']
         data_review.drop_duplicates(inplace=True)
 
         rawData = pandas.concat([data_issue, data_review], axis=0)  # 0 轴合并
@@ -3610,6 +3625,72 @@ class DataProcessUtils:
         plt.show()
 
     @staticmethod
+    def changeTriggerAnalyzer_v3(repo):
+        """对change trigger 数据做统计"""
+        change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_pr_change_trigger.tsv'
+        change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
+
+        # timeline_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_prtimeline.tsv'
+        # timeline_df = pandasHelper.readTSVFile(fileName=timeline_filename, header=0)
+        # timeline_df = timeline_df.loc[(timeline_df['typename'] == 'IssueComment')\
+        #                               |(timeline_df['typename'] == 'PullRequestReview')].copy(deep=True)
+        # timeline_useful_prs = list(set(timeline_df['pullrequest_node']))
+
+        prs = list(set(change_trigger_df['pullrequest_node']))
+        print("prs nums:", prs.__len__())
+
+        """"依照 review with no comment 和  review comment 划分"""
+        df_review_with_no_comment = change_trigger_df.loc[
+            change_trigger_df['comment_type'] == 'label_review_with_on_comment']
+        print("review with no comment all:", df_review_with_no_comment.shape[0])
+        review_with_no_comment_is_change_count = \
+        df_review_with_no_comment.loc[df_review_with_no_comment['change_trigger'] == 1].shape[0]
+        review_with_no_comment_not_change_count = \
+        df_review_with_no_comment[df_review_with_no_comment['change_trigger'] == -1].shape[0]
+        print("review_with_no_comment_is_change_count is count:",
+              review_with_no_comment_is_change_count,
+              " not count:", review_with_no_comment_not_change_count)
+        plt.subplot(121)
+        x = ['useful', 'useless']
+        plt.bar(x=x, height=[review_with_no_comment_is_change_count, review_with_no_comment_not_change_count])
+        plt.title(f'review with no comment({repo})')
+        for a, b in zip(x, [review_with_no_comment_is_change_count, review_with_no_comment_not_change_count]):
+            plt.text(a, b, '%.0f' % b, ha='center', va='bottom', fontsize=11)
+        # plt.show()
+
+        df_review = change_trigger_df.loc[change_trigger_df['comment_type'] == 'label_review_comment']
+        print("review_with_no_comment all:", df_review.shape[0])
+        x = []
+        y = []
+        """x 追加特殊事件"""
+        specialEventMap = {StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_AUTHOR: "author",
+                           StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_OUT_PR: "out_pr",
+                           StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_BETWEEN_REOPEN: "in_reopen",
+                           StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_FILE_MOVE: "file_move",
+                           StringKeyUtils.STR_CHANGE_TRIGGER_REVIEW_COMMENT_ERROR: "error"}
+
+        for k, v in specialEventMap.items():
+            x.append(v)
+            y.append(df_review.loc[df_review['change_trigger'] == k].shape[0])
+        x.reverse()
+        y.reverse()
+        x.extend([str(xx) for xx in range(-1, 11)])
+
+        normal_range = range(-1, 11)
+        for i in normal_range:
+            y.append(df_review.loc[df_review['change_trigger'] == i].shape[0])
+        plt.subplot(122)
+        fake_x = range(0, y.__len__())
+        plt.bar(x=fake_x, height=y)
+        plt.xticks(fake_x, x, rotation=45)
+        plt.title(f'review comment({repo})')
+        for a, b in zip(fake_x, y):
+            plt.text(a, b, '%.0f' % b, ha='center', va='bottom', fontsize=11)
+
+        print("review comment useful:", df_review.loc[df_review['change_trigger'] >= 0].shape[0])
+        plt.show()
+
+    @staticmethod
     def changeTriggerResponseTimeAnalyzer(repo):
         """对change trigger pair数据做统计  并可以根据pair的回应时间做统计"""
         change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_pr_change_trigger.tsv'
@@ -3798,7 +3879,8 @@ class DataProcessUtils:
             authorList = [tempDict[x] for x in authorList]
         if filter_answer_list is not None:
             filter_answer_list = [[tempDict[i] for i in x] for x in filter_answer_list]
-        col = ['pr', 'r1', 'r2', 'r3', 'r4', 'r5', 'a1', 'a2', 'a3', 'a4', 'a5', 'author', 'type', 'fa1', 'fa2', 'fa3', 'fa4', 'fa5']
+        col = ['pr', 'r1', 'r2', 'r3', 'r4', 'r5', 'a1', 'a2', 'a3', 'a4', 'a5', 'author', 'type', 'fa1', 'fa2', 'fa3',
+               'fa4', 'fa5']
         data = DataFrame(columns=col)
         for index, pr in enumerate(prList):
             d = {'pr': pr}
@@ -3820,7 +3902,7 @@ class DataProcessUtils:
 
     @staticmethod
     def combineBestResult(prList, answerList, recommendLists, recommendNum=5):
-        formatRecommendLists = [[]*(prList.__len__() - 1)]
+        formatRecommendLists = [[] * (prList.__len__() - 1)]
         for algoRes in recommendLists:
             for idx in range(0, algoRes.__len__()):
                 if idx == formatRecommendLists.__len__():
@@ -3835,7 +3917,7 @@ class DataProcessUtils:
             bestRecommendCase = []
             for top_idx in range(0, recommendNum):
                 # 取出每个算法的top_idx答案并合并
-                top_all_answer = list(map(lambda x : x[top_idx], recommendCases))
+                top_all_answer = list(map(lambda x: x[top_idx], recommendCases))
                 find_best = False
                 for rev in top_all_answer:
                     if rev in answerCase and rev not in bestRecommendCase:
@@ -3844,8 +3926,8 @@ class DataProcessUtils:
                         break
                 # 如果都不正确，随便放一个结果
                 if find_best:
-                        continue
-                bestRecommendCase.append('case-'+str(top_idx+1))
+                    continue
+                bestRecommendCase.append('case-' + str(top_idx + 1))
             bestRecommendList.append(bestRecommendCase)
         return bestRecommendList
 
@@ -4069,7 +4151,7 @@ class DataProcessUtils:
         pullRequestData['label_y'] = pullRequestData['label'].apply(lambda x: x.tm_year)
         pullRequestData['label_m'] = pullRequestData['label'].apply(lambda x: x.tm_mon)
 
-        pullRequestData['data_value'] = pullRequestData.apply(lambda x:x['label_y'] * 12 + x['label_m'], axis=1)
+        pullRequestData['data_value'] = pullRequestData.apply(lambda x: x['label_y'] * 12 + x['label_m'], axis=1)
 
         def isInTimeGap(x):
             d = x['label_y'] * 12 + x['label_m']
@@ -4132,7 +4214,6 @@ class DataProcessUtils:
 
                         score_FPS /= files1.__len__() * files2.__len__()
 
-
                         list_p1.append(p1)
                         list_p2.append(p2)
                         list_dis_FPS.append(score_FPS)
@@ -4143,7 +4224,6 @@ class DataProcessUtils:
         targetPath = projectConfig.getPullRequestDistancePath()
         pandasHelper.writeTSVFile(os.path.join(targetPath, f"pr_distance_{projectName}_FPS.tsv"),
                                   df_FPS, pandasHelper.STR_WRITE_STYLE_WRITE_TRUNC)
-
 
     @staticmethod
     def fillAlgorithmResultExcelHelper(filter_train=False, filter_test=False, error_analysis=True):
@@ -4348,9 +4428,10 @@ class DataProcessUtils:
                 if rev_recommend_total_cnt_dict.get(user, 0) == 0:
                     rev_rec_ratio = 0
                 else:
-                    rev_rec_ratio = rev_recommend_useful_cnt_dict.get(user, 0)*100/rev_recommend_total_cnt_dict[user]
+                    rev_rec_ratio = rev_recommend_useful_cnt_dict.get(user, 0) * 100 / rev_recommend_total_cnt_dict[
+                        user]
                 content = [user,
-                           rev_useful_cnt_dict.get(user, 0)*100/rev_total_cnt_dict[user],
+                           rev_useful_cnt_dict.get(user, 0) * 100 / rev_total_cnt_dict[user],
                            rev_rec_ratio,
                            rev_useful_cnt_dict.get(user, 0),
                            rev_total_cnt_dict[user],
@@ -4435,7 +4516,7 @@ class DataProcessUtils:
 
         """绘制频次的柱状图"""
         for i in range(0, 5):
-            plt.subplot(3, 5, i+1)
+            plt.subplot(3, 5, i + 1)
             labels = ['PT', 'NT', 'PF', 'NF']
             x = [DataProcessUtils.getAvgScore(recommend_positive_success_time_ratio)[i],
                  DataProcessUtils.getAvgScore(recommend_negative_success_time_ratio)[i],
@@ -4443,7 +4524,7 @@ class DataProcessUtils:
                  DataProcessUtils.getAvgScore(recommend_negative_fail_time_ratio)[i]]
             # 显示百分比
             plt.pie(x, labels=labels, autopct='%3.2f%%')
-            plt.title(f"k={i+1} (time)")
+            plt.title(f"k={i + 1} (time)")
             # 设置x,y的刻度一样，使其饼图为正圆
             plt.axis('equal')
 
@@ -4453,8 +4534,8 @@ class DataProcessUtils:
             x = range(1, 6)
             y = []
             for m in x:
-                y.append(DataProcessUtils.getAvgScore(error_analysis_data[2*i])[m-1] * 100)
-            plt.subplot(3, 2, i+3)
+                y.append(DataProcessUtils.getAvgScore(error_analysis_data[2 * i])[m - 1] * 100)
+            plt.subplot(3, 2, i + 3)
             plt.bar(x=x, height=y)
             plt.title(f"{labels[i]} (pr)")
             for a, b in zip(x, y):
@@ -4472,7 +4553,7 @@ class DataProcessUtils:
 
         """绘制频次的柱状图"""
         for i in range(0, 5):
-            plt.subplot(2, 3, i+1)
+            plt.subplot(2, 3, i + 1)
             labels = ['PT', 'NT', 'PF', 'NF']
             x = [DataProcessUtils.getAvgScore(recommend_positive_success_pr_ratio)[i],
                  DataProcessUtils.getAvgScore(recommend_negative_success_pr_ratio)[i],
@@ -4480,7 +4561,7 @@ class DataProcessUtils:
                  DataProcessUtils.getAvgScore(recommend_negative_fail_pr_ratio)[i]]
             # 显示百分比
             plt.pie(x, labels=labels, autopct='%3.2f%%')
-            plt.title(f"k={i+1} (pr)")
+            plt.title(f"k={i + 1} (pr)")
             # 设置x,y的刻度一样，使其饼图为正圆
             plt.axis('equal')
 
@@ -4612,7 +4693,8 @@ class DataProcessUtils:
             pullRequestData = pullRequestData[
                 ['repo_full_name', 'number', 'node_id', 'user_login', 'created_at', 'author_association',
                  'closed_at']].copy(deep=True)
-            pullRequestData.columns = ['repo_full_name', 'pull_number', 'pullrequest_node', 'pr_author', 'pr_created_at',
+            pullRequestData.columns = ['repo_full_name', 'pull_number', 'pullrequest_node', 'pr_author',
+                                       'pr_created_at',
                                        'pr_author_association', 'closed_at']
             pullRequestData.drop_duplicates(inplace=True)
             pullRequestData.reset_index(drop=True, inplace=True)
@@ -4621,7 +4703,8 @@ class DataProcessUtils:
             """过滤issue comment不需要的字段"""
             issueCommentData = issueCommentData[
                 ['pull_number', 'node_id', 'user_login', 'created_at', 'author_association']].copy(deep=True)
-            issueCommentData.columns = ['pull_number', 'comment_node', 'reviewer', 'commented_at', 'reviewer_association']
+            issueCommentData.columns = ['pull_number', 'comment_node', 'reviewer', 'commented_at',
+                                        'reviewer_association']
             issueCommentData.drop_duplicates(inplace=True)
             issueCommentData.reset_index(drop=True, inplace=True)
             issueCommentData['comment_type'] = StringKeyUtils.STR_LABEL_ISSUE_COMMENT
@@ -4668,11 +4751,12 @@ class DataProcessUtils:
 
             filter_issue_comment_cnt = list(set(issueCommentData['comment_node'])).__len__()
             filter_review_comment_cnt = list(set(reviewCommentData['comment_node'])).__len__()
-            filter_commenter_cnt = set(list(issueCommentData['reviewer']) + list(reviewCommentData['reviewer'])).__len__()
+            filter_commenter_cnt = set(
+                list(issueCommentData['reviewer']) + list(reviewCommentData['reviewer'])).__len__()
 
-            content = [projectName, pr_cnt, commenter_cnt, filter_commenter_cnt/commenter_cnt,
-                       issue_comment_cnt, filter_issue_comment_cnt/issue_comment_cnt,
-                       review_comment_cnt, filter_review_comment_cnt/review_comment_cnt, contributor_cnt]
+            content = [projectName, pr_cnt, commenter_cnt, filter_commenter_cnt / commenter_cnt,
+                       issue_comment_cnt, filter_issue_comment_cnt / issue_comment_cnt,
+                       review_comment_cnt, filter_review_comment_cnt / review_comment_cnt, contributor_cnt]
 
             ExcelHelper().appendExcelRow(excelName, sheetName, content, style=ExcelHelper.getNormalStyle())
 
@@ -4711,29 +4795,24 @@ class DataProcessUtils:
                 header=pandasHelper.INT_READ_FILE_WITH_HEAD)
             print("raw pr file:", timelineData.shape)
 
-            pullRequestData = pullRequestData.loc[pullRequestData['is_pr']==True].copy(deep=True)
+            pullRequestData = pullRequestData.loc[pullRequestData['is_pr'] == True].copy(deep=True)
 
             pullRequestData['label'] = pullRequestData['created_at'].apply(
                 lambda x: (time.strptime(x, "%Y-%m-%d %H:%M:%S")))
             pullRequestData['label_y'] = pullRequestData['label'].apply(lambda x: x.tm_year)
             pullRequestData['label_m'] = pullRequestData['label'].apply(lambda x: x.tm_mon)
 
-
-
             group = dict(list(timelineData.groupby('pullrequest_node')))
             for index, df in group.items():
                 if df.shape[0] > 5:
-                    count +=1
+                    count += 1
             print(count)
-
-
 
             for i in range(startYear, endYear + 1):
                 temp = pullRequestData.loc[pullRequestData['label_y'] == i]
                 all_map[i] += temp.shape[0]
                 temp_open = temp.loc[temp['state'] == 'open']
                 open_map[i] += temp_open.shape[0]
-
 
                 temp2 = temp.loc[temp['merged'] == 0]
                 reject_map[i] += temp2.shape[0]
@@ -4830,7 +4909,8 @@ class DataProcessUtils:
             change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{p}_data_pr_change_trigger.tsv'
             change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
 
-            change_trigger_df = pandas.merge(change_trigger_df, pullRequestData, left_on='pullrequest_node', right_on='node_id')
+            change_trigger_df = pandas.merge(change_trigger_df, pullRequestData, left_on='pullrequest_node',
+                                             right_on='node_id')
 
             df_review = change_trigger_df.loc[change_trigger_df['comment_type'] == 'label_review_comment']
             print("review all:", df_review.shape[0])
@@ -4880,12 +4960,15 @@ class DataProcessUtils:
         ax.set_title("Wilcoxon signed-rank test_top1_origin")
         plt.show()
 
+
 if __name__ == '__main__':
 
     # DataProcessUtils.fillAlgorithmResultExcelHelper(False, False, True)
     projects = ['opencv']
+    # for p in projects:
+    #     DataProcessUtils.caculatePrDistanceByIncrement(p, (2017, 1, 2020, 6), filter_change_trigger=False)
     for p in projects:
-        DataProcessUtils.caculatePrDistanceByIncrement(p, (2017, 1, 2020, 6), filter_change_trigger=False)
+        DataProcessUtils.changeTriggerAnalyzer_v3(p)
 
     # projects = ['opencv', 'cakephp', 'akka', 'xbmc', 'babel', 'symfony', 'brew',
     #             'django', 'netty', 'scikit-learn', 'next.js', 'angular', 'moby',
