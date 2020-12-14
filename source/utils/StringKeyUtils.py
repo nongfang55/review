@@ -114,6 +114,9 @@ class StringKeyUtils:
     STR_KEY_COMMIT_ID = 'commit_id'
     STR_KEY_SUBMITTED_AT_V4 = 'submittedAt'
 
+    '''reviewThread可能会用到'''
+    STR_KEY_REVIEW_THREAD_V4 = 'reviewThreads'
+
     '''review comment 可能会用到的数据'''
     STR_KEY_PULL_REQUEST_REVIEW_ID = 'pull_request_review_id'
     STR_KEY_DIFF_HUNK = 'diff_hunk'

@@ -357,10 +357,17 @@ class AsyncApiHelper:
                                 reviews = []
                                 reviewComments = []
                                 commits = []
+
+                                """新增考虑解析review和解析reviewThread的互斥性，对于新的pr来说，是两者都存在的。
+                                   所以如果解析到review对象的话，reviewThread对象就不解析了 @ 张逸凡 2020.12.14
+                                """
+                                isReviewExist = False  # 用于判断Review对象是否存在
                                 review_list = prData.get(StringKeyUtils.STR_KEY_REVIEWS, None)
                                 if review_list is not None and isinstance(review_list, dict):
                                     review_list_nodes = review_list.get(StringKeyUtils.STR_KEY_NODES, None)
                                     if review_list_nodes is not None and isinstance(review_list_nodes, list):
+                                        if review_list_nodes.__len__() > 0:
+                                            isReviewExist = True  # 说明是新的pr
                                         for reviewData in review_list_nodes:
                                             review = Review.parserV4.parser(reviewData)
                                             if review is not None:
@@ -394,60 +401,96 @@ class AsyncApiHelper:
                                                     if not isFind:
                                                         commits.append(commit)
 
-                                """对于2016年之前的数据  没有review数据项，而PullRequestReviewThread
-                                   可以获取对应 review、review comment和 commit
-                                """
-                                itemLineItem_list = prData.get(StringKeyUtils.STR_KEY_TIME_LINE_ITEMS, None)
-                                if itemLineItem_list is not None and isinstance(itemLineItem_list, dict):
-                                    itemLineItem_list_edges = itemLineItem_list.get(StringKeyUtils.STR_KEY_EDGES, None)
-                                    if itemLineItem_list_edges is not None and isinstance(itemLineItem_list_edges,
-                                                                                          list):
-                                        for itemLineItem_list_edge_node in itemLineItem_list_edges:
-                                            if itemLineItem_list_edge_node is not None and \
-                                                    isinstance(itemLineItem_list_edge_node, dict):
-                                                itemLineItem_list_edge_node = itemLineItem_list_edge_node. \
-                                                    get(StringKeyUtils.STR_KEY_NODE, None)
-                                                typename = itemLineItem_list_edge_node.get(
-                                                    StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
-                                                if typename == StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_THREAD:
-                                                    """ReviewThread 作为Review 存储到数据库中  但是只有node_id 信息"""
-                                                    review = Review()
-                                                    review.pull_number = pull_request
-                                                    review.repo_full_name = pull_request.repo_full_name
-                                                    review.node_id = itemLineItem_list_edge_node.get(
-                                                        StringKeyUtils.STR_KEY_ID, None)
-                                                    reviews.append(review)
-
-                                                    """解析 review 涉及的review comment"""
-                                                    comment_list = itemLineItem_list_edge_node.get(
-                                                        StringKeyUtils.STR_KEY_COMMENTS, None)
+                                if not isReviewExist:
+                                    """对于没有获取到review的pr，我们获取reviewThread"""
+                                    review_thread_list = prData.get(StringKeyUtils.STR_KEY_REVIEW_THREAD_V4, None)
+                                    if review_thread_list is not None and isinstance(review_thread_list, dict):
+                                        review_thread_list_nodes = review_thread_list.get(StringKeyUtils.STR_KEY_NODES, None)
+                                        if review_thread_list_nodes is not None and isinstance(review_thread_list_nodes, list):
+                                            for reviewThreadData in review_thread_list_nodes:
+                                                if reviewThreadData is not None and isinstance(reviewThreadData, dict):
+                                                    baseReviewThreadId = reviewThreadData.get(StringKeyUtils.STR_KEY_ID, None)
+                                                    comment_list = reviewThreadData.get(StringKeyUtils.STR_KEY_COMMENTS, None)
                                                     if comment_list is not None and isinstance(comment_list, dict):
-                                                        comment_list_nodes = comment_list.get(
-                                                            StringKeyUtils.STR_KEY_NODES
-                                                            , None)
-                                                        if comment_list_nodes is not None and isinstance(
-                                                                comment_list_nodes
-                                                                , list):
-                                                            for commentData in comment_list_nodes:
+                                                        comment_list_nodes = comment_list.get(StringKeyUtils.STR_KEY_NODES, None)
+                                                        if comment_list_nodes is not None and isinstance(comment_list_nodes, list):
+                                                            for index, commentData in enumerate(comment_list_nodes):
+                                                                commentData[StringKeyUtils.STR_KEY_REPO_FULL_NAME] = AsyncApiHelper.owner + "/" + AsyncApiHelper.repo
                                                                 comment = ReviewComment.parserV4.parser(commentData)
+                                                                """对于单独一个comment，造一个review与之配对
+                                                                   review的id 是自己做的，node_id 就用 reviewThread自己的id
+                                                                """
+                                                                review = Review()
+                                                                review.pull_number = pull_number
+                                                                review.repo_full_name = pull_request.repo_full_name
+                                                                review.node_id = baseReviewThreadId
+                                                                review.user_login = comment.user_login
+                                                                review.submitted_at = comment.created_at
+                                                                review.author_association = comment.author_association
+                                                                review.commit_id = comment.original_commit_id
+                                                                """review的 id 作为 node_id +  / + 序号"""
+                                                                review.id = baseReviewThreadId + '/' + str(index)
+                                                                reviews.append(review)
+
                                                                 comment.pull_request_review_id = review.id
                                                                 comment.pull_request_review_node_id = review.node_id
                                                                 reviewComments.append(comment)
 
-                                                                """"从commentData 解析 original commit"""
-                                                                commitData = commentData.get(
-                                                                    StringKeyUtils.STR_KEY_ORIGINAL_COMMIT, None)
-                                                                if commitData is not None and isinstance(commitData,
-                                                                                                         dict):
-                                                                    commit = Commit.parserV4.parser(commitData)
-                                                                    commit.has_file_fetched = False
-                                                                    isFind = False
-                                                                    for c in commits:
-                                                                        if c.sha == commit.sha:
-                                                                            isFind = True
-                                                                            break
-                                                                    if not isFind:
-                                                                        commits.append(commit)
+                                """prTimeLine信息不在这个接口获取，直接注掉  2020.12.14"""
+                                # """对于2016年之前的数据  没有review数据项，而PullRequestReviewThread
+                                #    可以获取对应 review、review comment和 commit
+                                # """
+                                # itemLineItem_list = prData.get(StringKeyUtils.STR_KEY_TIME_LINE_ITEMS, None)
+                                # if itemLineItem_list is not None and isinstance(itemLineItem_list, dict):
+                                #     itemLineItem_list_edges = itemLineItem_list.get(StringKeyUtils.STR_KEY_EDGES, None)
+                                #     if itemLineItem_list_edges is not None and isinstance(itemLineItem_list_edges,
+                                #                                                           list):
+                                #         for itemLineItem_list_edge_node in itemLineItem_list_edges:
+                                #             if itemLineItem_list_edge_node is not None and \
+                                #                     isinstance(itemLineItem_list_edge_node, dict):
+                                #                 itemLineItem_list_edge_node = itemLineItem_list_edge_node. \
+                                #                     get(StringKeyUtils.STR_KEY_NODE, None)
+                                #                 typename = itemLineItem_list_edge_node.get(
+                                #                     StringKeyUtils.STR_KEY_TYPE_NAME_JSON, None)
+                                #                 if typename == StringKeyUtils.STR_KEY_PULL_REQUEST_REVIEW_THREAD:
+                                #                     """ReviewThread 作为Review 存储到数据库中  但是只有node_id 信息"""
+                                #                     review = Review()
+                                #                     review.pull_number = pull_request
+                                #                     review.repo_full_name = pull_request.repo_full_name
+                                #                     review.node_id = itemLineItem_list_edge_node.get(
+                                #                         StringKeyUtils.STR_KEY_ID, None)
+                                #                     reviews.append(review)
+                                #
+                                #                     """解析 review 涉及的review comment"""
+                                #                     comment_list = itemLineItem_list_edge_node.get(
+                                #                         StringKeyUtils.STR_KEY_COMMENTS, None)
+                                #                     if comment_list is not None and isinstance(comment_list, dict):
+                                #                         comment_list_nodes = comment_list.get(
+                                #                             StringKeyUtils.STR_KEY_NODES
+                                #                             , None)
+                                #                         if comment_list_nodes is not None and isinstance(
+                                #                                 comment_list_nodes
+                                #                                 , list):
+                                #                             for commentData in comment_list_nodes:
+                                #                                 comment = ReviewComment.parserV4.parser(commentData)
+                                #                                 comment.pull_request_review_id = review.id
+                                #                                 comment.pull_request_review_node_id = review.node_id
+                                #                                 reviewComments.append(comment)
+                                #
+                                #                                 """"从commentData 解析 original commit"""
+                                #                                 commitData = commentData.get(
+                                #                                     StringKeyUtils.STR_KEY_ORIGINAL_COMMIT, None)
+                                #                                 if commitData is not None and isinstance(commitData,
+                                #                                                                          dict):
+                                #                                     commit = Commit.parserV4.parser(commitData)
+                                #                                     commit.has_file_fetched = False
+                                #                                     isFind = False
+                                #                                     for c in commits:
+                                #                                         if c.sha == commit.sha:
+                                #                                             isFind = True
+                                #                                             break
+                                #                                     if not isFind:
+                                #                                         commits.append(commit)
 
                                 if configPraser.getPrintMode():
                                     print(reviews)

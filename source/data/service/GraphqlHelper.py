@@ -258,6 +258,52 @@ class GraphqlHelper:
             }
 			
 			
+             # reviewThreads 
+             reviewThreads(first:50) {
+                 nodes {
+                     diffSide
+                     id
+                     line
+                     originalLine
+                     originalStartLine
+                     path
+                     startLine
+                     startDiffSide
+					
+					# review comment ÄÚÇ¶
+                    comments(first:50) {
+                        nodes {
+                          # 21Ïî ÉÙpull_request_review_id,
+                          # startline,orignal_start_line,start_side,line,origin_line
+                          # side
+                          databaseId
+                          author {
+                             login
+                          }
+                          body
+                          diffHunk
+                          path
+                          commit {
+                          oid
+                          }
+                          position
+                          originalPosition
+                          originalCommit{
+                             oid
+                          }
+                          createdAt
+                          updatedAt
+                          authorAssociation
+                          replyTo {
+                             databaseId
+                          }
+                          id
+                        }
+                    }
+                 }
+             }
+			
+			
             # review
             reviews(first:50) {
               nodes{
