@@ -152,6 +152,7 @@ class AsyncProjectAllDataFetcher:
         changeTriggerComments = []
         ReviewChangeRelations = []
         pairs = PRTimeLineUtils.splitTimeLine(prTimeLineItems)
+        # pairs = PRTimeLineUtils.splitTimeLineTest(prTimeLineItems)
         for pair in pairs:
             changes = pair[0]
             reviews = pair[1]

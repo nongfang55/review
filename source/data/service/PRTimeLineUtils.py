@@ -95,6 +95,72 @@ class PRTimeLineUtils:
         return reviewPair
 
     @staticmethod
+    def splitTimeLineTest(prTimeLineItems):
+        """只留下最后一个commit和所有的review comment"""
+        tempPrTimeLineItems = prTimeLineItems.copy()
+        prTimeLineItemsLists = []  # 可能会分割成若干次单独的pr流程
+        reviewPair = []  # review -> [{(changeNode, changeNode)): reviewNodes}, {}, ...]
+
+        pair_review_node_list = []
+        pair_change_node_list = []
+
+        prTimeLineItems = []
+        isInClosedGap = False  # 用于判断是否在Closed和Reopend的间隙，如果是，则为True
+        for item in tempPrTimeLineItems:
+            if isInClosedGap:
+                if item.typename == PRTimeLineUtils.getClosedType():  # 结束gap状态
+                    isInClosedGap = False
+                    if pair_change_node_list.__len__() > 0 or pair_review_node_list.__len__() > 0:
+                        reviewPair.append((pair_change_node_list, pair_review_node_list))
+                    pair_change_node_list = []
+                    pair_review_node_list = []
+                    """放入itemList中，不过滤"""
+                    prTimeLineItems.append(item)
+                else:
+                    """gap 状态应该只有谈话，即没有change, 无脑放入review即可"""
+                    """fix bug 这里需要过滤change的type
+                       具体例子 https://github.com/opencv/opencv/pull/12623
+                    """
+                    if item.typename in PRTimeLineUtils.getReviewType():
+                        pair_review_node_list.append(item)
+                        """过滤"""
+            else:
+                if item.typename == PRTimeLineUtils.getReopenedType():  # 进入gap状态
+                    isInClosedGap = True
+                    """先把之前的非gap的活动列为一个单独的pr"""
+                    if prTimeLineItems.__len__() > 0:
+                        prTimeLineItemsLists.append(prTimeLineItems)
+                    prTimeLineItems = []
+                    pair_change_node_list.append(item)
+                else:
+                    """正常状态"""
+                    prTimeLineItems.append(item)
+
+        """收尾工作"""
+        if prTimeLineItems.__len__() > 0:
+            prTimeLineItemsLists.append(prTimeLineItems)
+
+        """由于Reopend的分割，可能需要分成几个部分"""
+        for prTimeLineItems in prTimeLineItemsLists:
+            pair_review_node_list = []
+            pair_change_node_list = []
+            for item in prTimeLineItems:
+                if item.typename in PRTimeLineUtils.getReviewType():
+                    if pair_change_node_list.__len__() > 0:
+                        pair_review_node_list.append(item)
+                    continue
+                if item.typename == StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT or \
+                   item.typename == StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT:
+                    if pair_change_node_list.__len__() == 0:
+                        pair_change_node_list.append(item)
+
+            # 注：对于change_node_list为空的pair也保留，否则会漏掉无效评论
+            if pair_change_node_list.__len__() > 0 or pair_review_node_list.__len__() > 0:
+                reviewPair.append((pair_change_node_list, pair_review_node_list))
+
+        return reviewPair
+
+    @staticmethod
     def getChangeType():
         """注： reopened不加进去，因为不算是代码变更"""
         return [StringKeyUtils.STR_KEY_PULL_REQUEST_COMMIT, StringKeyUtils.STR_KEY_HEAD_REF_PUSHED_EVENT,

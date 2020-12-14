@@ -4961,6 +4961,35 @@ class DataProcessUtils:
         plt.show()
 
 
+    @staticmethod
+    def change_trigger_v3_test(repo):
+        """对change trigger 数据做统计"""
+        change_trigger_filename = projectConfig.getPRTimeLineDataPath() + os.sep + f'ALL_{repo}_data_pr_change_trigger.tsv'
+        change_trigger_df = pandasHelper.readTSVFile(fileName=change_trigger_filename, header=0)
+
+        prs = list(set(change_trigger_df['pullrequest_node']))
+        print("prs nums:", prs.__len__())
+
+        specialCase = 0
+        group = dict(list(change_trigger_df.groupby('pullrequest_node')))
+        for node, temp_df in group.items():
+            lastFileName = None
+            """检测多节评审的情况"""
+            hasValidComment = False
+            for index, row in temp_df.iterrows():
+                commentType = row['comment_type']
+                change_trigger = row['change_trigger']
+                if commentType == 'label_review_comment' and change_trigger >= 0:
+                    hasValidComment = True
+                    lastFileName = row['filepath']
+                    continue
+                if commentType == 'label_review_comment' and hasValidComment and change_trigger == -1:
+                    if row['filepath'] != lastFileName:
+                        specialCase += 1
+                        print(node)
+                        break
+        print("all:", prs.__len__(), "  special:", specialCase)
+
 if __name__ == '__main__':
 
     # DataProcessUtils.fillAlgorithmResultExcelHelper(False, False, True)
