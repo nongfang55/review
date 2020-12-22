@@ -2,6 +2,8 @@
 import sys
 import os
 
+import pandas
+
 sys.path.append("/root/zjq_rev")
 import time
 from datetime import datetime
@@ -154,8 +156,16 @@ class EARECTrain:
         """用于收集所有文本向量分词"""
         stopwords = SplitWordHelper().getEnglishStopList()  # 获取通用英语停用词
 
+        """问题:lsi的过程不能在整个数据集上面做，不然会导致pr的文本重复问题"""
+        df_pr = df.copy(deep=True)
+        df_pr.drop_duplicates(subset=['pull_number'], keep='first', inplace=True)
+        df_pr.reset_index(drop=True, inplace=True)
+
+        # 用于记录pr中文字的数量，对于pr少于10个word的pr.直接去掉
+        df_pr_word_count = []
+
         textList = []
-        for row in df.itertuples(index=False, name='Pandas'):
+        for row in df_pr.itertuples(index=False, name='Pandas'):
             tempList = []
             """获取pull request的标题"""
             pr_title = getattr(row, 'pr_title')
@@ -173,15 +183,39 @@ class EARECTrain:
             """对单词做提取词干"""
             pr_body_word_list = nltkFunction.stemList(pr_body_word_list)
             tempList.extend(pr_body_word_list)
-            textList.append(tempList)
+            if tempList.__len__() >= 10 or getattr(row, 'label'):
+                textList.append(tempList)
+            if getattr(row, 'label'):
+                df_pr_word_count.append(10)  # 以便过后面的过滤
+            else:
+                df_pr_word_count.append(tempList.__len__())
+
+        """去除无用的训练pr"""
+        df_pr['count'] = df_pr_word_count
+        df_pr = df_pr.loc[df_pr['count'] >= 10].copy(deep=True)
+        df_pr.reset_index(drop=True, inplace=True)
+        df_pr.drop(['count'], inplace=True, axis=1)
+
+        """保存只有pr的列表"""
+        prList = list(df_pr['pull_number'])
+
+        """对已经有的本文特征向量和标签做训练集和测试集的拆分"""
+        trainData_index = df_pr.loc[df_pr['label'] == False].index
+        testData_index = df_pr.loc[df_pr['label'] == True].index
+
+        trainDataTextList = [textList[x] for x in trainData_index]
+        testDataTextList = [textList[x] for x in testData_index]
 
         print(textList.__len__())
         """对分词列表建立字典 并提取特征数"""
-        dictionary = corpora.Dictionary(textList)
+        dictionary = corpora.Dictionary(trainDataTextList)
         print('词典：', dictionary)
 
+        """感觉有问题，tfidf模型不应该是在全数据集上面计算，而是在训练集上面计算，而测试集的向量就是
+        单纯的带入模型的计算结果"""
+
         """根据词典建立语料库"""
-        corpus = [dictionary.doc2bow(text) for text in textList]
+        corpus = [dictionary.doc2bow(text) for text in trainDataTextList]
         # print('语料库:', corpus)
         """语料库训练TF-IDF模型"""
         tfidf = models.TfidfModel(corpus)
@@ -189,19 +223,17 @@ class EARECTrain:
 
         topic_num = 10
         lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=topic_num)
-        topic_list = lsi.print_topics(20)
+        topic_list = lsi.print_topics()
         print("{0}个主题的单词分布为：\n".format(topic_num))
         for topic in topic_list:
             print(topic)
 
         """再次遍历数据，形成向量，向量是稀疏矩阵的形式"""
         wordVectors = []
-        for i in range(0, df.shape[0]):
-            wordVectors.append(dict(lsi[dictionary.doc2bow(textList[i])]))
-
-        """对已经有的本文特征向量和标签做训练集和测试集的拆分"""
-        trainData_index = df.loc[df['label'] == False].index
-        testData_index = df.loc[df['label'] == True].index
+        for i in range(0, trainDataTextList.__len__()):
+            wordVectors.append(dict(lsi[dictionary.doc2bow(trainDataTextList[i])]))
+        for i in range(0, testDataTextList.__len__()):
+            wordVectors.append(dict(lsi[dictionary.doc2bow(testDataTextList[i])]))
 
         """训练集"""
         train_data = [wordVectors[x] for x in trainData_index]
@@ -211,15 +243,19 @@ class EARECTrain:
         train_v_data = DataProcessUtils.convertFeatureDictToDataFrame(train_data, featureNum=topic_num)
         test_v_data = DataProcessUtils.convertFeatureDictToDataFrame(test_data, featureNum=topic_num)
 
+        lsi_data = pandas.concat([train_v_data, test_v_data], axis=0)  # 0 轴合并
+        lsi_data['pull_number'] = prList
+        lsi_data.reset_index(inplace=True, drop=True)
+
         train_data = df.loc[df['label'] == False]
         train_data.reset_index(drop=True, inplace=True)
         test_data = df.loc[df['label'] == True]
         test_data.reset_index(drop=True, inplace=True)
 
-        train_data = train_data.join(train_v_data)
+        train_data = train_data.merge(lsi_data, on="pull_number")
         train_data.drop(columns=['label'], inplace=True)
 
-        test_data = test_data.join(test_v_data)
+        test_data = test_data.merge(lsi_data, on="pull_number")
         test_data.drop(columns=['label'], inplace=True)
 
         """8ii处理NAN"""
@@ -376,9 +412,9 @@ class EARECTrain:
 
 
 if __name__ == '__main__':
-    dates = [(2017, 1, 2018, 6)]
-    projects = ['opencv']
+    dates = [(2017, 1, 2018, 1)]
+    projects = ['scikit-learn']
     for p in projects:
         projectName = p
         """论文里λ用0.1-0.9测试的，每个项目选了最好的topk作为结果，没有统一λ，这里折中取了0.5"""
-        EARECTrain.testEARECAlgorithm(projectName, dates, filter_train=True, filter_test=True, a=0.9)
+        EARECTrain.testEARECAlgorithm(projectName, dates, filter_train=False, filter_test=False, a=0.5)

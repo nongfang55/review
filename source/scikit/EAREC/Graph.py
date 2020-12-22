@@ -155,6 +155,14 @@ class Graph:
             nodes = edge.connectedTo
             W[nodes[0]][nodes[1]] = edge.weight
             W[nodes[1]][nodes[0]] = edge.weight
+        # 公式修正，最后一行为全0，符合论文中的定义
+        for i in range(0, W.shape[1]):
+            W[W.shape[0] - 1][i] = 0
         # 列归一化
-        W /= W.sum(axis=0).reshape(1, N)  # 对第2维度相加
+        W_col_sum = W.sum(axis=0).reshape(1, N)  # 对第2维度相加
+        # 警告补正，对于列和为0的地方，补为1，对于矩阵归一化是没有影响的，但是可以保证没有计算问题
+        for i in range(0, W.shape[1]):
+            if W_col_sum[0][i] == 0:
+                W_col_sum[0][i] = 1
+        W /= W_col_sum  # 对第2维度相加
         self.W = W
